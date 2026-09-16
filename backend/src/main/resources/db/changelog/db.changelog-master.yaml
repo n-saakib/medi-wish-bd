@@ -1,0 +1,7 @@
+databaseChangeLog:
+  - changeSet:
+      id: 001-foundation
+      author: medi-wish
+      changes:
+        - tagDatabase:
+            tag: application-baseline

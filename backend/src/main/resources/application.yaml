@@ -1,0 +1,73 @@
+spring:
+  application:
+    name: medi-wish
+  main:
+    banner-mode: off
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME}?connectTimeout=2&socketTimeout=3
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 4
+      minimum-idle: 0
+      connection-timeout: 1000
+      validation-timeout: 1000
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
+management:
+  endpoints:
+    access:
+      default: none
+    web:
+      exposure:
+        include: health
+      discovery:
+        enabled: false
+  endpoint:
+    health:
+      access: read-only
+      show-details: never
+      show-components: never
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState,db
+
+server:
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
+    include-exception: false
+  max-http-request-header-size: 16KB
+
+logging:
+  structured:
+    format:
+      console: ecs
+  level:
+    # Connection errors can contain server-supplied values; health exposes only status.
+    org.springframework.boot.jdbc.health: OFF
+    com.zaxxer.hikari: OFF
+    org.hibernate: ERROR
+    liquibase: ERROR
+
+# These libraries are enabled only in the compatibility startup test profile.
+springdoc:
+  api-docs:
+    enabled: false
+jobrunr:
+  background-job-server:
+    enabled: false
+  dashboard:
+    enabled: false
+  miscellaneous:
+    allow-anonymous-data-usage: false

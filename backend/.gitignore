@@ -1,0 +1,25 @@
+# Maven and Java build output
+/target/
+/.mvn/timing.properties
+
+# Local runtime files
+/.env
+/.env.*
+!/.env.example
+/*.log
+/*.hprof
+/*.pid
+/logs/
+
+# IDE metadata
+/.idea/
+/*.iml
+/*.ipr
+/*.iws
+/.classpath
+/.project
+/.settings/
+
+# Local-only agent material
+/agent-docs/
+/local-docs/

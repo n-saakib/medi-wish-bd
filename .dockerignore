@@ -1,0 +1,14 @@
+.git
+.tools
+.scratch
+agent-docs
+.puku-cli
+**/node_modules
+**/.next
+**/.env
+**/.env.*
+**/*.log
+**/test-results
+**/playwright-report
+**/*.pem
+**/*.key

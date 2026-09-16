@@ -1,0 +1,14 @@
+# Project-local runtime distributions, caches and verification output
+/.tools/
+**/.env
+
+.puku-cli
+.agents
+.scratch
+.tools
+agent-docs
+scripts
+PUKU.md
+AGENTS.md
+
+**/README.md

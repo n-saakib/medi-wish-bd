@@ -1,0 +1,29 @@
+## Dependencies and build output
+/node_modules/
+/.next/
+/out/
+/coverage/
+/*.tsbuildinfo
+/storybook-static/
+
+# Test artifacts
+/test-results/
+/playwright-report/
+
+# Local runtime settings and logs
+/.env*
+!/.env.example
+/*.log
+
+# Deployment metadata
+/.vercel/
+/npm-debug.log*
+
+# IDE metadata
+/.idea/
+/*.iml
+
+# Local-only and agent-maintained documentation
+/agent-docs/
+/local-docs/
+.env*
