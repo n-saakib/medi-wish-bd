@@ -1,101 +1,34 @@
 # Repository guide for agents
 
-Medi Wish is an online medical store. Work in small, testable stories using the existing specification and accepted decisions. These instructions apply throughout the repository; a more specific `backend/AGENTS.md` or `frontend/AGENTS.md` adds rules for that area, and explicit user instructions take precedence.
+Medi Wish is an online medical store. Work in small, testable stories and follow the specification and accepted decisions. User instructions take precedence over this guide.
 
-## Working rules
+## Scope and references
 
-- **Check out a descriptive feature branch before changing files. Never implement on `main`.** Continue an existing task branch when appropriate. Describe the change in the branch name; ticket numbers are optional.
-- **Always use sub-agents.** Give each a bounded implementation, research, or review task while the lead does useful independent work. Assign non-overlapping file ownership and integrate their results before verification. If delegation is unavailable, report that limitation honestly.
-- **Keep code minimal.** Implement only the accepted behavior. Add abstractions, interfaces, layers, dependencies and helper scripts when they solve a current need. Avoid speculative infrastructure and generic frameworks.
-- **Keep documentation synchronized.** Whenever code, configuration, tests, resources or build files change under `backend/` or `frontend/`, update the matching page under that area's `docs/` in the same change. Add a page for a new file, remove one for a deleted file, update the area's index, and keep method/function explanations current. Generated output and caches remain excluded as stated by the area index.
-- Preserve the user's changes. Inspect the working tree before editing or staging; stage explicit task-related paths. Never discard unrelated work or silently change ignore policies.
-- Use plain descriptive commit messages, for example `Add customer registration with mobile verification`. Do not add prefixes such as `feat:` or `fix:`. Commit when authorized; push, merge and deployment require their own authorization.
-- Ask only for missing decisions that materially block the task. Follow previously accepted decisions, and continue independent work while waiting for an answer.
+This guide applies to the whole repository. For work under `backend/`, read [`backend/AGENTS.md`](backend/AGENTS.md); for work under `frontend/`, read [`frontend/AGENTS.md`](frontend/AGENTS.md). A scoped guide adds detail; it does not remove these repository rules. Native Windows is the primary workflow; optional container files live under `docker/`.
 
-## Start here
+Read only the references relevant to the task:
 
-1. Inspect `git status --short --branch` and the latest commit. Confirm the task's scope and branch before making changes. If access is blocked, report the limitation and use the environment's approval mechanism; do not change global Git trust settings to bypass it.
-2. When resuming work, read the latest applicable file in [agent-docs/Handoff](agent-docs/Handoff/). Verify its claims against the current checkout; handoffs are dated snapshots.
-3. For a story, locate its actual folder under [.scratch/launch-reconciliation/ticket-drafts](.scratch/launch-reconciliation/ticket-drafts/), then read the story, its `sub-tickets/`, declared dependencies and required references. Folder names currently follow `NN - Story title`.
-4. For acceptance and testing, read [the spec](.scratch/launch-reconciliation/spec.md), [testing standard](.scratch/launch-reconciliation/ticket-drafts/TESTING.md) and [completion workflow](.scratch/launch-reconciliation/ticket-drafts/WORKFLOW.md). For domain terminology or design changes, consult [CONTEXT.md](agent-docs/plans/plan2/CONTEXT.md), the relevant [ADR](agent-docs/plans/plan2/docs/adr/) and [accepted decisions](agent-docs/plans/plan3/DECISIONS.md).
+- Story and subtasks: `.scratch/launch-reconciliation/ticket-drafts/`
+- Product specification: `.scratch/launch-reconciliation/spec.md`
+- Testing and completion: `TESTING.md` and `WORKFLOW.md` in that ticket-drafts directory
+- Domain decisions: `agent-docs/plans/plan2/CONTEXT.md`, its ADRs, and `agent-docs/plans/plan3/DECISIONS.md`
+- Latest continuation state: `agent-docs/Handoff/`
 
-Resolve only gaps and conflicts in earlier plans; do not reopen what both plans and the user already confirmed. Current user decisions override historical drafts. Older indexes and links can lag behind folder renames: locate the actual file before deciding it is missing. Keep unrelated document migrations outside the feature scope.
+Planning and handoff material may be ignored locally. Locate the actual file before treating an old index or link as authoritative. If required acceptance context is missing, request it; do not invent product policy or force-add ignored planning files.
 
-The planning, handoff and component runbook directories are intentionally ignored by Git. They may be absent in a fresh clone. If required acceptance information is missing, request that specific context; do not invent product policy or force-add ignored material.
+## Start and design
 
-## Code and configuration
+1. Inspect `git status --short --branch` and `git log -1 --oneline`. Continue the current ticket branch or create one descriptive ticket branch before editing; never edit `main` or create extra branches for subtasks. If Git access is blocked, use the approved environment mechanism; do not change global Git trust settings.
+2. Preserve unrelated changes and stage explicit paths. Delegate bounded, non-overlapping work to sub-agents, then integrate and review their results before verification.
+3. Implement only accepted behavior. Keep code minimal, package feature code by feature, add layers or abstractions only when the feature needs them, and avoid speculative dependencies or scripts.
+4. Source and build files are authoritative. Whenever backend or frontend code, configuration, tests, resources, scripts or build files change, update the matching page under that area's `docs/` and its index.
+5. Keep public contracts stable: preserve bounded errors, request correlation, authorization and externalized messages. Keep credentials, OTPs, personal data, searches, orders and diagnostics out of logs and ordinary responses.
+6. Ask only for decisions that materially block the task; continue independent work while waiting.
 
-| Area | Location and convention |
-| --- | --- |
-| Backend | `backend/`; Spring Boot, Java 25, Maven Wrapper, PostgreSQL 18, JPA and Liquibase |
-| Frontend | `frontend/`; Next.js, React and TypeScript; use npm and the committed lockfile |
-| Backend configuration | `backend/src/main/resources/application.yaml`; credentials supplied externally |
-| Migrations | `backend/src/main/resources/db/changelog/`; append changesets, preserve applied history |
-| English messages | Backend `messages.properties`; frontend `messages/` through next-intl |
-| Optional containers | `docker/`; native Windows remains the development and test workflow |
+## Verification and completion
 
-Use **layered architecture packaged by feature**. A feature such as `catalog` or `orders` owns its controller, service, persistence and domain code as needed. Add subpackages only when the feature warrants them. Shared HTTP concerns belong in `bd.mediwish.web`; use specific names for shared responsibilities. Do not create empty feature layers or vague technical buckets such as `foundation`.
+Test observable behavior with focused unit tests and the applicable API, integration, regression, contract, sanity or browser checks. Use synthetic fixtures and controlled external adapters. Completing story N means stories 1 through N still work together; retain and run their cumulative checks.
 
-Dependency versions and executable scripts are authoritative in `backend/pom.xml`, `backend/.mvn/wrapper/maven-wrapper.properties`, `frontend/package.json` and `frontend/package-lock.json`. Follow those pins; upgrading dependencies is a scoped change requiring compatibility verification.
+Record actual commands, results, date and revision; distinguish environment blocks from test failures. Before closing a story, satisfy every acceptance criterion and write a concise resolution with **Delivered**, **Verified** and **Notes**.
 
-Before changing API behavior, retain the established bounded error envelope, request correlation and externalized English messages. Extend authorization explicitly for each new route. Health and errors must not expose internals. Keep credentials, OTPs, personal data, medicine searches and order contents out of logs and ordinary error responses.
-
-## Local execution
-
-Run natively on Windows with JDK 25, PostgreSQL 18 and Node.js 24. Set `JAVA_HOME` and ensure the pinned tools are available. Docker, WSL and Testcontainers are not prerequisites. Avoid introducing a custom environment-management script.
-
-Use [backend/.env.example](backend/.env.example) for required backend connection keys. Development uses `medi_wish_dev`; integration tests use `medi_wish_test` with separate `TEST_DB_*` settings. Spring runtime configuration still reads process environment variables. The integration-test database harness resolves its settings from process environment first, JVM properties second, and the ignored `backend/.env` last, so the normal Maven lifecycle can run without a separate export step when that backend-local file is configured. It only parses literal `NAME=value` entries; it never evaluates shell syntax or prints values. Load the same file into the process when starting the application from the command line or IDE:
-
-```powershell
-Get-Content backend/.env | Where-Object { $_ -match '^[A-Z][A-Z0-9_]*=' } | ForEach-Object {
-    $name, $value = $_ -split '=', 2
-    [Environment]::SetEnvironmentVariable($name, $value, 'Process')
-}
-```
-
-For this format, values are unquoted literal text. Never evaluate `.env` as code or put credentials in command arguments, commits, test reports or chat.
-
-From the repository root, start the backend:
-
-```powershell
-.\backend\mvnw.cmd -f backend/pom.xml spring-boot:run
-```
-
-In another terminal, from `frontend/`, run `npm ci` when installing dependencies and `npm run dev` to start Next.js. The standard local ports are backend 8080 and frontend 3000. For further setup details, consult the local backend/frontend runbooks when present.
-
-## Verification and database safety
-
-Test observable behavior through the backend API and real PostgreSQL. Use controlled payment/SMS/email adapters at external boundaries. Add focused unit tests for nontrivial rules and browser checks for delivered customer/staff flows. Do not invent production abstractions or tests merely to satisfy a test count.
-
-From the repository root, with environment variables loaded:
-
-```powershell
-.\backend\mvnw.cmd -f backend/pom.xml test
-.\backend\mvnw.cmd -f backend/pom.xml verify
-```
-
-`*Test` classes run as units and `*IT` classes as integration tests. The additional `-Pcompatibility verify` command exercises the optional JobRunr/OpenAPI startup integrations; run it when changing those dependencies or startup wiring. That Maven profile also changes packaged dependencies, so use the default profile for the normal application artifact.
-
-From `frontend/`:
-
-```powershell
-npm run verify
-# With the actual backend running:
-$env:MEDI_WISH_API_URL = 'http://127.0.0.1:8080'
-npm run test:integration
-npm run probe
-```
-
-- Keep all earlier delivered features working. In sequential development, completing story N means stories 01 through N work together. Run the final combined cumulative suites and affected cross-story journeys before closing a story, including after parallel edits are integrated.
-- Reuse the guarded PostgreSQL harness in `backend/src/test/java/bd/mediwish/health/`. Verify the connected database before mutation and clean up only the exact schema created by that test run. Never fall back to development credentials, drop a shared database, or stop the shared PostgreSQL service for a test.
-- Use synthetic fixtures. Apply real migrations and verify preservation across restart when persistence changes. Hibernate must not replace Liquibase as schema owner.
-- Record actual commands, results, date, and commit or source hashes. Maven reports under `backend/target/` are generated evidence, not source files. Distinguish test failures from environment blocks; never claim an unrun check passed.
-- Stop only processes you started, and release their resources before handing off. Windows can lock a running JAR; stop the owned process before rebuilding it.
-
-## Completion and handoff
-
-Before closing a story, satisfy its acceptance criteria, complete each sub-ticket, pass the applicable cumulative unit/integration/contract/regression/sanity checks, and review the combined change. Every completed story and sub-ticket needs a concise resolution: **Delivered**, **Verified**, and **Notes**, normally 3–5 bullets with links to detailed evidence. Mark blocked or failed work accurately rather than closing it.
-
-For a documentation-only or ignore-file change, validate the affected content, paths and rules; application test reruns are needed only if behavior or an unresolved concern warrants them. For every code or configuration change, the matching `backend/docs` or `frontend/docs` page and index must be part of the same reviewable change.
-
-When committing, inspect the staged diff and run `git diff --cached --check`. Keep secrets, generated output and ignored local artifacts out of commits. Report the commit identifiers and any remaining work for the user's review. When asked for a handoff, save it under `agent-docs/Handoff/`, reference existing artifacts, and record only the current continuation state.
+Before committing, review the combined staged diff and run `git diff --cached --check`. Use a plain descriptive commit subject and commit only when authorized. Push, merge and deploy require separate authorization. Stop only processes started for the task and release their resources.

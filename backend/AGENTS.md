@@ -1,63 +1,31 @@
 # Backend agent guide
 
-These instructions apply to work inside `backend/`. Read the repository-wide guide at [`../AGENTS.md`](../AGENTS.md) first; this file adds backend-specific rules. Follow the repository specification and accepted decisions; direct user instructions take precedence.
+This guide applies to `backend/`. Read [`../AGENTS.md`](../AGENTS.md) first for repository-wide policy, accepted product decisions and the current story workflow. Direct user instructions take precedence.
 
-## Before editing
+## Start and scope
 
-1. Run `git status --short --branch` and `git log -1 --oneline`. Create or switch to a descriptive branch before editing; never work on `main`.
-2. Use sub-agents for bounded implementation, research or review work. Keep file ownership separate and integrate their results before verification.
-3. For story work, read the story and its subtasks under [`../.scratch/launch-reconciliation/ticket-drafts/`](../.scratch/launch-reconciliation/ticket-drafts/), plus [`spec.md`](../.scratch/launch-reconciliation/spec.md), [`TESTING.md`](../.scratch/launch-reconciliation/ticket-drafts/TESTING.md), and [`WORKFLOW.md`](../.scratch/launch-reconciliation/ticket-drafts/WORKFLOW.md). Read the latest applicable handoff under [`../agent-docs/Handoff/`](../agent-docs/Handoff/) when resuming.
-4. Read the matching page under [`docs/`](docs/) before changing a source or build file. Preserve unrelated work and stage explicit paths.
-
-## Documentation is part of every change
-
-**Every backend source, test, resource, configuration or build change must update its matching page under `backend/docs/` in the same change, before verification and commit.** The mirror is path based: `src/main/.../Thing.java` maps to `docs/src/main/.../Thing.java.md`, and `pom.xml` maps to `docs/pom.xml.md`.
-
-- Add, remove or rename the matching documentation page when adding, removing or renaming a mirrored file.
-- Update [`docs/index.md`](docs/index.md) when the tree or documented map changes.
-- Keep each page concise and current. Cover the file's purpose, behavior, reasoning, use cases, boundaries and tests; document every public or meaningful function/method.
-- Treat source and build files as executable truth and the mirror as required engineering documentation. Do not leave a code/config/build diff without its corresponding documentation diff.
+1. Check `git status --short --branch` and `git log -1 --oneline`. Continue the appropriate descriptive ticket branch or create one before editing; never work on `main`. Preserve unrelated changes and stage explicit paths.
+2. Read the story and `sub-tickets/` under [`../.scratch/launch-reconciliation/ticket-drafts/`](../.scratch/launch-reconciliation/ticket-drafts/), plus `spec.md`, `TESTING.md`, `WORKFLOW.md` and the latest applicable handoff. Use sub-agents for bounded, non-overlapping backend implementation, research or review work.
+3. Read each affected page under [`docs/`](docs/) before editing. Documentation is part of the same change.
 
 ## Implementation
 
-- Keep the smallest implementation that satisfies the accepted behavior. Add a layer, abstraction, dependency or helper only when the current feature needs it.
-- Use layered architecture packaged by feature. A feature such as `catalog`, `orders` or `payments` owns its controller, service, persistence and domain code as needed. Shared HTTP concerns belong in `bd.mediwish.web`; use specific names and avoid empty layers or vague buckets such as `foundation`.
-- Use Java 25, the Spring Boot version and dependencies pinned in [`pom.xml`](pom.xml), and the Maven Wrapper. Do not upgrade dependencies as incidental cleanup; verify compatibility when an upgrade is the task.
+- Keep the smallest complete implementation for the accepted behavior. Use layered architecture packaged by feature: a feature owns its controller, service, persistence and domain code as needed. Shared HTTP concerns belong in `bd.mediwish.web`; use specific names. Add no empty layers, speculative abstractions or vague technical buckets such as `foundation`.
+- Use Java 25, Spring Boot and dependency versions pinned in [`pom.xml`](pom.xml), with the Maven Wrapper. Dependency upgrades require a focused compatibility check.
+- Runtime configuration belongs in `src/main/resources/application.yaml`; backend English messages belong in `messages.properties`.
+- Liquibase owns PostgreSQL 18 schema changes under `src/main/resources/db/changelog/`. Append changesets, preserve applied history and keep Hibernate from creating or updating tables.
+- Preserve the bounded error envelope, request correlation and externalized messages. Authorize every new route explicitly. Health and error responses expose no internals.
+- Keep credentials, OTPs, passwords, personal data, medicine searches and order contents out of logs, URLs, telemetry and ordinary errors. Use synthetic test data.
 
-## Configuration, database and privacy
+## Environment and verification
 
-- Runtime settings belong in [`src/main/resources/application.yaml`](src/main/resources/application.yaml); English API messages belong in `messages.properties`.
-- PostgreSQL 18 is the local database. Development uses `medi_wish_dev`; integration tests use `medi_wish_test` with separate `TEST_DB_*` credentials. The integration harness uses process environment first, JVM properties second and the ignored backend `.env` last; Spring runtime configuration still needs process environment variables. Never print, commit or put credentials in command arguments.
-- Liquibase owns the schema under [`src/main/resources/db/changelog/`](src/main/resources/db/changelog/). Append new changesets and preserve applied history; do not edit an applied changeset or let Hibernate create/update tables.
-- Preserve the established error envelope, request correlation and externalized messages when changing APIs. Authorize every new route explicitly. Health responses and errors expose no internals.
-- Keep credentials, OTPs, personal data, medicine searches and order contents out of logs and ordinary error responses. Use synthetic test data.
+- Native Windows with JDK 25, PostgreSQL 18 and the Maven Wrapper is the primary workflow. Docker is optional; WSL and Testcontainers are not prerequisites.
+- Use [`backend/.env.example`](.env.example). Development uses `medi_wish_dev`; integration tests use `medi_wish_test` and separate `TEST_DB_*` credentials. The test harness resolves process environment, then JVM properties, then ignored `backend/.env`; Spring still needs process environment variables at runtime. Treat values as literal `NAME=value`; never print or commit them.
+- From `backend/`, run `.mvnw.cmd test` and `.mvnw.cmd verify`. Use `-Pcompatibility verify` when changing JobRunr or OpenAPI startup integrations. `*Test` classes are unit tests; `*IT` classes are integration tests. Test observable behavior through the API and real PostgreSQL with controlled external adapters.
+- Use the guarded test database harness. Verify the target database before mutation, isolate each run in its own schema and clean up only that schema. Never use development credentials, drop a shared database or stop PostgreSQL. When persistence changes, run real migrations and verify behavior across restart. Record actual commands, results, date and source revision; distinguish environment blocks from test failures.
 
-## Run and test
+## Documentation and completion
 
-Use native Windows with JDK 25, PostgreSQL 18 and the Maven Wrapper. Docker is optional; WSL and Testcontainers are not prerequisites. With a configured backend `.env`, integration tests load their own `TEST_DB_*` settings; the application itself still needs process environment variables when started. Use the repository guide at [`../AGENTS.md`](../AGENTS.md) and the backend mirror index at [`docs/index.md`](docs/index.md) for the current local and documentation contracts. A local `agent-docs/DEVELOPMENT.md` runbook may add setup detail when it exists.
-
-From `backend/`, with either the required process environment variables or the configured backend `.env`:
-
-```powershell
-.\mvnw.cmd test
-.\mvnw.cmd verify
-```
-
-Use `-Pcompatibility verify` when changing the optional JobRunr or OpenAPI integrations. `*Test` classes are unit tests and `*IT` classes are integration tests. Test observable behavior through the API and real PostgreSQL, using controlled external adapters where applicable.
-
-- Completing story N means stories 01 through N work together. Retain earlier tests and run the cumulative suite and affected cross-story journeys before closing the story.
-- Every story and subtask needs focused tests for its behavior plus the applicable integration, regression, contract or sanity coverage. Add only tests that verify meaningful behavior.
-- Use the guarded test database harness, verify the connected database before mutation, create an isolated schema and clean up only that schema. Never use development credentials, drop a shared database or stop the shared PostgreSQL service.
-- If persistence changes, run the real migrations and verify behavior across restart. Record actual commands, results, date and source revision; distinguish environment blocks from test failures.
-
-## Complete and commit
-
-Before closing a story, meet all acceptance criteria, complete every subtask, update all mirrored documentation and review the combined change. Each completed story and subtask gets a concise resolution with **Delivered**, **Verified** and **Notes**.
-
-Before a commit:
-
-1. Inspect the staged diff and confirm every backend code, test, resource, configuration and build path has its matching documentation update.
-2. Run `git diff --cached --check` and the applicable tests.
-3. Use a plain descriptive commit subject without prefixes such as `feat:` or `fix:`. Commit only when authorized; do not push, merge or deploy without separate authorization.
-
-Keep generated output under `target/` and local credentials out of commits. Stop only processes started for the task and release their resources before handoff.
+- Mirror every backend source, test, resource, configuration and build file: append `.md` under [`docs/`](docs/) to its path relative to `backend` (`src/main/.../Thing.java` → `docs/src/main/.../Thing.java.md`; `pom.xml` → `docs/pom.xml.md`). Add, move or remove pages with files and update [`docs/index.md`](docs/index.md). Explain purpose, behavior, reasoning, boundaries, use cases and meaningful methods concisely.
+- Completing story N leaves stories 01 through N working together. Before closing, satisfy acceptance criteria, complete every sub-ticket, run focused and cumulative unit/integration/contract/regression/sanity checks, review the combined diff and record a concise resolution with **Delivered**, **Verified** and **Notes**.
+- Before an authorized commit, inspect the staged diff, verify documentation parity and run `git diff --cached --check`. Use a plain descriptive subject without prefixes. Do not push, merge or deploy without separate authorization. Stop processes started for the task before handoff. When asked for handoff, save the current state under `../agent-docs/Handoff/`.
