@@ -10,7 +10,7 @@ This integration test checks startup failure hygiene for invalid datasource conf
 
 | Member | Behavior and reason |
 | --- | --- |
-| `ConfigurationIT` | Failsafe integration test tagged for Story 01, integration and security behavior. `OutputCaptureExtension` makes the logging boundary observable. |
+| `ConfigurationIT` | Failsafe integration test tagged for integration and security behavior. `OutputCaptureExtension` makes the logging boundary observable. |
 | `invalidDatasourceConfigurationFailsBeforeConnectingWithoutPrintingPassword(CapturedOutput output)` | Starts `MediWishApplication` with an invalid datasource URL, requires an `IllegalArgumentException` mentioning JDBC URL validation, then requires a bounded failure log containing the generic failure marker but not the synthetic password. |
 
 The test deliberately asserts the root cause and privacy property rather than a vendor-specific full stack trace, keeping the contract useful across Spring Boot patch updates.

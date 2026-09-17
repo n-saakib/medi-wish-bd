@@ -23,7 +23,6 @@ import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.*;
 
-@Tag("story-01")
 @Tag("integration")
 @Tag("regression")
 @ExtendWith(OutputCaptureExtension.class)

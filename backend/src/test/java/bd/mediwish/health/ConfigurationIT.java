@@ -13,7 +13,6 @@ import java.util.Map;
 
 import static org.assertj.core.api.Assertions.*;
 
-@Tag("story-01")
 @Tag("integration")
 @Tag("security")
 @ExtendWith(OutputCaptureExtension.class)

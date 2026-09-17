@@ -28,7 +28,6 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** Executes only when the optional compatibility profile supplies both integrations. */
-@Tag("story-01")
 @Tag("integration")
 @Tag("compatibility")
 @EnabledIf("compatibilityDependenciesPresent")

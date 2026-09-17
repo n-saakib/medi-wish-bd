@@ -23,4 +23,4 @@ The test uses `TestDatabase` and a unique schema in real PostgreSQL 18. Restart 
 
 ## Verification
 
-Run with `.\backend\mvnw.cmd -f backend/pom.xml -Pcompatibility verify` after loading test database settings. The class is tagged `story-01`, `integration` and `compatibility`.
+Run with `.\backend\mvnw.cmd -f backend/pom.xml -Pcompatibility verify` after loading test database settings. The class is tagged `integration` and `compatibility`.

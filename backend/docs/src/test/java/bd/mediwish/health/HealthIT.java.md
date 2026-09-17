@@ -6,7 +6,7 @@ Source: [`src/test/java/bd/mediwish/health/HealthIT.java`](../../../../../../../
 
 `HealthIT` is the main Story 01 cumulative integration test. It launches the real application against a run-owned schema in PostgreSQL 18, calls the actual HTTP endpoints and checks the liveness/readiness, security, correlation, recovery and migration contracts together. Ordered tests make the lifecycle explicit: start, inspect, interrupt, recover, restart and clean up.
 
-The test is tagged `story-01`, `integration` and `regression`; selected methods also carry `sanity`, `contract`, `security`, `recovery` and `migration` tags.
+The test is tagged `integration` and `regression`; selected methods also carry `sanity`, `contract`, `security`, `recovery` and `migration` tags.
 
 ## Fields and lifecycle methods
 
