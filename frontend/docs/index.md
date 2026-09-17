@@ -24,7 +24,6 @@ The application currently renders a preparation message. Product, account, cart,
 | [`package.json`](../package.json) | [`package.json.md`](package.json.md) |
 | [`package-lock.json`](../package-lock.json) | [`package-lock.json.md`](package-lock.json.md) |
 | [`next.config.ts`](../next.config.ts) | [`next.config.ts.md`](next.config.ts.md) |
-| [`next-env.d.ts`](../next-env.d.ts) | [`next-env.d.ts.md`](next-env.d.ts.md) |
 | [`tsconfig.json`](../tsconfig.json) | [`tsconfig.json.md`](tsconfig.json.md) |
 | [`vitest.config.ts`](../vitest.config.ts) | [`vitest.config.ts.md`](vitest.config.ts.md) |
 | [`eslint.config.mjs`](../eslint.config.mjs) | [`eslint.config.mjs.md`](eslint.config.mjs.md) |
