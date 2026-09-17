@@ -10,7 +10,7 @@ This is the current root route and a deliberately small storefront placeholder. 
 
 ### `HomePage()`
 
-The async server component loads the `foundation` namespace with `getTranslations('foundation')`. It renders a semantic `<main>` containing a translated heading and explanatory paragraph. There is no client state, data fetch, authentication requirement, or product logic in this slice.
+The async server component loads the `home` namespace with `getTranslations('home')`. It renders a semantic `<main>` containing a translated heading and explanatory paragraph. There is no client state, data fetch, authentication requirement, or product logic in this slice.
 
 Using a server component keeps the initial page free of browser JavaScript for behavior it does not need and makes the message lookup happen within the request’s locale configuration.
 

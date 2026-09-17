@@ -9,9 +9,9 @@ This is the English message catalog consumed by `next-intl`. Keeping user-visibl
 ## Message namespaces
 
 - `metadata.title` (`Medi Wish`) and `metadata.description` (`Medi Wish online medical store.`) feed `generateMetadata` in the root layout.
-- `foundation.title` (`Medi Wish`) and `foundation.description` (`Our online store is being prepared. Please check back soon.`) feed the current home page.
+- `home.title` (`Medi Wish`) and `home.description` (`Our online store is being prepared. Please check back soon.`) feed the current home page.
 
-The namespace names are part of the call-site contract: `getTranslations('metadata')` and `getTranslations('foundation')` resolve the nested keys within the matching object. A new message should be added under the namespace of the feature that owns it, then referenced through `getTranslations` rather than hard-coded in a component.
+The namespace names are part of the call-site contract: `getTranslations('metadata')` and `getTranslations('home')` resolve the nested keys within the matching object. A new message should be added under the namespace of the feature that owns it, then referenced through `getTranslations` rather than hard-coded in a component.
 
 ## Current boundary
 
