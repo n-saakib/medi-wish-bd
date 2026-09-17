@@ -44,10 +44,10 @@ Before changing API behavior, retain the established bounded error envelope, req
 
 Run natively on Windows with JDK 25, PostgreSQL 18 and Node.js 24. Set `JAVA_HOME` and ensure the pinned tools are available. Docker, WSL and Testcontainers are not prerequisites. Avoid introducing a custom environment-management script.
 
-Use [.env.example](.env.example) for required connection keys. Development uses `medi_wish_dev`; integration tests use `medi_wish_test` with separate `TEST_DB_*` settings. Spring runtime configuration still reads process environment variables. The integration-test database harness resolves its settings from process environment first, JVM properties second, and the ignored root `.env` last, so the normal Maven lifecycle can run without a separate export step when `.env` is configured. It only parses literal `NAME=value` entries; it never evaluates shell syntax or prints values. Load the same file into the process when starting the application from the command line or IDE:
+Use [backend/.env.example](backend/.env.example) for required backend connection keys. Development uses `medi_wish_dev`; integration tests use `medi_wish_test` with separate `TEST_DB_*` settings. Spring runtime configuration still reads process environment variables. The integration-test database harness resolves its settings from process environment first, JVM properties second, and the ignored `backend/.env` last, so the normal Maven lifecycle can run without a separate export step when that backend-local file is configured. It only parses literal `NAME=value` entries; it never evaluates shell syntax or prints values. Load the same file into the process when starting the application from the command line or IDE:
 
 ```powershell
-Get-Content .env | Where-Object { $_ -match '^[A-Z][A-Z0-9_]*=' } | ForEach-Object {
+Get-Content backend/.env | Where-Object { $_ -match '^[A-Z][A-Z0-9_]*=' } | ForEach-Object {
     $name, $value = $_ -split '=', 2
     [Environment]::SetEnvironmentVariable($name, $value, 'Process')
 }

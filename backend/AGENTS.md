@@ -27,16 +27,16 @@ These instructions apply to work inside `backend/`. Read the repository-wide gui
 ## Configuration, database and privacy
 
 - Runtime settings belong in [`src/main/resources/application.yaml`](src/main/resources/application.yaml); English API messages belong in `messages.properties`.
-- PostgreSQL 18 is the local database. Development uses `medi_wish_dev`; integration tests use `medi_wish_test` with separate `TEST_DB_*` credentials. The integration harness uses process environment first, JVM properties second and the ignored root `.env` last; Spring runtime configuration still needs process environment variables. Never print, commit or put credentials in command arguments.
+- PostgreSQL 18 is the local database. Development uses `medi_wish_dev`; integration tests use `medi_wish_test` with separate `TEST_DB_*` credentials. The integration harness uses process environment first, JVM properties second and the ignored backend `.env` last; Spring runtime configuration still needs process environment variables. Never print, commit or put credentials in command arguments.
 - Liquibase owns the schema under [`src/main/resources/db/changelog/`](src/main/resources/db/changelog/). Append new changesets and preserve applied history; do not edit an applied changeset or let Hibernate create/update tables.
 - Preserve the established error envelope, request correlation and externalized messages when changing APIs. Authorize every new route explicitly. Health responses and errors expose no internals.
 - Keep credentials, OTPs, personal data, medicine searches and order contents out of logs and ordinary error responses. Use synthetic test data.
 
 ## Run and test
 
-Use native Windows with JDK 25, PostgreSQL 18 and the Maven Wrapper. Docker is optional; WSL and Testcontainers are not prerequisites. With a configured root `.env`, integration tests load their own `TEST_DB_*` settings; the application itself still needs process environment variables when started. Use the repository guide at [`../AGENTS.md`](../AGENTS.md) and the backend mirror index at [`docs/index.md`](docs/index.md) for the current local and documentation contracts. A local `agent-docs/DEVELOPMENT.md` runbook may add setup detail when it exists.
+Use native Windows with JDK 25, PostgreSQL 18 and the Maven Wrapper. Docker is optional; WSL and Testcontainers are not prerequisites. With a configured backend `.env`, integration tests load their own `TEST_DB_*` settings; the application itself still needs process environment variables when started. Use the repository guide at [`../AGENTS.md`](../AGENTS.md) and the backend mirror index at [`docs/index.md`](docs/index.md) for the current local and documentation contracts. A local `agent-docs/DEVELOPMENT.md` runbook may add setup detail when it exists.
 
-From `backend/`, with either the required process environment variables or the configured root `.env`:
+From `backend/`, with either the required process environment variables or the configured backend `.env`:
 
 ```powershell
 .\mvnw.cmd test

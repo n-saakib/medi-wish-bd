@@ -60,12 +60,18 @@ public final class TestDatabase implements AutoCloseable {
 
     private static Optional<Path> locateDotEnv() {
         Path workingDirectory = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
-        Path[] projectRoots = {workingDirectory, workingDirectory.getParent()};
-        for (Path projectRoot : projectRoots) {
-            if (projectRoot == null || !Files.isRegularFile(projectRoot.resolve("backend").resolve("pom.xml"))) {
+        Path parent = workingDirectory.getParent();
+        Path[] backendRoots = {
+                workingDirectory,
+                workingDirectory.resolve("backend"),
+                parent,
+                parent == null ? null : parent.resolve("backend")
+        };
+        for (Path backendRoot : backendRoots) {
+            if (backendRoot == null || !Files.isRegularFile(backendRoot.resolve("pom.xml"))) {
                 continue;
             }
-            Path envFile = projectRoot.resolve(".env");
+            Path envFile = backendRoot.resolve(".env");
             if (Files.isRegularFile(envFile)) {
                 return Optional.of(envFile);
             }

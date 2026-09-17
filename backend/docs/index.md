@@ -17,6 +17,7 @@ The source files remain the executable source of truth. A mirrored page records 
 | Request tracing | [`src/main/java/bd/mediwish/web/RequestCorrelationFilter.java.md`](src/main/java/bd/mediwish/web/RequestCorrelationFilter.java.md) |
 | Initial HTTP security | [`src/main/java/bd/mediwish/web/SecurityConfiguration.java.md`](src/main/java/bd/mediwish/web/SecurityConfiguration.java.md) |
 | Runtime configuration | [`src/main/resources/application.yaml.md`](src/main/resources/application.yaml.md) |
+| Local backend environment template | [`.env.example.md`](.env.example.md) |
 | Database migration baseline | [`src/main/resources/db/changelog/db.changelog-master.yaml.md`](src/main/resources/db/changelog/db.changelog-master.yaml.md) |
 | Public error messages | [`src/main/resources/messages.properties.md`](src/main/resources/messages.properties.md) |
 
