@@ -10,7 +10,7 @@ This guide applies to `backend/`. Read [`../AGENTS.md`](../AGENTS.md) first for 
 
 ## Implementation
 
-- Keep the smallest complete implementation for the accepted behavior. Use layered architecture packaged by feature: a feature owns its controller, service, persistence and domain code as needed. Shared HTTP concerns belong in `bd.mediwish.web`; use specific names. Add no empty layers, speculative abstractions or vague technical buckets such as `foundation`.
+- Keep the smallest implementation for accepted behavior. Use layered architecture by feature; each feature owns only the controller, service, persistence and domain code it needs. Shared HTTP concerns belong in `bd.mediwish.web`. Choose names deliberately: use precise domain or responsibility names and avoid vague buckets such as `foundation`. Be careful with over-engineering: add no empty layers, speculative abstractions, dependencies or helpers.
 - Use Java 25, Spring Boot and dependency versions pinned in [`pom.xml`](pom.xml), with the Maven Wrapper. Dependency upgrades require a focused compatibility check.
 - Runtime configuration belongs in `src/main/resources/application.yaml`; backend English messages belong in `messages.properties`.
 - Liquibase owns PostgreSQL 18 schema changes under `src/main/resources/db/changelog/`. Append changesets, preserve applied history and keep Hibernate from creating or updating tables.

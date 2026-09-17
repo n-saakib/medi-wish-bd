@@ -6,7 +6,7 @@ This guide applies to `frontend/`. Read [../AGENTS.md](../AGENTS.md) first for r
 
 - Confirm `git status --short --branch` and the latest commit before editing. Work on a descriptive ticket branch, never `main`; preserve unrelated changes and stage only task files.
 - Use a bounded sub-agent for non-trivial frontend work when available. Assign non-overlapping paths and review its result before integration.
-- Keep the implementation minimal. Use the existing Next.js, React, and TypeScript patterns. Organize a growing feature by feature; add a layer, abstraction, or dependency only when the current story needs it.
+- Choose names deliberately: use clear domain, component and responsibility names; avoid generic buckets and ambiguous abbreviations. Keep the implementation minimal and be careful with over-engineering: follow the existing Next.js, React and TypeScript patterns, organize growing features by feature, and add a layer, abstraction or dependency only when the current story needs it.
 - Follow the versions and scripts in [`package.json`](package.json) and [`package-lock.json`](package-lock.json). The supported runtime is Node.js 24 with npm 11; install with `npm ci`.
 - Keep English user-facing text in [`messages/`](messages/) through `next-intl`. Components should not add hard-coded translatable strings.
 - Native Windows is the normal workflow. Docker is optional and must not be required for frontend development.
