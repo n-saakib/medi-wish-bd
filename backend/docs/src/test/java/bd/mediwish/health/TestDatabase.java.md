@@ -6,16 +6,22 @@ Source: [`src/test/java/bd/mediwish/health/TestDatabase.java`](../../../../../..
 
 `TestDatabase` is the integration harness's database-safety boundary. Each test instance uses the explicit `medi_wish_test` database and creates one random schema named `mw_it_<32 hex characters>`. It validates the target before connection or cleanup, so tests can run against shared PostgreSQL without falling back to development data or dropping another run's schema.
 
+The harness resolves each `TEST_DB_*` setting from the process environment first, a matching JVM system property second, and the ignored repository-root `.env` last. This lets `mvn clean compile install` use a configured local `.env` without a separate shell export while keeping production runtime configuration environment-driven. The file parser accepts only literal `NAME=value` lines, ignores comments and blank lines, and never evaluates or logs values.
+
 ## Fields, constructor and methods
 
 | Member | Behavior and reason |
 | --- | --- |
-| `host`, `port`, `username`, `password` | Connection settings read from `TEST_DB_*` environment variables. Host/port are bounded; credentials are required and never logged. |
+| `host`, `port`, `username`, `password` | Connection settings resolved from `TEST_DB_*` process variables, JVM properties or the ignored root `.env`. Host/port are bounded; credentials are required and never logged. |
 | `schema`, `created` | Random run-owned schema and lifecycle flag. `created` prevents cleanup before creation and prevents repeated cleanup. |
-| `TestDatabase()` | Reads host/port, validates the exact test database and generated schema, requires test credentials, and rejects malformed host or port values. |
+| `TestDatabase()` | Loads the test settings, validates the exact test database and generated schema, requires test credentials, and rejects malformed host or port values. |
+| `loadSettings()` | Merges the optional local `.env` with process environment and JVM properties. Higher-priority sources replace the file value for the same key. |
+| `defaulted(Map<String, String>, String, String)` | Applies safe localhost/5432 defaults only to blank host or port settings. The database name and credentials remain required. |
+| `locateDotEnv()` | Looks in the Maven working directory and its parent only when that directory is the repository root identified by `backend/pom.xml`; it avoids reading an unrelated parent `.env`. |
+| `readDotEnv(Path)` | Parses comments, blank lines and literal uppercase `NAME=value` entries. It preserves values containing `=` and rejects malformed lines by ignoring them. |
 | `create()` | Constructs the harness, connects to the test database, verifies database identity/version, creates the generated schema and marks it owned. |
 | `validateTarget(String database, String schema)` | Allows only database `medi_wish_test` and schema format `mw_it_[a-f0-9]{32}`. It is package-visible so the guard unit test can exercise the safety rule without a database. |
-| `required(String name)` | Requires a nonblank environment variable and reports which configuration key is missing without exposing its value. |
+| `required(Map<String, String>, String)` | Requires a nonblank resolved setting and reports which configuration key is missing without exposing its value. |
 | `connect()` | Opens a PostgreSQL JDBC connection to the fixed validated test database with two-second connect and three-second socket limits. |
 | `verifyDatabase(Connection connection)` | Queries current database and server version and requires `medi_wish_test` on PostgreSQL major version 18 before allowing test work. |
 | `applicationProperties()` | Returns Spring test properties using the normal database port. |
@@ -29,4 +35,4 @@ The class is `AutoCloseable` so integration tests can use try-with-resources. It
 
 ## Verification
 
-`TestDatabaseGuardTest` covers accepted/rejected target combinations. `HealthIT` and `DependencyCompatibilityIT` use the live creation, property and cleanup paths with real PostgreSQL 18.
+`TestDatabaseGuardTest` covers accepted/rejected target combinations and the literal `.env` parser. `HealthIT` and `DependencyCompatibilityIT` use the live creation, property and cleanup paths with real PostgreSQL 18. The normal Maven lifecycle therefore works with either process variables or the configured root `.env`.

@@ -1,6 +1,10 @@
 package bd.mediwish.health;
 
 import org.junit.jupiter.api.Test;
+
+import java.io.IOException;
+import java.nio.file.Files;
+
 import static org.assertj.core.api.Assertions.*;
 
 class TestDatabaseGuardTest {
@@ -18,5 +22,19 @@ class TestDatabaseGuardTest {
         }
         assertThatThrownBy(() -> TestDatabase.validateTarget(null, validSchema)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> TestDatabase.validateTarget("medi_wish_test", null)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void readsLiteralDotEnvValuesWithoutEvaluatingOrExposingThem() throws IOException {
+        var file = Files.createTempFile("medi-wish-test", ".env");
+        try {
+            Files.writeString(file, "# comment\nTEST_DB_NAME=medi_wish_test\nTEST_DB_PASSWORD=abc=123\nnot-a-setting\n");
+            assertThat(TestDatabase.readDotEnv(file))
+                    .containsEntry("TEST_DB_NAME", "medi_wish_test")
+                    .containsEntry("TEST_DB_PASSWORD", "abc=123")
+                    .doesNotContainKey("not-a-setting");
+        } finally {
+            Files.deleteIfExists(file);
+        }
     }
 }
