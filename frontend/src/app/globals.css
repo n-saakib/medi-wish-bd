@@ -6,6 +6,17 @@
 }
 
 body { margin: 0; }
-main { max-width: 48rem; margin: 15vh auto; padding: 1.5rem; }
+main { max-width: 60rem; margin: 10vh auto; padding: 1.5rem; }
 h1 { font-size: clamp(2rem, 6vw, 3rem); }
 p { line-height: 1.6; color: #344a43; }
+.account-panel { margin-top: 2.5rem; padding: 1.5rem; border: 1px solid #c9ded6; border-radius: 0.75rem; background: #fff; }
+.account-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 2rem; }
+form { display: grid; gap: 0.55rem; align-content: start; }
+h2, h3 { color: #163b33; }
+label { font-weight: 700; }
+input, button { min-height: 2.75rem; box-sizing: border-box; font: inherit; padding: 0.5rem 0.65rem; border: 1px solid #72968a; border-radius: 0.35rem; }
+button { margin-top: 0.6rem; color: #fff; background: #176b56; cursor: pointer; }
+button:disabled { cursor: wait; opacity: 0.65; }
+input:focus-visible, button:focus-visible { outline: 3px solid #e39b2e; outline-offset: 2px; }
+.status { min-height: 1.6rem; color: #176b56; }
+.error { min-height: 1.6rem; color: #a52d2d; }

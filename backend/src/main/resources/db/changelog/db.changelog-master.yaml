@@ -5,3 +5,94 @@ databaseChangeLog:
       changes:
         - tagDatabase:
             tag: application-baseline
+  - changeSet:
+      id: 002-customers
+      author: medi-wish
+      changes:
+        - createTable:
+            tableName: customers
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: username
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: mobile
+                  type: VARCHAR(30)
+                  constraints:
+                    nullable: false
+                    unique: true
+              - column:
+                  name: email
+                  type: VARCHAR(320)
+              - column:
+                  name: password_hash
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: mobile_verified
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  defaultValueDate: now()
+                  constraints:
+                    nullable: false
+  - changeSet:
+      id: 003-customer-java-owned-values
+      author: medi-wish
+      changes:
+        - dropDefaultValue:
+            tableName: customers
+            columnName: id
+            columnDataType: UUID
+        - dropDefaultValue:
+            tableName: customers
+            columnName: created_at
+            columnDataType: TIMESTAMP WITH TIME ZONE
+  - changeSet:
+      id: 004-shared-users-and-roles
+      author: medi-wish
+      changes:
+        - renameTable:
+            oldTableName: customers
+            newTableName: users
+        - createTable:
+            tableName: user_roles
+            columns:
+              - column:
+                  name: user_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: role
+                  type: VARCHAR(32)
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: user_roles
+            columnNames: user_id, role
+            constraintName: pk_user_roles
+        - addForeignKeyConstraint:
+            baseTableName: user_roles
+            baseColumnNames: user_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_user_roles_user
+            onDelete: CASCADE
+        - sql:
+            sql: INSERT INTO user_roles (user_id, role) SELECT id, 'CUSTOMER' FROM users

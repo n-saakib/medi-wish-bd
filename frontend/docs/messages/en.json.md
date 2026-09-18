@@ -10,6 +10,7 @@ This is the English message catalog consumed by `next-intl`. Keeping user-visibl
 
 - `metadata.title` (`Medi Wish`) and `metadata.description` (`Medi Wish online medical store.`) feed `generateMetadata` in the root layout.
 - `home.title` (`Medi Wish`) and `home.description` (`Our online store is being prepared. Please check back soon.`) feed the current home page.
+- `account` contains the accessible labels, actions, bounded status text, generic failure text and invalid-response fallback for the shared User registration/sign-in panel.
 
 The namespace names are part of the call-site contract: `getTranslations('metadata')` and `getTranslations('home')` resolve the nested keys within the matching object. A new message should be added under the namespace of the feature that owns it, then referenced through `getTranslations` rather than hard-coded in a component.
 

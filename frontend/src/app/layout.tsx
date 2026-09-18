@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { getTranslations } from 'next-intl/server';
+import { NextIntlClientProvider } from 'next-intl';
+import { getMessages, getTranslations } from 'next-intl/server';
 import './globals.css';
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -7,10 +8,11 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t('title'), description: t('description') };
 }
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+  const messages = await getMessages();
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><NextIntlClientProvider messages={messages}>{children}</NextIntlClientProvider></body>
     </html>
   );
 }

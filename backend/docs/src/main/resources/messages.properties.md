@@ -16,6 +16,7 @@ This Java message bundle contains the public English text for the bounded error 
 | `error.NOT_FOUND` | The requested resource is absent (`404`). |
 | `error.METHOD_NOT_ALLOWED` | The route exists but does not allow the HTTP method (`405`). |
 | `error.INTERNAL_ERROR` | A generic safe message for all other error statuses. |
+| `error.DUPLICATE_USER` | The username or mobile number is already in use (`409`). |
 
 Keys are deliberately aligned with the codes in `ApiErrors.body`. Do not put exception text, SQL details, credentials, OTPs, medicine searches or order contents in these messages.
 

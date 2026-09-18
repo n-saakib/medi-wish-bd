@@ -1,0 +1,3 @@
+# User
+
+JPA entity for a registered User. It stores an immutable normalized username, unique mobile, optional email, a password verifier, mobile-verification state and persisted role assignments. The username mapping is marked non-updatable so the persistence boundary preserves the registration identity. The Java constructor owns the generated identifier and creation timestamp; the database schema does not duplicate those defaults. Public registration assigns the Customer role, while the shared role set is ready for later staff assignments. Mobile verification remains false while OTP work is deferred.

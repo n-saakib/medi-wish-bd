@@ -19,6 +19,7 @@ This Maven build describes the backend application, its runtime dependencies, th
 | --- | --- |
 | `spring-boot-starter-webmvc` | Spring MVC and the embedded HTTP server. |
 | `spring-boot-starter-security` | Deny-by-default HTTP security and future authentication extension. |
+| `bcprov-jdk18on` `1.81` | Bouncy Castle provider required by Spring Security's Argon2 password encoder. |
 | `spring-boot-starter-actuator` | Restricted liveness/readiness endpoints. |
 | `spring-boot-starter-data-jpa` | JPA and Hibernate persistence support. |
 | `spring-boot-starter-liquibase` | Runs versioned database migrations at startup. |
@@ -35,4 +36,4 @@ Keeping the application on Boot-managed versions avoids independent framework dr
 
 ## Compatibility profile
 
-The `compatibility` profile adds JobRunr Spring Boot 4 starter `8.8.2` and springdoc WebMVC API `3.1.1`. They are profile-only because the initial runtime does not need background workers, a dashboard or a public API-description endpoint. [`DependencyCompatibilityIT`](src/test/java/bd/mediwish/compatibility/DependencyCompatibilityIT.java.md) starts these integrations against an isolated PostgreSQL schema and verifies their restricted behavior. Normal builds therefore use the default dependency set, while `-Pcompatibility verify` checks the optional boundary explicitly.
+The default runtime also includes Bouncy Castle `bcprov-jdk18on` `1.81`, required by Spring Security's Argon2 password encoder. The `compatibility` profile adds JobRunr Spring Boot 4 starter `8.8.2` and springdoc WebMVC API `3.1.1`. They are profile-only because the initial runtime does not need background workers, a dashboard or a public API-description endpoint. [`DependencyCompatibilityIT`](src/test/java/bd/mediwish/compatibility/DependencyCompatibilityIT.java.md) starts these integrations against an isolated PostgreSQL schema and verifies their restricted behavior. Normal builds therefore use the default dependency set, while `-Pcompatibility verify` checks the optional boundary explicitly.

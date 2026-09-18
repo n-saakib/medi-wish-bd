@@ -17,6 +17,7 @@ This file contains safe runtime defaults and environment-backed connection setti
 | `management` | Exposes only the health endpoint, disables endpoint discovery, returns read-only health data, hides details/components, and defines minimal liveness/readiness groups. Liveness checks process state; readiness also includes the database. |
 | `server.error` | Omits messages, binding details, stack traces and exception names from framework errors. This supports the bounded `ApiErrors` contract. |
 | `server.max-http-request-header-size` | Caps request headers at 16 KB to bound input handling. |
+| `app.cors.allowed-origins` | Allows only configured frontend origins to call the User API from a browser. The default is `http://127.0.0.1:3000,http://localhost:3000`; deployments must provide an explicit `APP_CORS_ALLOWED_ORIGINS` value. |
 | `logging` | Emits structured ECS console logs, suppresses noisy or potentially sensitive JDBC/connection health, pool, ORM and Liquibase messages, and keeps Hibernate errors visible at `ERROR`. The request filter logs only status and correlation ID. |
 | `springdoc` | Disables API-doc generation by default. The compatibility test enables it temporarily to verify the optional dependency without publishing documentation. |
 | `jobrunr` | Disables worker, dashboard and anonymous usage data by default. The compatibility test enables only the scheduler/storage boundary it is checking. |

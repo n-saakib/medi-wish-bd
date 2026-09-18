@@ -6,5 +6,21 @@
   "home": {
     "title": "Medi Wish",
     "description": "Our online store is being prepared. Please check back soon."
+  },
+  "account": {
+    "title": "User access",
+    "description": "Create a user account or sign in with simple username authentication.",
+    "registerTitle": "Create an account",
+    "loginTitle": "Sign in",
+    "username": "Username",
+    "mobile": "Mobile number",
+    "emailOptional": "Email (optional)",
+    "password": "Password",
+    "registerAction": "Create account",
+    "loginAction": "Sign in",
+    "registrationSuccess": "Account created for {username}. Mobile verification will be added later.",
+    "loginSuccess": "Signed in as {username}.",
+    "genericError": "The request could not be completed.",
+    "invalidResponse": "The service returned an invalid response."
   }
 }

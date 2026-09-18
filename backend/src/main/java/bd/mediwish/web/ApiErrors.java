@@ -30,6 +30,10 @@ public class ApiErrors {
             case 405 -> "METHOD_NOT_ALLOWED";
             default -> "INTERNAL_ERROR";
         };
+        return body(code, request);
+    }
+
+    public Body body(String code, HttpServletRequest request) {
         return new Body(code, messages.getMessage("error." + code, null, Locale.ENGLISH),
                 (String) request.getAttribute("requestId"));
     }

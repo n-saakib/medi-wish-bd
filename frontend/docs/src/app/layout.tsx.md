@@ -14,11 +14,11 @@ This server function reads the `metadata` namespace through `getTranslations` an
 
 ### `RootLayout({ children })`
 
-The default layout accepts immutable React children and renders the required `<html lang="en">` and `<body>` elements around them. It imports `globals.css` once at the root, so every route receives the baseline styles. The fixed language matches the current single-locale request configuration.
+The async default layout accepts immutable React children, loads the configured messages with `getMessages`, and renders the required `<html lang="en">` and `<body>` elements around a `NextIntlClientProvider`. It imports `globals.css` once at the root, so every route receives the baseline styles and client components can use the same English catalog. The fixed language matches the current single-locale request configuration.
 
 ## Use cases and boundaries
 
-Every current and future App Router page passes through this shell, making it the correct place for document metadata and global CSS. It deliberately contains no authentication state, API calls, navigation, or feature layout; those concerns should be introduced only when a corresponding storefront feature is implemented.
+Every current and future App Router page passes through this shell, making it the correct place for document metadata, global CSS and the client translation context. It deliberately contains no authentication state or API calls; those concerns remain in feature components.
 
 ## Verification
 
