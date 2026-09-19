@@ -5,8 +5,8 @@ schema that is currently created by Liquibase and mapped by JPA; it is not a
 design claim for tables that belong to later tickets.
 
 **Last reviewed:** 2026-09-18<br/>
-**Current scope:** Ticket 01 health baseline and Ticket 02 shared User
-registration/authentication/RBAC foundation.<br/>
+**Current scope:** Ticket 01 health baseline, Ticket 02 shared User
+registration/RBAC foundation and Ticket 03 durable password sessions.<br/>
 **Schema source of truth:** [`src/main/resources/db/changelog/db.changelog-master.yaml`](../src/main/resources/db/changelog/db.changelog-master.yaml)<br/>
 **Runtime rule:** Liquibase owns schema changes; Hibernate runs with
 `ddl-auto: validate` and must not create or alter tables.
@@ -16,6 +16,8 @@ registration/authentication/RBAC foundation.<br/>
 ```mermaid
 erDiagram
     USERS ||--o{ USER_ROLES : "has persisted roles"
+    USERS ||--o{ USER_SESSIONS : "owns session families"
+    USER_SESSIONS ||--o{ SESSION_REFRESH_TOKENS : "rotates generations"
 
     USERS {
         UUID id PK "Java-generated User identity"
@@ -30,6 +32,26 @@ erDiagram
     USER_ROLES {
         UUID user_id PK, FK "references users.id; cascade delete"
         VARCHAR_32 role PK "EnumType.STRING role value"
+    }
+
+    USER_SESSIONS {
+        UUID id PK "JWT sid and family identity"
+        UUID user_id FK "cascade to User"
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ expires_at
+        TIMESTAMPTZ last_used_at
+        TIMESTAMPTZ revoked_at
+        VARCHAR_64 revoked_reason
+    }
+
+    SESSION_REFRESH_TOKENS {
+        UUID id PK
+        UUID session_id FK
+        BIGINT generation UK "unique within family"
+        VARCHAR_64 token_hash UK "SHA-256 lowercase hex only"
+        TIMESTAMPTZ issued_at
+        TIMESTAMPTZ expires_at
+        TIMESTAMPTZ consumed_at
     }
 ```
 
@@ -71,6 +93,8 @@ substitute.
 | --- | --- | --- | --- |
 | `users` | `bd.mediwish.user.User` | `id` primary key; `username` unique and not null; `mobile` unique and not null; optional `email`; non-null `password_hash`; non-null `mobile_verified`; non-null `created_at` | Shared identity/profile and credential verifier for Customers and future staff roles. |
 | `user_roles` | `User.roles` via `@ElementCollection` | Composite primary key `(user_id, role)`; `user_id` foreign key to `users.id` with `ON DELETE CASCADE`; non-null role | Role assignments used by Spring Security for current authorization. |
+| `user_sessions` | `bd.mediwish.auth.UserSession` | UUID primary key; cascading `user_id` FK; non-null lifecycle timestamps; nullable revocation fields; user/revocation and expiry indexes | Durable refresh-session family whose revocation is checked before bearer authorization. |
+| `user_session_refresh_tokens` | `bd.mediwish.auth.UserSessionRefreshToken` | UUID primary key; cascading session FK; unique token digest; unique `(session_id, generation)`; session/expiry index; nullable consumed timestamp | One row per refresh generation; consumed rows remain for replay detection. |
 | `DATABASECHANGELOG` | Liquibase | Tool-managed applied-change records | Migration history and checksum protection; not application domain data. |
 | `DATABASECHANGELOGLOCK` | Liquibase | Tool-managed migration lock | Prevents concurrent Liquibase updates; not application domain data. |
 
@@ -79,9 +103,10 @@ substitute.
 - `password_hash` contains only an Argon2 password verifier. Plaintext
   passwords, OTPs and credentials are not database architecture fields and
   must not be logged or returned by an API.
-- `username` is normalized by `UserService` before lookup and registration;
-  JPA marks it non-updatable. The shared normalization seam is intentionally
-  deferred to Ticket 03.T1 until mobile/email login identifiers are designed.
+- `username` is normalized by the shared `UserIdentifierNormalizer` before
+  lookup and registration; JPA marks it non-updatable. The same seam trims
+  mobile values and lowercases optional email values for Ticket 03 candidate
+  resolution without adding E.164 or OTP policy.
 - `mobile` is trimmed and length-bounded in Ticket 02. Country/E.164
   normalization, verification and account-linking semantics belong to Ticket
   61 and are not represented as implemented schema here.
@@ -90,6 +115,10 @@ substitute.
   mutation paths.
 - `mobile_verified` is retained as persisted state but remains false for the
   reduced flow. Ticket 61 owns the final OTP transition.
+- Refresh values are generated with at least 32 random bytes and only their
+  lowercase SHA-256 hex digest is persisted. Rotation locks the generation and
+  family in one transaction; raw values never appear in schema, JWT claims or
+  ordinary responses.
 - The table rename from `customers` to `users` preserves the applied
   migration history; `customers` is not a current application table.
 
@@ -101,6 +130,7 @@ substitute.
 | `002-customers` | Originally creates `customers` with identity, contact, verifier and mobile-state columns plus uniqueness constraints. | Applied history is retained for checksum stability. |
 | `003-customer-java-owned-values` | Removes database defaults for `id` and `created_at`. | Java `User` now owns UUID and `Instant` creation while Liquibase remains append-only. |
 | `004-shared-users-and-roles` | Renames `customers` to `users`, creates `user_roles`, adds the cascading foreign key and backfills `CUSTOMER` for existing rows. | Implements the shared User resource and role-based authorization boundary. |
+| `005-user-password-sessions` | Creates session families and refresh generations with expiry, revocation, consumption, digest and locking-support indexes/constraints. | Implements the durable state boundary for Ticket 03 refresh rotation and immediate logout invalidation. |
 
 When a later ticket changes persistence, add a new append-only changeset and
 update this page in the same change. Do not rewrite an applied changeset to

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { UserApiError, loadUserProfile, registerUser, userErrorMessage } from '../src/lib/user.ts';
+import { createSessionClient, UserApiError } from '../src/lib/session.ts';
+import { loadUserProfile, registerUser, userErrorMessage } from '../src/lib/user.ts';
+
+const profile = { username: 'alice_1', mobile: '01700000000', email: null, mobileVerified: false };
+const session = { accessToken: 'access-token', tokenType: 'Bearer', expiresIn: 900, user: profile };
 
 describe('user API boundary', () => {
   it('registers through the public endpoint without inventing OTP behavior', async () => {
@@ -28,42 +32,36 @@ describe('user API boundary', () => {
     } satisfies Partial<UserApiError>);
   });
 
-  it('uses Basic authentication only for the in-memory profile request', async () => {
-    let request: Request | undefined;
-    const profile = await loadUserProfile('alice_1', 'pässword-12345', {
+  it('loads a profile through the Bearer session seam and never constructs Basic credentials', async () => {
+    let profileRequest: Request | undefined;
+    const client = createSessionClient({
       fetch: async (input, init) => {
-        request = new Request(input, init);
-        return Response.json({ username: 'alice_1', mobile: '01700000000', email: null, mobileVerified: false });
+        const request = new Request(input, init);
+        if (request.url.endsWith('/api/auth/login')) return Response.json(session);
+        profileRequest = request;
+        return Response.json(profile);
       },
     });
+    await client.signIn('alice_1', 'pässword-12345');
 
-    expect(profile.username).toBe('alice_1');
-    expect(request?.headers.get('Authorization')).toMatch(/^Basic /);
-    expect(request?.url).toBe('http://127.0.0.1:8080/api/user/me');
+    await expect(loadUserProfile({ session: client })).resolves.toEqual(profile);
+    expect(profileRequest?.headers.get('Authorization')).toBe('Bearer access-token');
+    expect(profileRequest?.headers.get('Authorization')).not.toMatch(/^Basic /);
   });
 
-  it('leaves missing API error text to the translated UI fallback', async () => {
+  it('rejects malformed profiles and keeps the translated fallback', async () => {
+    const client = createSessionClient({
+      fetch: async (input, init) => {
+        const request = new Request(input, init);
+        if (request.url.endsWith('/api/auth/login')) return Response.json(session);
+        return Response.json({ unexpected: true });
+      },
+    });
+    await client.signIn('alice_1', 'password');
+
     let error: unknown;
     try {
-      await registerUser({ username: 'alice_1', mobile: '01700000000', password: 'a-very-long-password' }, {
-        fetch: async () => new Response(null, { status: 503 }),
-      });
-    } catch (reason) {
-      error = reason;
-    }
-
-    expect(error).toBeInstanceOf(UserApiError);
-    expect(error).toMatchObject({ code: 'REQUEST_FAILED', status: 503, message: '' });
-    expect(userErrorMessage(error, (key) => ({ genericError: 'translated generic error', invalidResponse: 'translated invalid response' }[key] ?? key)))
-      .toBe('translated generic error');
-  });
-
-  it('uses the translated fallback for an invalid response without changing its code/status', async () => {
-    let error: unknown;
-    try {
-      await registerUser({ username: 'alice_1', mobile: '01700000000', password: 'a-very-long-password' }, {
-        fetch: async () => Response.json({ unexpected: true }, { status: 200 }),
-      });
+      await loadUserProfile({ session: client });
     } catch (reason) {
       error = reason;
     }
@@ -71,5 +69,11 @@ describe('user API boundary', () => {
     expect(error).toMatchObject({ code: 'INVALID_RESPONSE', status: 200, message: '' });
     expect(userErrorMessage(error, (key) => ({ genericError: 'translated generic error', invalidResponse: 'translated invalid response' }[key] ?? key)))
       .toBe('translated invalid response');
+  });
+
+  it('maps transport failures without exposing the underlying error', async () => {
+    await expect(registerUser({ username: 'alice_1', mobile: '01700000000', password: 'a-very-long-password' }, {
+      fetch: async () => { throw new Error('network internals must not escape'); },
+    })).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 0, message: '' });
   });
 });

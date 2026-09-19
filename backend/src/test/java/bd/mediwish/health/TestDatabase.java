@@ -11,6 +11,8 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.Base64;
+import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 
 /** Owns one disposable schema, never a database or another run's schema. */
 public final class TestDatabase implements AutoCloseable {
@@ -161,7 +163,25 @@ public final class TestDatabase implements AutoCloseable {
         properties.put("spring.liquibase.default-schema", schema);
         properties.put("spring.liquibase.liquibase-schema", schema);
         properties.put("spring.jpa.properties.hibernate.default_schema", schema);
+        properties.putAll(syntheticAuthProperties());
         return properties;
+    }
+
+    /** Supplies non-production auth configuration required by isolated application startups. */
+    public static Map<String, Object> syntheticAuthProperties() {
+        return Map.of(
+                "app.auth.jwt-secret", SyntheticAuth.JWT_SECRET,
+                "app.auth.dummy-password-verifier", SyntheticAuth.DUMMY_PASSWORD_VERIFIER,
+                "app.auth.cookie.secure", "false");
+    }
+
+    private static final class SyntheticAuth {
+        private static final String JWT_SECRET = Base64.getEncoder().encodeToString(
+                "medi-wish-integration-test-jwt-key-material".getBytes(StandardCharsets.UTF_8));
+        private static final String DUMMY_PASSWORD_VERIFIER = Argon2PasswordEncoder
+                .defaultsForSpringSecurity_v5_8().encode("integration-test-dummy-input");
+
+        private SyntheticAuth() {}
     }
 
     public String schema() { return schema; }

@@ -4,8 +4,8 @@ Source: [`src/test/java/bd/mediwish/web/SecurityConfigurationTest.java`](../../.
 
 ## Purpose
 
-Tests the authentication configuration seam without starting the application. It proves password verifiers use Argon2, username lookup applies the registration normalization rule, and browser access is restricted to configured local origins, methods and headers.
+Tests the T4 Spring Security configuration without starting the application or requiring PostgreSQL. It protects the public seams that are easy to regress while the full route journey remains owned by later integration work.
 
 ## Verification
 
-The suite checks Argon2 encode/match behavior, several whitespace/case forms of normalized shared-User lookup with persisted Customer-role authorities, and both allowed and rejected browser-origin CORS configurations.
+The suite covers Argon2 password verification, explicit credentialed CORS headers/origins, wildcard-origin rejection, non-HttpOnly `/api`-scoped `XSRF-TOKEN` cookie attributes including SameSite, fail-closed Base64 HMAC/dummy-verifier startup validation, and production-profile rejection of insecure auth cookies.

@@ -12,6 +12,7 @@ This Java message bundle contains the public English text for the bounded error 
 | --- | --- |
 | `error.INVALID_REQUEST` | The request cannot be accepted (`400`). |
 | `error.AUTHENTICATION_REQUIRED` | The request needs authentication (`401`). |
+| `error.AUTHENTICATION_FAILED` | The supplied identifier/password pair cannot be authenticated (`401`); it intentionally does not reveal which credential failed. |
 | `error.ACCESS_DENIED` | The caller is not allowed to perform the request (`403`). |
 | `error.NOT_FOUND` | The requested resource is absent (`404`). |
 | `error.METHOD_NOT_ALLOWED` | The route exists but does not allow the HTTP method (`405`). |

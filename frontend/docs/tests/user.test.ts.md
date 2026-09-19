@@ -8,4 +8,4 @@ Unit tests for the public frontend shared User API seam. Injected fetch function
 
 ## Verification
 
-The suite covers registration request shape and deferred-OTP response handling, bounded duplicate errors, locale-selected fallbacks through the shared `userErrorMessage` helper, profile request routing and in-memory Basic authorization. The helper is tested through the library seam rather than importing the React panel.
+The suite covers registration request shape and deferred-verification response handling, bounded duplicate errors, locale-selected fallbacks through the shared `userErrorMessage` helper, profile response validation and Bearer authorization through an injected session client. The helper is tested through the library seam rather than importing the React panel.

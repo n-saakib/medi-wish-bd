@@ -4,8 +4,8 @@ Source: [`src/test/java/bd/mediwish/user/UserControllerTest.java`](../../../../.
 
 ## Purpose
 
-Tests the public User registration HTTP seam with a standalone MVC harness and the request-correlation filter. It verifies the success projection excludes password fields and that malformed and duplicate requests use bounded, externalized error bodies.
+Tests the reduced User HTTP seam with a standalone MVC harness and request-correlation filter. Registration is intentionally tested through `AuthControllerTest` after the Ticket 03 controller split.
 
 ## Verification
 
-The suite covers the 201 registration response, 400 malformed JSON response, 409 duplicate response, request-ID propagation and absence of password/verifier fields in the public success projection.
+The suite verifies that `/api/user/me` projects only the current verified principal, does not perform or require a second repository lookup, excludes password/role fields, and maps a missing principal to the bounded correlated authentication error.

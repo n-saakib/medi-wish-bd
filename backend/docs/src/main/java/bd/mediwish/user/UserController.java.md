@@ -1,3 +1,13 @@
-# UserController
+# `UserController.java`
 
-Exposes `POST /api/auth/register` and the authenticated common `GET /api/user/me` profile boundary. Registration remains under `/api/auth` because this slice creates the User credential boundary; Ticket 03 can split the future login/session endpoints once that surface exists. Registration returns only public User data and an explicit marker that mobile verification remains deferred. Invalid JSON, invalid input and duplicate registrations use the externalized bounded API error contract, including request correlation.
+Source: [`src/main/java/bd/mediwish/user/UserController.java`](../../../../../../../src/main/java/bd/mediwish/user/UserController.java)
+
+## Purpose
+
+Exposes only `GET /api/user/me`. Registration and all password-session routes now belong to `AuthController`; this controller does not perform a second repository lookup or reconstruct authentication credentials.
+
+The bearer filter supplies `CurrentUserAuthentication.CurrentUser`, which already represents the verified active session, current User and current persisted roles. The controller returns only username, mobile, email and mobile-verification state.
+
+## Verification
+
+`UserControllerTest` verifies the profile projection comes from the current principal, preserves bounded errors when no principal is present, and excludes password and role fields.

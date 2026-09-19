@@ -4,7 +4,7 @@ Source: [`src/main/java/bd/mediwish/MediWishApplication.java`](../../../../../..
 
 ## Purpose and reasoning
 
-`MediWishApplication` is the smallest Spring Boot entry point. `@SpringBootApplication` enables component scanning, auto-configuration and configuration-property support for the `bd.mediwish` package. The default generated Spring Security user configuration is excluded because authentication uses the persisted shared User store exposed by [`UserRepository`](user/UserRepository.java.md); [`SecurityConfiguration`](web/SecurityConfiguration.java.md) supplies explicit HTTP Basic and deny-by-default rules instead of an accidental development account.
+`MediWishApplication` is the smallest Spring Boot entry point. `@SpringBootApplication` enables component scanning, auto-configuration and configuration-property support for the `bd.mediwish` package. The default generated Spring Security user configuration is excluded because authentication uses the persisted shared User store exposed by [`UserRepository`](user/UserRepository.java.md); [`SecurityConfiguration`](web/SecurityConfiguration.java.md) supplies explicit Bearer/session, CSRF/CORS and deny-by-default rules instead of an accidental development account.
 
 ## Class and method
 

@@ -4,24 +4,20 @@ Source: [`src/main/java/bd/mediwish/web/SecurityConfiguration.java`](../../../..
 
 ## Purpose and reasoning
 
-The current development slice adds stateless HTTP Basic authentication for the shared User resource. Registration and health probes remain public; the common User profile route requires an authenticated User. Passwords are encoded with Argon2 before persistence and current role assignments are loaded from PostgreSQL for authorization. Local browser calls are limited by an explicit CORS allow-list.
+Defines the stateless Spring Security boundary for Ticket 03. HTTP Basic and server sessions are absent. Public registration, login, CSRF bootstrap and health probes are explicit; refresh and logout are cookie-backed controller seams protected by CSRF; the current User profile requires a verified Bearer access token.
 
-`SecurityConfiguration` defines the shared HTTP security boundary. Staff and OAuth authentication remain out of scope. OTP verification is also deferred in this slice.
+## Security configuration
 
-Authentication lookups apply the same trim/lowercase username normalization as registration, so accepted identifier normalization is consistent across both operations.
-
-## Class and method
-
-| Member | Behavior and use case |
+| Member | Behavior |
 | --- | --- |
-| `SecurityConfiguration` | Package-private configuration class; its scope is the shared HTTP security policy. |
-| `security(HttpSecurity http, ApiErrors errors)` | Builds one stateless `SecurityFilterChain`. It disables CSRF and request caching for the current HTTP Basic API, enables the configured CORS allow-list, permits error dispatches, permits `GET` and `HEAD` for `/actuator/health/liveness` and `/actuator/health/readiness`, permits registration, requires authentication for `/api/user/**`, denies all other requests, preserves the HTTP Basic challenge on 401 responses and routes bounded authentication/authorization failures through `ApiErrors.write`. |
-| `passwordEncoder()` | Provides Spring Security's Argon2 encoder; the Bouncy Castle provider is a runtime dependency because Argon2 is the accepted password-verifier format. |
-| `corsConfigurationSource(String allowedOrigins)` | Builds the browser allow-list from `app.cors.allowed-origins`, with the User API methods and `Authorization`, `Content-Type` and `X-Request-ID` headers enabled. |
-| `isUnsafeHealthRequest(HttpServletRequest request)` | Keeps mutating requests to the public health paths as an explicit 403/`ACCESS_DENIED` contract while authentication failures elsewhere remain 401/`AUTHENTICATION_REQUIRED`. |
+| `security(...)` | Enables cookie-backed CSRF, explicit credentialed CORS, stateless sessions, bounded errors and route authorization. It registers `BearerAccessTokenFilter` after `LogoutFilter`, uses the raw double-submit cookie/header handler, ignores CSRF only for exact method+URI matches for registration, login and CSRF bootstrap, permits the fixed auth/health routes, requires authentication for `GET /api/user/me`, and denies unknown routes. |
+| `csrfTokenRepository(...)` | Uses `CookieCsrfTokenRepository.withHttpOnlyFalse()` with `XSRF-TOKEN` and `X-XSRF-TOKEN`, `/api` path, SameSite=Lax and configured Secure behavior. |
+| `corsConfigurationSource(...)` | Allows only explicit origins, `GET/POST/HEAD/OPTIONS`, credentials and the fixed authorization/content/correlation/CSRF headers. Wildcard origins fail closed because credentials are enabled. |
+| `authConfigurationValidation(...)` | Fails startup when the Base64 HMAC secret is absent, invalid or shorter than 32 decoded bytes, the dummy verifier is absent, or an active production profile disables Secure auth cookies. No secret is logged. |
+| `passwordEncoder()` | Provides the existing Argon2 password encoder for registration/authentication core code. |
 
-CSRF and other framework protections remain active unless a later, explicit feature decision changes them. A new public route must be added with its method and authorization rule in the same change as the route.
+The application uses `APP_AUTH_COOKIE_SECURE=true` by default. Local HTTP tests may explicitly override it to false; the `prod`/`production` profiles fail startup if Secure cookies are disabled. JWT parsing and session-state decisions remain behind T2's `AccessTokenCodec`, `CurrentUserAuthentication` and `SessionService` interfaces.
 
 ## Verification
 
-`HealthIT` checks public health access, denied management/unknown routes, bounded errors and the 403 result for an unsafe health request. `DependencyCompatibilityIT` confirms optional API documentation remains protected.
+`SecurityConfigurationTest` verifies Argon2, explicit credentialed CORS, wildcard rejection, CSRF cookie attributes and fail-closed secret/dummy-verifier validation. `BearerAccessTokenFilterTest` verifies the bearer/current-principal handoff and Basic/cookie rejection.
