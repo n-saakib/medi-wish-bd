@@ -28,6 +28,7 @@ public class ApiErrors {
             case 403 -> "ACCESS_DENIED";
             case 404 -> "NOT_FOUND";
             case 405 -> "METHOD_NOT_ALLOWED";
+            case 413 -> "REQUEST_TOO_LARGE";
             default -> "INTERNAL_ERROR";
         };
         return body(code, request);

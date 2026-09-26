@@ -16,6 +16,7 @@ This Java message bundle contains the public English text for the bounded error 
 | `error.ACCESS_DENIED` | The caller is not allowed to perform the request (`403`). |
 | `error.NOT_FOUND` | The requested resource is absent (`404`). |
 | `error.METHOD_NOT_ALLOWED` | The route exists but does not allow the HTTP method (`405`). |
+| `error.REQUEST_TOO_LARGE` | A producer that uses this code reports an oversized request (`413`). The authentication JSON body-limit filter currently uses `error.INVALID_REQUEST` with `400`; do not infer that it emits `413`. |
 | `error.INTERNAL_ERROR` | A generic safe message for all other error statuses. |
 | `error.DUPLICATE_USER` | The username or mobile number is already in use (`409`). |
 

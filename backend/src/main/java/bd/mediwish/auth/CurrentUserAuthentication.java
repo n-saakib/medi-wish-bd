@@ -32,7 +32,7 @@ public class CurrentUserAuthentication {
     public CurrentUser loadCurrent(UUID userId, UUID sessionId) {
         sessions.requireActive(sessionId, userId, clock.instant());
         User user = users.findById(userId)
-                .filter(candidate -> candidate.passwordHash() != null && !candidate.passwordHash().isBlank())
+                .filter(candidate -> PasswordVerifierPolicy.isUsable(candidate.passwordHash()))
                 .orElseThrow(AuthenticationRequiredException::new);
         return new CurrentUser(user.id(), user.username(), user.mobile(), user.email(), user.mobileVerified(), user.roles());
     }

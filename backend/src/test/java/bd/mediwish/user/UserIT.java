@@ -20,6 +20,7 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -87,7 +88,9 @@ class UserIT {
                 "password", "passwordHash", "verifier", "role", "roles");
         assertThat(registeredBody.containsValue(user.password())).isFalse();
         assertThat(registered.headers().firstValue("Cache-Control")).contains("no-store");
-        assertThat(registered.headers().firstValue("X-Request-ID")).contains(registrationRequestId);
+        assertThat(registered.headers().firstValue("X-Request-ID").orElseThrow())
+                .matches("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+                .isNotEqualTo(registrationRequestId);
 
         var anonymous = send("GET", "/api/user/me", null, requestId("anonymous"), null, Map.of());
         assertError(anonymous, 401, "AUTHENTICATION_REQUIRED");
@@ -97,8 +100,11 @@ class UserIT {
         var login = send("POST", "/api/auth/login", loginJson(user.username(), user.password()),
                 requestId("login"), null, Map.of());
         SessionPayload firstSession = session(login);
-        assertThat(firstSession.refreshCookie().attributes())
-                .contains("Path=/api/auth", "HttpOnly", "SameSite=Lax", "Max-Age=2592000");
+        String cookieAttributes = firstSession.refreshCookie().attributes();
+        assertThat(cookieAttributes).contains("Path=/api/auth", "HttpOnly", "SameSite=Lax");
+        String maxAge = cookieAttributes.split("Max-Age=", 2)[1].split(";", 2)[0];
+        assertThat(Long.parseLong(maxAge))
+                .isBetween(1L, java.time.Duration.ofDays(30).toSeconds());
         assertThat(firstSession.refreshCookie().attributes().toLowerCase().contains("secure")).isFalse();
 
         ReceivedCookie csrf = csrfCookie();
@@ -142,13 +148,35 @@ class UserIT {
     }
 
     @Test
-    void concurrentRegistrationUsesDatabaseUniqueness() throws Exception {
+    void registrationCannotAssignCallerSuppliedStaffRoles() throws Exception {
+        Credentials user = uniqueUser("role_attempt");
+        var response = send("POST", "/api/auth/register", registrationJsonWithStaffRoleAttempt(user),
+                requestId("role-attempt"), null, Map.of());
+        var users = application.getBean(UserRepository.class);
+        var persistedUser = users.findByUsername(user.username());
+
+        assertThat(response.statusCode()).isIn(201, 400);
+        if (response.statusCode() == 201) {
+            assertThat(persistedUser).isPresent();
+            assertThat(persistedUser.orElseThrow().roles())
+                    .containsExactly(UserRole.CUSTOMER);
+        } else {
+            assertError(response, 400, "INVALID_REQUEST");
+            assertThat(persistedUser).isEmpty();
+        }
+    }
+
+    @Test
+    void concurrentRegistrationsWithDistinctUsernamesAndSharedMobileUseDatabaseUniqueness() throws Exception {
         Credentials user = uniqueUser("race");
-        String request = registrationJson(user);
+        Credentials uniqueOtherUser = uniqueUser("race_other");
+        Credentials differentUsername = new Credentials(uniqueOtherUser.username(), user.mobile(),
+                uniqueOtherUser.email(), uniqueOtherUser.password());
         CountDownLatch start = new CountDownLatch(1);
         try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
-            var first = executor.submit(() -> registerAfter(start, request, requestId("race-a")));
-            var second = executor.submit(() -> registerAfter(start, request, requestId("race-b")));
+            var first = executor.submit(() -> registerAfter(start, registrationJson(user), requestId("race-a")));
+            var second = executor.submit(() -> registerAfter(start,
+                    registrationJson(differentUsername), requestId("race-b")));
             start.countDown();
             var responses = List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS));
             assertThat(responses.stream().map(HttpResponse::statusCode).sorted().toList())
@@ -159,9 +187,57 @@ class UserIT {
         }
     }
 
+    @Test
+    void concurrentRegistrationsWithSameNormalizedUsernameAndDistinctMobilesPersistOneUser() throws Exception {
+        Credentials user = uniqueUser("username_race");
+        Credentials other = uniqueUser("username_race_other");
+        Credentials normalizedVariant = new Credentials(" " + user.username().toUpperCase(Locale.ROOT) + " ",
+                other.mobile(), other.email(), other.password());
+        String normalizedUsername = user.username();
+        assertThat(normalizedVariant.mobile()).isNotEqualTo(user.mobile());
+
+        CountDownLatch ready = new CountDownLatch(2);
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var first = executor.submit(() -> registerAfterBarrier(ready, start,
+                    registrationJson(user), requestId("username-race-a")));
+            var second = executor.submit(() -> registerAfterBarrier(ready, start,
+                    registrationJson(normalizedVariant), requestId("username-race-b")));
+            boolean bothReady = ready.await(10, TimeUnit.SECONDS);
+            start.countDown();
+            assertThat(bothReady).as("both registration requests reached the start barrier").isTrue();
+
+            var responses = List.of(first.get(20, TimeUnit.SECONDS), second.get(20, TimeUnit.SECONDS));
+            assertThat(responses.stream().map(HttpResponse::statusCode).sorted().toList())
+                    .containsExactly(201, 409);
+            var winner = responses.stream().filter(response -> response.statusCode() == 201)
+                    .findFirst().orElseThrow();
+            var duplicate = responses.stream().filter(response -> response.statusCode() == 409)
+                    .findFirst().orElseThrow();
+            assertError(duplicate, 409, "DUPLICATE_USER");
+
+            var persisted = application.getBean(UserRepository.class).findAll().stream()
+                    .filter(candidate -> candidate.username().equals(normalizedUsername))
+                    .toList();
+            assertThat(persisted).hasSize(1);
+            assertThat(persisted.getFirst().mobile()).isIn(user.mobile(), normalizedVariant.mobile());
+            assertThat(json(winner).get("username")).isEqualTo(normalizedUsername);
+            assertThat(json(winner).get("mobile")).isEqualTo(persisted.getFirst().mobile());
+        }
+    }
+
     private HttpResponse<String> registerAfter(CountDownLatch start, String request, String requestId)
             throws Exception {
         start.await(10, TimeUnit.SECONDS);
+        return send("POST", "/api/auth/register", request, requestId, null, Map.of());
+    }
+
+    private HttpResponse<String> registerAfterBarrier(CountDownLatch ready, CountDownLatch start,
+                                                       String request, String requestId) throws Exception {
+        ready.countDown();
+        if (!start.await(10, TimeUnit.SECONDS)) {
+            throw new IllegalStateException("Registration race did not reach its start barrier");
+        }
         return send("POST", "/api/auth/register", request, requestId, null, Map.of());
     }
 
@@ -215,6 +291,7 @@ class UserIT {
         assertThat(body.get("code")).isEqualTo(code);
         assertThat(body.get("message")).isInstanceOf(String.class);
         assertThat(body.get("requestId")).isInstanceOf(String.class);
+        assertThat(body.get("requestId")).isEqualTo(response.headers().firstValue("X-Request-ID").orElseThrow());
         assertThat(response.body().length()).isLessThan(512);
         assertThat(keys(body)).doesNotContain("password", "verifier", "refreshToken", "accessToken");
     }
@@ -262,6 +339,13 @@ class UserIT {
     private static String registrationJson(Credentials user) {
         return """
                 {"username":"%s","mobile":"%s","email":"%s","password":"%s"}
+                """.formatted(user.username(), user.mobile(), user.email(), user.password());
+    }
+
+    private static String registrationJsonWithStaffRoleAttempt(Credentials user) {
+        return """
+                {"username":"%s","mobile":"%s","email":"%s","password":"%s",
+                 "role":"ADMIN","roles":["ADMIN"]}
                 """.formatted(user.username(), user.mobile(), user.email(), user.password());
     }
 

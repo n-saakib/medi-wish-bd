@@ -25,6 +25,58 @@ class TestDatabaseGuardTest {
     }
 
     @Test
+    void refusesConnectionsOutsideTheConfiguredNonSuperuserTestRole() {
+        assertThatCode(() -> TestDatabase.validateTestDatabaseConnection(
+                "medi_wish_test", 180001, "medi_wish_test_runner", "medi_wish_test_runner", false, false, false))
+                .doesNotThrowAnyException();
+
+        assertThatThrownBy(() -> TestDatabase.validateTestDatabaseConnection(
+                "medi_wish_dev", 180001, "medi_wish_test_runner", "medi_wish_test_runner", false, false, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Integration tests require medi_wish_test");
+        assertThatThrownBy(() -> TestDatabase.validateTestDatabaseConnection(
+                "medi_wish_test", 170000, "medi_wish_test_runner", "medi_wish_test_runner", false, false, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Integration tests require PostgreSQL 18");
+        assertThatThrownBy(() -> TestDatabase.validateTestDatabaseConnection(
+                "medi_wish_test", 180001, "postgres", "medi_wish_test_runner", false, false, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Integration tests require the configured PostgreSQL test role");
+        assertThatThrownBy(() -> TestDatabase.validateTestDatabaseConnection(
+                "medi_wish_test", 180001, "medi_wish_test_runner", "medi_wish_test_runner", true, false, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Integration test role must not have SUPERUSER, CREATEDB, or CREATEROLE");
+        assertThatThrownBy(() -> TestDatabase.validateTestDatabaseConnection(
+                "medi_wish_test", 180001, null, "medi_wish_test_runner", false, false, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Integration tests require the configured PostgreSQL test role");
+        assertThatThrownBy(() -> TestDatabase.validateTestDatabaseConnection(
+                "medi_wish_test", 180001, " ", "medi_wish_test_runner", false, false, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Integration tests require the configured PostgreSQL test role");
+        assertThatThrownBy(() -> TestDatabase.validateTestDatabaseConnection(
+                "medi_wish_test", 180001, "medi_wish_test_runner", null, false, false, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Integration tests require the configured PostgreSQL test role");
+    }
+
+    @Test
+    void refusesRolesWithCreatedbPrivilege() {
+        assertThatThrownBy(() -> TestDatabase.validateTestDatabaseConnection(
+                "medi_wish_test", 180001, "medi_wish_test_runner", "medi_wish_test_runner", false, true, false))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Integration test role must not have SUPERUSER, CREATEDB, or CREATEROLE");
+    }
+
+    @Test
+    void refusesRolesWithCreaterolePrivilege() {
+        assertThatThrownBy(() -> TestDatabase.validateTestDatabaseConnection(
+                "medi_wish_test", 180001, "medi_wish_test_runner", "medi_wish_test_runner", false, false, true))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Integration test role must not have SUPERUSER, CREATEDB, or CREATEROLE");
+    }
+
+    @Test
     void readsLiteralDotEnvValuesWithoutEvaluatingOrExposingThem() throws IOException {
         var file = Files.createTempFile("medi-wish-test", ".env");
         try {

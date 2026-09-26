@@ -4,7 +4,7 @@ Source: [`src/main/resources/db/changelog/db.changelog-master.yaml`](../../../..
 
 ## Purpose and reasoning
 
-This is the Liquibase changelog entry point configured by `application.yaml`. Its initial changeset records the application baseline, the original registration table is retained as applied history, and the latest changeset migrates it to the shared User table with persisted role assignments. Starting with tagged, append-only changesets gives later stories a stable migration history and lets tests prove that restart does not reapply it.
+This is the Liquibase changelog entry point configured by `application.yaml`. Its initial changeset records the application baseline, the original registration table is retained as applied history, changeset `004-shared-users-and-roles` migrates it to the shared User table with persisted role assignments, and the current email lookup uses one non-unique case-insensitive expression index. Changeset 006's exact-match index remains in history and is removed by the later forward-only cleanup. Starting with tagged, append-only changesets gives later stories a stable migration history and lets tests prove that restart does not reapply it.
 
 ## Changesets
 
@@ -17,10 +17,15 @@ This is the Liquibase changelog entry point configured by `application.yaml`. It
 | `id: 003-customer-java-owned-values` | Removes the `id` and `created_at` database defaults after the original changeset, leaving the Java constructor as the single application write-path owner without editing an applied changeset. |
 | `id: 004-shared-users-and-roles` | Renames the applied identity table to `users`, creates the `user_roles` assignment table with a foreign key and composite primary key, and backfills existing rows with the `CUSTOMER` role. |
 | `id: 005-user-password-sessions` | Adds durable session families and one-use refresh generations with UUID keys, `TIMESTAMPTZ` lifecycle fields, a lowercase SHA-256 digest bounded to `VARCHAR(64)`, family/user and session/generation uniqueness/index boundaries, and cascading foreign keys. |
+| `id: 006-user-email-lookup` | Historically adds a non-unique B-tree index on `users.email`. Duplicate email remains allowed; the later 008 cleanup removes this index after sign-in adopted case-insensitive lookup. |
+| `id: 007-user-email-case-insensitive-lookup` | Adds a non-unique B-tree expression index on `upper(users.email)` for case-insensitive email sign-in. It preserves all stored email values and does not introduce email uniqueness. |
+| `id: 008-drop-unused-exact-email-index` | Drops the unused `idx_users_email` index without rewriting applied changesets; the expression index remains to support the current bounded case-insensitive lookup. |
 
 Liquibase owns schema evolution while Hibernate is configured only to validate. User generates its UUID identifier and creation timestamp in the Java constructor; changeset `003-customer-java-owned-values` removes the original defaults without changing an applied changeset's checksum, and `004-shared-users-and-roles` preserves existing identities while moving them to the shared User vocabulary. The changelog is applied in the configured schema, including the unique schema created by the integration harness.
 
 The Ticket 03 session tables retain consumed refresh generations through family expiry so replay can be distinguished from an unknown token; cleanup is intentionally deferred. The raw refresh value is never a schema field.
+
+The nullable email column is deliberately non-unique. Ticket 03 reads at most two case-insensitive matching rows to determine ambiguity and uses the appended `upper(email)` expression index for that query; schema history remains append-only and no migration normalizes stored email values.
 
 ## Verification
 

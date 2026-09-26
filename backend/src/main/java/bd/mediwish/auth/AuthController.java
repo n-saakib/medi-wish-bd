@@ -5,17 +5,19 @@ import bd.mediwish.user.UserService;
 import bd.mediwish.web.ApiErrors;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.dao.DataAccessException;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.security.web.csrf.CsrfToken;
+import org.springframework.transaction.TransactionException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import org.springframework.http.converter.HttpMessageNotReadableException;
 
 /**
  * HTTP adapter for registration and password-backed session operations.
@@ -68,7 +70,7 @@ public class AuthController {
         requireLoginRequest(request);
         AuthenticationService.AuthenticatedSession session = authentication.signIn(
                 request.identifier(), request.password());
-        refreshCookies.set(response, session.refreshToken());
+        refreshCookies.set(response, session.refreshToken(), session.refreshExpiresAt());
         return sessionResponse(session);
     }
 
@@ -90,13 +92,13 @@ public class AuthController {
         String rawRefresh = refreshCookies.read(request)
                 .orElseThrow(AuthenticationRequiredException::new);
         AuthenticationService.AuthenticatedSession session = authentication.refresh(rawRefresh);
-        refreshCookies.set(response, session.refreshToken());
+        refreshCookies.set(response, session.refreshToken(), session.refreshExpiresAt());
         return sessionResponse(session);
     }
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(HttpServletRequest request, HttpServletResponse response) {
-        authentication.logout(refreshCookies.read(request).orElse(null));
+        authentication.logout(refreshCookies.readForLogout(request));
         refreshCookies.clear(response);
         return ResponseEntity.noContent().cacheControl(CacheControl.noStore()).build();
     }
@@ -147,6 +149,11 @@ public class AuthController {
     @ExceptionHandler(AuthenticationRequiredException.class)
     ResponseEntity<ApiErrors.Body> authenticationRequired(HttpServletRequest request) {
         return error(HttpStatus.UNAUTHORIZED, "AUTHENTICATION_REQUIRED", request);
+    }
+
+    @ExceptionHandler({DataAccessException.class, TransactionException.class})
+    ResponseEntity<ApiErrors.Body> persistenceFailure(HttpServletRequest request) {
+        return error(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", request);
     }
 
     private ResponseEntity<ApiErrors.Body> error(HttpStatus status, String code, HttpServletRequest request) {

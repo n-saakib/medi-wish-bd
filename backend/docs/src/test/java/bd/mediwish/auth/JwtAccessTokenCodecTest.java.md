@@ -1,3 +1,3 @@
 # JwtAccessTokenCodecTest
 
-Checks required identity/session claims, the 15-minute injected-clock expiry boundary, tamper rejection, issuer/audience pinning and rejection of an HS256 secret below the 32-byte minimum.
+Checks the issued identity/session claims, rejection of signed tokens missing any required claim, future-`iat` and expired-token rejection using the injected clock, deterministic payload tamper rejection, and that a validly re-signed token's changed `sid` is read as that session claim. Issuer/audience pinning, rejection of `alg=none`, a different HS256 key, HS512 even with the configured key, and an HS256 secret below the 32-byte minimum are also covered. Session ownership is checked separately by `SessionServiceTest`; session-family expiry is exercised at the real HTTP/PostgreSQL seam in `AuthIT`.

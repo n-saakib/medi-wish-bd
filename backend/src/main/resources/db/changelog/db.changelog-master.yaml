@@ -213,3 +213,26 @@ databaseChangeLog:
                   name: session_id
               - column:
                   name: expires_at
+  - changeSet:
+      id: 006-user-email-lookup
+      author: medi-wish
+      changes:
+        - createIndex:
+            tableName: users
+            indexName: idx_users_email
+            columns:
+              - column:
+                  name: email
+  - changeSet:
+      id: 007-user-email-case-insensitive-lookup
+      author: medi-wish
+      changes:
+        - sql:
+            sql: CREATE INDEX idx_users_email_upper ON users (upper(email))
+  - changeSet:
+      id: 008-drop-unused-exact-email-index
+      author: medi-wish
+      changes:
+        - dropIndex:
+            tableName: users
+            indexName: idx_users_email

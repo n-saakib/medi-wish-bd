@@ -55,6 +55,7 @@ public final class JwtAccessTokenCodec implements AccessTokenCodec {
         try {
             var payload = Jwts.parser()
                     .verifyWith(signingKey())
+                    .sig().clear().add(Jwts.SIG.HS256).and()
                     .requireIssuer(properties.issuer())
                     .requireAudience(properties.audience())
                     .clock(() -> Date.from(clock.instant()))

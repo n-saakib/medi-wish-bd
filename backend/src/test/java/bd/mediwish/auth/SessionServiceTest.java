@@ -11,6 +11,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Optional;
+import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -75,6 +76,37 @@ class SessionServiceTest {
         assertThatThrownBy(() -> service.rotate(raw)).isInstanceOf(SessionReplayException.class);
         assertThat(session.revoked()).isTrue();
         assertThat(session.revokedReason()).isEqualTo("refresh-replay");
+    }
+
+    @Test
+    void revokesEveryActiveSessionFamilyForTheUser() {
+        var service = service(new FixedRandom());
+        var user = new User("alice_1", "01700000000", null, "encoded");
+        var first = new UserSession(UUID.randomUUID(), user, NOW, NOW.plusSeconds(1000));
+        var second = new UserSession(UUID.randomUUID(), user, NOW, NOW.plusSeconds(1000));
+        when(sessions.findActiveByUserIdForUpdate(user.id())).thenReturn(List.of(first, second));
+
+        service.revokeAllForUser(user.id(), "password-reset");
+
+        assertThat(first.revoked()).isTrue();
+        assertThat(first.revokedReason()).isEqualTo("password-reset");
+        assertThat(second.revoked()).isTrue();
+        assertThat(second.revokedReason()).isEqualTo("password-reset");
+        ArgumentCaptor<UserSession> captor = ArgumentCaptor.forClass(UserSession.class);
+        verify(sessions, times(2)).save(captor.capture());
+        assertThat(captor.getAllValues()).containsExactlyInAnyOrder(first, second);
+    }
+
+    @Test
+    void rejectsAnActiveSessionOwnedByAnotherUser() {
+        var service = service(new FixedRandom());
+        var sessionOwner = new User("session_owner", "01700000000", null, "encoded");
+        var tokenUser = new User("token_user", "01700000001", null, "encoded");
+        var session = new UserSession(UUID.randomUUID(), sessionOwner, NOW, NOW.plusSeconds(1000));
+        when(sessions.findById(session.id())).thenReturn(Optional.of(session));
+
+        assertThatThrownBy(() -> service.requireActive(session.id(), tokenUser.id(), NOW))
+                .isInstanceOf(AuthenticationRequiredException.class);
     }
 
     private SessionService service(FixedRandom random) {

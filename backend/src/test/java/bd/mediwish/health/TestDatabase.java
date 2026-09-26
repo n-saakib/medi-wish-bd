@@ -125,6 +125,23 @@ public final class TestDatabase implements AutoCloseable {
         }
     }
 
+    static void validateTestDatabaseConnection(
+            String database, int serverVersion, String connectedRole, String configuredRole,
+            boolean superuser, boolean canCreateDatabase, boolean canCreateRoles) {
+        if (!"medi_wish_test".equals(database)) {
+            throw new IllegalStateException("Integration tests require medi_wish_test");
+        }
+        if (serverVersion / 10000 != 18) {
+            throw new IllegalStateException("Integration tests require PostgreSQL 18");
+        }
+        if (connectedRole == null || connectedRole.isBlank() || !connectedRole.equals(configuredRole)) {
+            throw new IllegalStateException("Integration tests require the configured PostgreSQL test role");
+        }
+        if (superuser || canCreateDatabase || canCreateRoles) {
+            throw new IllegalStateException("Integration test role must not have SUPERUSER, CREATEDB, or CREATEROLE");
+        }
+    }
+
     private static String required(Map<String, String> settings, String name) {
         var value = settings.get(name);
         if (value == null || value.isBlank()) {
@@ -140,11 +157,15 @@ public final class TestDatabase implements AutoCloseable {
 
     private void verifyDatabase(Connection connection) throws SQLException {
         try (var statement = connection.createStatement();
-             var result = statement.executeQuery("SELECT current_database(), current_setting('server_version_num')::integer")) {
-            if (!result.next() || !"medi_wish_test".equals(result.getString(1))
-                    || result.getInt(2) / 10000 != 18) {
-                throw new IllegalStateException("Integration tests require the explicit PostgreSQL 18 test database");
+             var result = statement.executeQuery("SELECT current_database(), "
+                     + "current_setting('server_version_num')::integer, current_user, "
+                     + "rol.rolsuper, rol.rolcreatedb, rol.rolcreaterole "
+                     + "FROM pg_roles AS rol WHERE rol.rolname = current_user")) {
+            if (!result.next()) {
+                throw new IllegalStateException("Integration tests could not verify the PostgreSQL test role");
             }
+            validateTestDatabaseConnection(result.getString(1), result.getInt(2),
+                    result.getString(3), username, result.getBoolean(4), result.getBoolean(5), result.getBoolean(6));
         }
     }
 
@@ -154,6 +175,7 @@ public final class TestDatabase implements AutoCloseable {
 
     public Map<String, Object> applicationProperties(int connectionPort) {
         Map<String, Object> properties = new HashMap<>();
+        properties.put("spring.profiles.active", "test");
         properties.put("server.port", "0");
         String connectionHost = connectionPort == port ? host : "127.0.0.1";
         properties.put("spring.datasource.url", "jdbc:postgresql://" + connectionHost + ":" + connectionPort

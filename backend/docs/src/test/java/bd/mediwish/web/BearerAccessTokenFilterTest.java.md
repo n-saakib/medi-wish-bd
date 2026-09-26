@@ -8,4 +8,4 @@ Tests the bearer adapter and current-user/session handoff without parsing JWTs i
 
 ## Verification
 
-The tests cover a verified current principal, bounded invalid-bearer rejection with a Bearer challenge, and the fact that Basic headers and refresh cookies cannot authenticate `/api/user/me`.
+The tests cover a verified current principal, bounded invalid-bearer rejection with a Bearer challenge and server-generated request ID, generic `500 INTERNAL_ERROR` handling for persistence, data-access and transaction failures during current-user loading, the fact that Basic headers and refresh cookies cannot authenticate `/api/user/me`, and that an `access_token` query parameter or unrelated `X-Access-Token` header cannot authenticate that profile route. An oversized bearer value on a public auth route is also ignored by this protected-route filter.

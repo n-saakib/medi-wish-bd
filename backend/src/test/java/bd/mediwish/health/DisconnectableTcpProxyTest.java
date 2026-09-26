@@ -1,9 +1,12 @@
 package bd.mediwish.health;
 
+import java.io.IOException;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 import static org.assertj.core.api.Assertions.*;
 
@@ -43,6 +46,33 @@ class DisconnectableTcpProxyTest {
             }
             assertThat(echoes.get(3, java.util.concurrent.TimeUnit.SECONDS)).isTrue();
         }
+    }
+
+    @Test
+    void reportsUnexpectedAcceptFailureOnClose() throws Exception {
+        var acceptStarted = new CountDownLatch(1);
+        var listener = new ServerSocket() {
+            @Override
+            public Socket accept() throws IOException {
+                acceptStarted.countDown();
+                throw new IOException("synthetic accept failure");
+            }
+        };
+        var proxy = new DisconnectableTcpProxy("127.0.0.1", 0, listener);
+        boolean acceptWasStarted;
+        Throwable closeFailure;
+        try {
+            acceptWasStarted = acceptStarted.await(5, TimeUnit.SECONDS);
+        } finally {
+            closeFailure = catchThrowable(proxy::close);
+        }
+
+        assertThat(acceptWasStarted).isTrue();
+        assertThat(closeFailure)
+                .isInstanceOf(IOException.class)
+                .hasMessage("Test proxy listener failed")
+                .hasCauseInstanceOf(IOException.class);
+        assertThat(closeFailure.getCause()).hasMessage("synthetic accept failure");
     }
 
     private Socket client(int port) throws Exception {

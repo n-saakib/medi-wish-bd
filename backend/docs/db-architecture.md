@@ -4,7 +4,7 @@ This is the living database architecture map for the backend. It describes the
 schema that is currently created by Liquibase and mapped by JPA; it is not a
 design claim for tables that belong to later tickets.
 
-**Last reviewed:** 2026-09-18<br/>
+**Last reviewed:** 2026-09-25<br/>
 **Current scope:** Ticket 01 health baseline, Ticket 02 shared User
 registration/RBAC foundation and Ticket 03 durable password sessions.<br/>
 **Schema source of truth:** [`src/main/resources/db/changelog/db.changelog-master.yaml`](../src/main/resources/db/changelog/db.changelog-master.yaml)<br/>
@@ -119,6 +119,9 @@ substitute.
   lowercase SHA-256 hex digest is persisted. Rotation locks the generation and
   family in one transaction; raw values never appear in schema, JWT claims or
   ordinary responses.
+- Logout revokes all valid session families represented by duplicate refresh
+  cookies in one transaction. A failure while revoking any family rolls back
+  the entire operation rather than leaving a partial logout.
 - The table rename from `customers` to `users` preserves the applied
   migration history; `customers` is not a current application table.
 
@@ -131,6 +134,9 @@ substitute.
 | `003-customer-java-owned-values` | Removes database defaults for `id` and `created_at`. | Java `User` now owns UUID and `Instant` creation while Liquibase remains append-only. |
 | `004-shared-users-and-roles` | Renames `customers` to `users`, creates `user_roles`, adds the cascading foreign key and backfills `CUSTOMER` for existing rows. | Implements the shared User resource and role-based authorization boundary. |
 | `005-user-password-sessions` | Creates session families and refresh generations with expiry, revocation, consumption, digest and locking-support indexes/constraints. | Implements the durable state boundary for Ticket 03 refresh rotation and immediate logout invalidation. |
+| `006-user-email-lookup` | Historically adds a non-unique B-tree index on `users.email`. | The changeset remains in applied history; its unused exact-match index is removed by changeset 008. |
+| `007-user-email-case-insensitive-lookup` | Adds a non-unique B-tree expression index on `upper(users.email)`. | Supports the bounded case-insensitive candidate query without changing stored email values or making email unique. |
+| `008-drop-unused-exact-email-index` | Drops `idx_users_email`, introduced by 006. | Keeps only the index used by the current case-insensitive lookup while preserving append-only migration history. |
 
 When a later ticket changes persistence, add a new append-only changeset and
 update this page in the same change. Do not rewrite an applied changeset to

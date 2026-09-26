@@ -18,6 +18,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.sql.PreparedStatement;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -109,11 +110,153 @@ class ConcurrentRefreshIT {
         assertError(revokedRefresh, 401, "AUTHENTICATION_REQUIRED");
     }
 
+    @Test
+    void malformedGuessedAlteredAndDuplicateRefreshCookiesAreRejectedWithoutConsumingValidCredential()
+            throws Exception {
+        Credentials user = uniqueUser("invalid-refresh");
+        register(user);
+        SessionPayload initial = login(user);
+        ReceivedCookie csrf = csrfCookie();
+        String validRefresh = initial.refreshCookie().value();
+        String truncatedRefresh = validRefresh.substring(0, validRefresh.length() / 2);
+        String alteredRefresh = (validRefresh.charAt(0) == 'a' ? "b" : "a") + validRefresh.substring(1);
+        String guessedRefresh = UUID.randomUUID().toString().replace("-", "")
+                + UUID.randomUUID().toString().replace("-", "").substring(0, 11);
+        assertThat(guessedRefresh).matches("[A-Za-z0-9_-]{43}");
+        List<String> invalidCookieHeaders = List.of(
+                "MW_REFRESH=; XSRF-TOKEN=" + csrf.value(),
+                "MW_REFRESH=" + truncatedRefresh + "; XSRF-TOKEN=" + csrf.value(),
+                "MW_REFRESH=" + alteredRefresh + "; XSRF-TOKEN=" + csrf.value(),
+                "MW_REFRESH=" + guessedRefresh + "; XSRF-TOKEN=" + csrf.value(),
+                "MW_REFRESH=" + validRefresh + "; MW_REFRESH=" + validRefresh
+                        + "; XSRF-TOKEN=" + csrf.value(),
+                "MW_REFRESH=" + validRefresh + "; MW_REFRESH=" + alteredRefresh
+                        + "; XSRF-TOKEN=" + csrf.value());
+
+        String genericMessage = null;
+        for (String cookieHeader : invalidCookieHeaders) {
+            HttpResponse<String> response = refreshWithCookieHeader(cookieHeader, csrf.value(),
+                    requestId("invalid-refresh"));
+            Map<?, ?> error = assertError(response, 401, "AUTHENTICATION_REQUIRED");
+            if (genericMessage == null) genericMessage = error.get("message").toString();
+            assertThat(error.get("message")).isEqualTo(genericMessage);
+            assertThat(response.body()).doesNotContain(validRefresh, truncatedRefresh, alteredRefresh,
+                    guessedRefresh, csrf.value());
+            assertThat(response.headers().allValues("Set-Cookie"))
+                    .noneMatch(value -> value.startsWith("MW_REFRESH="));
+        }
+
+        SessionPayload accepted = session(refreshWithCookieHeader(
+                "MW_REFRESH=" + validRefresh + "; XSRF-TOKEN=" + csrf.value(),
+                csrf.value(), requestId("valid-after-invalid-refreshes")));
+        assertThat(accepted.refreshCookie().value()).isNotEqualTo(validRefresh);
+    }
+
+    @Test
+    void logoutRacingRefreshRevokesFamilyWithoutCreatingExtraSessionOrGeneration() throws Exception {
+        Credentials user = uniqueUser("logout-refresh-race");
+        register(user);
+        SessionPayload initial = login(user);
+        ReceivedCookie csrf = csrfCookie();
+        CountDownLatch start = new CountDownLatch(1);
+
+        HttpResponse<String> refreshResponse;
+        HttpResponse<String> logoutResponse;
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var refresh = executor.submit(() -> refreshAfter(start, initial.refreshCookie().value(), csrf.value(),
+                    requestId("logout-race-refresh")));
+            var logout = executor.submit(() -> logoutAfter(start, initial.refreshCookie().value(), csrf.value(),
+                    requestId("logout-race-logout")));
+            start.countDown();
+            refreshResponse = refresh.get(20, TimeUnit.SECONDS);
+            logoutResponse = logout.get(20, TimeUnit.SECONDS);
+        }
+
+        assertThat(logoutResponse.statusCode()).isEqualTo(204);
+        ReceivedCookie cleared = responseCookie(logoutResponse, "MW_REFRESH");
+        assertThat(cleared.value()).isEmpty();
+        assertThat(refreshResponse.statusCode()).isIn(200, 401);
+        SessionPayload rotated = refreshResponse.statusCode() == 200
+                ? session(refreshResponse)
+                : null;
+        if (rotated == null) assertError(refreshResponse, 401, "AUTHENTICATION_REQUIRED");
+
+        assertThat(countRevoked(user, "logout")).isEqualTo(1);
+        assertThat(countSessions(user)).isEqualTo(1);
+        assertThat(refreshGenerations(user)).containsExactlyElementsOf(
+                rotated == null ? List.of(0L) : List.of(0L, 1L));
+        assertError(send("GET", "/api/user/me", null, requestId("logout-race-old-access"),
+                "Bearer " + initial.accessToken(), Map.of()), 401, "AUTHENTICATION_REQUIRED");
+        if (rotated != null) {
+            assertError(send("GET", "/api/user/me", null, requestId("logout-race-rotated-access"),
+                    "Bearer " + rotated.accessToken(), Map.of()), 401, "AUTHENTICATION_REQUIRED");
+            assertError(refreshAfter(new CountDownLatch(0), rotated.refreshCookie().value(), csrf.value(),
+                    requestId("logout-race-rotated-refresh")), 401, "AUTHENTICATION_REQUIRED");
+        }
+    }
+
+    @Test
+    void logoutRequestsWithOppositeCookieOrderRevokeBothSessionFamilies() throws Exception {
+        Credentials user = uniqueUser("reverse-order-logout");
+        register(user);
+        SessionPayload first = login(user);
+        SessionPayload second = login(user);
+        ReceivedCookie csrf = csrfCookie();
+        List<String> refreshTokens = List.of(first.refreshCookie().value(), second.refreshCookie().value());
+        CountDownLatch start = new CountDownLatch(1);
+
+        List<HttpResponse<String>> responses;
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {
+            var forward = executor.submit(() -> logoutAfter(start, refreshTokens, csrf.value(),
+                    requestId("logout-order-forward")));
+            var reverse = executor.submit(() -> logoutAfter(start, List.of(
+                    refreshTokens.get(1), refreshTokens.get(0)), csrf.value(), requestId("logout-order-reverse")));
+            start.countDown();
+            responses = List.of(forward.get(20, TimeUnit.SECONDS), reverse.get(20, TimeUnit.SECONDS));
+        }
+
+        assertThat(responses.stream().map(HttpResponse::statusCode).toList()).containsExactly(204, 204);
+        for (HttpResponse<String> response : responses) {
+            assertThat(responseCookie(response, "MW_REFRESH").value()).isEmpty();
+        }
+        assertThat(countRevoked(user, "logout")).isEqualTo(2);
+        assertThat(countSessions(user)).isEqualTo(2);
+
+        for (SessionPayload session : List.of(first, second)) {
+            assertError(send("GET", "/api/user/me", null, requestId("logout-order-access"),
+                    "Bearer " + session.accessToken(), Map.of()), 401, "AUTHENTICATION_REQUIRED");
+            assertError(refreshWithCookieHeader("MW_REFRESH=" + session.refreshCookie().value()
+                    + "; XSRF-TOKEN=" + csrf.value(), csrf.value(), requestId("logout-order-refresh")),
+                    401, "AUTHENTICATION_REQUIRED");
+        }
+    }
+
     private HttpResponse<String> refreshAfter(CountDownLatch start, String refresh, String csrf, String requestId)
             throws Exception {
         if (!start.await(10, TimeUnit.SECONDS)) throw new AssertionError("refresh start barrier timed out");
+        return refreshWithCookieHeader("MW_REFRESH=" + refresh + "; XSRF-TOKEN=" + csrf, csrf, requestId);
+    }
+
+    private HttpResponse<String> refreshWithCookieHeader(String cookieHeader, String csrf, String requestId)
+            throws Exception {
         return send("POST", "/api/auth/refresh", null, requestId, null, Map.of(
-                "Cookie", "MW_REFRESH=" + refresh + "; XSRF-TOKEN=" + csrf,
+                "Cookie", cookieHeader,
+                "X-XSRF-TOKEN", csrf,
+                "Origin", ALLOWED_ORIGIN));
+    }
+
+    private HttpResponse<String> logoutAfter(CountDownLatch start, String refresh, String csrf, String requestId)
+            throws Exception {
+        return logoutAfter(start, List.of(refresh), csrf, requestId);
+    }
+
+    private HttpResponse<String> logoutAfter(CountDownLatch start, List<String> refreshTokens, String csrf,
+                                            String requestId) throws Exception {
+        if (!start.await(10, TimeUnit.SECONDS)) throw new AssertionError("logout start barrier timed out");
+        String refreshCookies = String.join("; ", refreshTokens.stream()
+                .map(refresh -> "MW_REFRESH=" + refresh).toList());
+        return send("POST", "/api/auth/logout", null, requestId, null, Map.of(
+                "Cookie", refreshCookies + "; XSRF-TOKEN=" + csrf,
                 "X-XSRF-TOKEN", csrf,
                 "Origin", ALLOWED_ORIGIN));
     }
@@ -195,6 +338,33 @@ class ConcurrentRefreshIT {
             try (var result = statement.executeQuery()) {
                 assertThat(result.next()).isTrue();
                 return result.getLong(1);
+            }
+        }
+    }
+
+    private long countSessions(Credentials user) throws Exception {
+        String sql = "SELECT count(*) FROM " + table("user_sessions")
+                + " s JOIN " + table("users") + " u ON u.id = s.user_id WHERE u.username = ?";
+        try (var connection = database.connect(); PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, user.username());
+            try (var result = statement.executeQuery()) {
+                assertThat(result.next()).isTrue();
+                return result.getLong(1);
+            }
+        }
+    }
+
+    private List<Long> refreshGenerations(Credentials user) throws Exception {
+        String sql = "SELECT t.generation FROM " + table("user_session_refresh_tokens")
+                + " t JOIN " + table("user_sessions") + " s ON s.id = t.session_id"
+                + " JOIN " + table("users") + " u ON u.id = s.user_id"
+                + " WHERE u.username = ? ORDER BY t.generation";
+        try (var connection = database.connect(); PreparedStatement statement = connection.prepareStatement(sql)) {
+            statement.setString(1, user.username());
+            try (var result = statement.executeQuery()) {
+                var generations = new ArrayList<Long>();
+                while (result.next()) generations.add(result.getLong(1));
+                return generations;
             }
         }
     }

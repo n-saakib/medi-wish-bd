@@ -7,7 +7,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -31,27 +33,34 @@ public class AuthenticationService {
         this.properties = properties;
     }
 
-    @Transactional
+    // Not transactional: Argon2 verification must not hold a pooled connection; SessionService.create owns its transaction.
     public AuthenticatedSession signIn(String identifier, String password) {
         User user = resolve(identifier, password);
-        if (user == null || !passwords.matches(password == null ? "" : password, user.passwordHash())) {
+        String candidatePassword = password == null ? "" : password;
+        String passwordVerifier = user.passwordHash();
+        if (!PasswordVerifierPolicy.isUsable(passwords, passwordVerifier)) {
+            runDummyVerification(candidatePassword);
             throw new AuthenticationFailedException();
         }
+        if (!passwords.matches(candidatePassword, passwordVerifier)) throw new AuthenticationFailedException();
         return issue(user, sessions.create(user));
     }
 
     public AuthenticatedSession refresh(String refreshToken) {
         SessionService.SessionCredential rotated = sessions.rotate(refreshToken);
         User user = users.findById(rotated.userId()).orElse(null);
-        if (user == null || user.passwordHash() == null || user.passwordHash().isBlank()) {
+        if (user == null || !PasswordVerifierPolicy.isUsable(user.passwordHash())) {
             sessions.revoke(rotated.sessionId(), "user-unavailable");
             throw new AuthenticationRequiredException();
         }
         return issue(user, rotated);
     }
 
-    public void logout(String refreshToken) {
-        sessions.revokeByRefreshToken(refreshToken, "logout");
+    @Transactional
+    public void logout(List<String> refreshTokens) {
+        for (String refreshToken : refreshTokens.stream().sorted().toList()) {
+            sessions.revokeByRefreshToken(refreshToken, "logout");
+        }
     }
 
     public void revokeAllForUser(UUID userId, String reason) {
@@ -64,7 +73,7 @@ public class AuthenticationService {
         if (!normalized.username().isBlank()) users.findByUsername(normalized.username()).ifPresent(user -> candidates.put(user.id(), user));
         if (!normalized.mobile().isBlank()) users.findByMobileAndMobileVerifiedTrue(normalized.mobile())
                 .ifPresent(user -> candidates.put(user.id(), user));
-        if (normalized.email() != null) users.findAllByEmail(normalized.email())
+        if (normalized.email() != null) users.findTop2ByEmailIgnoreCase(normalized.email())
                 .forEach(user -> candidates.put(user.id(), user));
         if (candidates.size() != 1) {
             runDummyVerification(password == null ? "" : password);
@@ -82,10 +91,12 @@ public class AuthenticationService {
     private AuthenticatedSession issue(User user, SessionService.SessionCredential session) {
         var accessToken = accessTokens.issue(user.id(), session.sessionId());
         return new AuthenticatedSession(accessToken.token(), accessToken.expiresInSeconds(),
-                session.refreshToken(), new UserProfile(user.username(), user.mobile(), user.email(), user.mobileVerified()));
+                session.refreshToken(), session.expiresAt(),
+                new UserProfile(user.username(), user.mobile(), user.email(), user.mobileVerified()));
     }
 
-    public record AuthenticatedSession(String accessToken, long expiresIn, String refreshToken, UserProfile user) {}
+    public record AuthenticatedSession(String accessToken, long expiresIn, String refreshToken,
+                                       Instant refreshExpiresAt, UserProfile user) {}
 
     public record UserProfile(String username, String mobile, String email, boolean mobileVerified) {}
 }

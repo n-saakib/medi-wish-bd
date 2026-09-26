@@ -37,7 +37,7 @@ public class UserService {
         String normalizedEmail = identifiers.email(email);
         if (!normalizedUsername.matches("[a-z0-9._-]{3,50}") || normalizedMobile.isBlank()
                 || normalizedMobile.length() > MAX_MOBILE_LENGTH
-                || password == null || password.length() < 12 || password.length() > 128
+                || password == null || password.isBlank() || password.length() < 12 || password.length() > 128
                 || (normalizedEmail != null && (normalizedEmail.length() > MAX_EMAIL_LENGTH
                 || !normalizedEmail.matches("[^\\s@]+@[^\\s@]+")))) {
             throw new InvalidRegistrationException();
@@ -52,10 +52,6 @@ public class UserService {
             if (isUniqueViolation(exception)) throw new DuplicateUserException();
             throw exception;
         }
-    }
-
-    public static String normalizeUsername(String username) {
-        return new UserIdentifierNormalizer().username(username);
     }
 
     private boolean isUniqueViolation(DataIntegrityViolationException exception) {

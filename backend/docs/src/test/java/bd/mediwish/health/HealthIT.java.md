@@ -23,9 +23,9 @@ The test is tagged `integration` and `regression`; selected methods also carry `
 | Method | What it proves |
 | --- | --- |
 | `startedApplicationHasMinimalLiveAndReadyResponsesAndActualJpaAndLiquibase()` | Both health groups return 200/`UP`; JPA is open; Liquibase is present; and the baseline changelog has actually run in the isolated schema. |
-| `managementAndUnknownRoutesReturnBoundedErrorsWithoutRequestSecrets(CapturedOutput output)` | Sensitive Actuator routes, API docs, dashboard and unknown paths are denied with only `code`, `message` and `requestId`; request secrets are absent from bodies and logs. A mutating health request receives the expected 403 contract. |
-| `invalidCorrelationIdIsReplacedWithoutEchoingOrLoggingIt(CapturedOutput output)` | An unsafe oversized correlation value is replaced by a safe generated ID and is absent from the response body and captured logs. |
-| `concurrentPublicChecksKeepRequestCorrelationIndependent()` | Eight concurrent readiness requests retain their own request IDs and each receive the minimal `UP` response, checking MDC/request isolation. |
+| `managementAndUnknownRoutesReturnBoundedErrorsWithoutRequestSecrets(CapturedOutput output)` | Sensitive Actuator routes (including aggregate health and a readiness component), API docs, dashboard and unknown paths are denied with only `code`, `message` and `requestId`; their generated error-body/header IDs match the eleven corresponding captured 401 ECS events, and request secrets are absent from bodies/logs. A mutating health request separately checks the exact three-field 403 envelope, its size bound and secret redaction, plus exactly one captured 403 ECS event carrying the response's generated request ID. |
+| `untrustedCorrelationIdIsReplacedWithoutEchoingOrLoggingIt(CapturedOutput output)` | An unsafe oversized caller value is replaced by a server UUID and is absent from the response body and captured logs. |
+| `concurrentPublicChecksKeepRequestCorrelationIndependent()` | Eight concurrent readiness requests retain distinct server-generated request IDs and each receive the minimal `UP` response, checking MDC/request isolation. |
 | `databaseLossAffectsOnlyReadinessAndServiceRecoversWithoutProcessRestart()` | Closing proxy sessions makes readiness return 503 while liveness remains 200; reconnecting the proxy lets readiness recover within the bounded polling window without restarting the application. |
 | `restartKeepsExistingDataAndDoesNotReapplyMigration()` | A probe table and row survive a context restart, while Liquibase changelog count remains unchanged. |
 
@@ -39,4 +39,4 @@ The test is tagged `integration` and `regression`; selected methods also carry `
 
 ## Verification
 
-Run with the real PostgreSQL 18 test environment and the Maven `verify` lifecycle. This test is the cumulative guard: later stories must retain it and add their own feature and cross-story journeys.
+Run with the real PostgreSQL 18 test environment and the Maven `verify` lifecycle. This test is the cumulative guard: later stories must retain it and add their own feature and cross-story journeys. Caller-provided request IDs are not echoed; headers, error bodies and structured logs use the filter-generated UUID.

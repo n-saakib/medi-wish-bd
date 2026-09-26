@@ -15,6 +15,7 @@ import tools.jackson.databind.json.JsonMapper;
 import java.util.List;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -54,7 +55,8 @@ class UserControllerTest {
         mvc.perform(get("/api/user/me").header("X-Request-ID", "profile-02"))
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("AUTHENTICATION_REQUIRED"))
-                .andExpect(jsonPath("$.requestId").value("profile-02"))
+                .andExpect(jsonPath("$.requestId").value(
+                        matchesPattern("[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")))
                 .andExpect(jsonPath("$.password").doesNotExist());
     }
 }

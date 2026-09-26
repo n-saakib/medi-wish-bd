@@ -8,4 +8,4 @@ Tests the reduced User HTTP seam with a standalone MVC harness and request-corre
 
 ## Verification
 
-The suite verifies that `/api/user/me` projects only the current verified principal, does not perform or require a second repository lookup, excludes password/role fields, and maps a missing principal to the bounded correlated authentication error.
+The suite verifies that `/api/user/me` projects only the current verified principal, does not perform or require a second repository lookup, excludes password/role fields, and maps a missing principal to the bounded authentication error with a server-generated request ID.

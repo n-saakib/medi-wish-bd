@@ -1,11 +1,12 @@
 package bd.mediwish.web;
 
 import bd.mediwish.auth.AuthProperties;
+import bd.mediwish.auth.PasswordVerifierPolicy;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
-import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
@@ -15,31 +16,49 @@ import org.springframework.security.web.authentication.logout.LogoutFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 import org.springframework.security.web.csrf.CsrfTokenRepository;
+import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.time.DateTimeException;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Date;
 import java.util.List;
 
 @Configuration
 class SecurityConfiguration {
+    // Exclusive PostgreSQL timestamp upper bound; this is a storage limit, not a product lifetime cap.
+    private static final Instant POSTGRES_TIMESTAMP_END =
+            LocalDate.of(294_277, 1, 1).atStartOfDay().toInstant(ZoneOffset.UTC);
+    private static final List<String> LOCAL_ALLOWED_ORIGINS =
+            List.of("http://127.0.0.1:3000", "http://localhost:3000");
     private static final List<String> ALLOWED_METHODS = List.of("GET", "POST", "HEAD", "OPTIONS");
     private static final List<String> ALLOWED_HEADERS = List.of(
             "Authorization", "Content-Type", "X-Request-ID", "X-XSRF-TOKEN");
 
     @Bean
     PasswordEncoder passwordEncoder() {
-        return Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8();
+        return new Argon2PasswordEncoder(16, 32, 1, 19_456, 2);
     }
 
     @Bean
     CorsConfigurationSource corsConfigurationSource(
-            @Value("${app.cors.allowed-origins:http://127.0.0.1:3000,http://localhost:3000}") String allowedOrigins) {
-        List<String> origins = Arrays.stream(allowedOrigins.split(","))
-                .map(String::trim).filter(origin -> !origin.isEmpty()).toList();
+            @Value("${app.cors.allowed-origins:}") String allowedOrigins,
+            @Value("${spring.profiles.active:}") String activeProfiles) {
+        List<String> origins = parseOrigins(allowedOrigins);
+        if (origins.isEmpty() && allowsLocalDevelopmentOverrides(activeProfiles)) {
+            origins = LOCAL_ALLOWED_ORIGINS;
+        }
+        if (origins.isEmpty()) {
+            throw new IllegalStateException("hosted CORS origins must be explicitly configured");
+        }
         if (origins.stream().anyMatch("*"::equals)) {
             throw new IllegalStateException("credentialed CORS requires explicit origins");
         }
@@ -72,22 +91,59 @@ class SecurityConfiguration {
     @Bean
     AuthConfigurationValidation authConfigurationValidation(
             AuthProperties properties,
+            PasswordEncoder passwords,
             @Value("${app.auth.cookie.secure:true}") boolean secureCookie,
             @Value("${spring.profiles.active:}") String activeProfiles) {
         validateBase64Secret(properties.jwtSecret());
         if (properties.dummyPasswordVerifier() == null || properties.dummyPasswordVerifier().isBlank()) {
             throw new IllegalStateException("auth dummy password verifier is not configured");
         }
-        if (!secureCookie && isProductionProfile(activeProfiles)) {
-            throw new IllegalStateException("production auth cookies must be Secure");
+        if (!PasswordVerifierPolicy.isUsable(passwords, properties.dummyPasswordVerifier())) {
+            throw new IllegalStateException("auth dummy password verifier is invalid");
+        }
+        var accessTokenLifetime = properties.accessTokenLifetime();
+        if (accessTokenLifetime == null || accessTokenLifetime.toSeconds() < 1) {
+            throw new IllegalStateException("auth access-token lifetime must be at least one second");
+        }
+        Instant now = Instant.now();
+        if (!isJwtExpiryRepresentable(now, accessTokenLifetime)) {
+            throw new IllegalStateException("auth access-token lifetime is not representable as a JWT date");
+        }
+        Duration refreshTokenLifetime = properties.refreshTokenLifetime();
+        if (refreshTokenLifetime == null || refreshTokenLifetime.toSeconds() < 1) {
+            throw new IllegalStateException("auth refresh-token lifetime must be at least one second");
+        }
+        if (!isStoredExpiryRepresentable(now, refreshTokenLifetime)) {
+            throw new IllegalStateException("auth refresh-token lifetime exceeds the supported timestamp range");
+        }
+        if (!secureCookie && !allowsLocalDevelopmentOverrides(activeProfiles)) {
+            throw new IllegalStateException("hosted auth cookies must be Secure");
         }
         return new AuthConfigurationValidation();
+    }
+
+    private static boolean isJwtExpiryRepresentable(Instant now, Duration lifetime) {
+        try {
+            Date.from(now.plus(lifetime));
+            return true;
+        } catch (DateTimeException | ArithmeticException | IllegalArgumentException exception) {
+            return false;
+        }
+    }
+
+    private static boolean isStoredExpiryRepresentable(Instant now, Duration lifetime) {
+        try {
+            return now.plus(lifetime).isBefore(POSTGRES_TIMESTAMP_END);
+        } catch (DateTimeException | ArithmeticException exception) {
+            return false;
+        }
     }
 
     @Bean
     SecurityFilterChain security(HttpSecurity http, ApiErrors errors,
                                  BearerAccessTokenFilter bearer,
-                                 CsrfTokenRepository csrfTokens) throws Exception {
+                                 CsrfTokenRepository csrfTokens,
+                                 @Qualifier("corsConfigurationSource") CorsConfigurationSource corsSource) throws Exception {
         return http
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokens)
@@ -96,7 +152,9 @@ class SecurityConfiguration {
                                 exactRequest("POST", "/api/auth/register"),
                                 exactRequest("POST", "/api/auth/login"),
                                 exactRequest("GET", "/api/auth/csrf")))
-                .cors(Customizer.withDefaults())
+                .cors(cors -> cors.disable())
+                .addFilterBefore(new BoundedCorsFilter(corsSource, errors), SecurityContextHolderFilter.class)
+                .addFilterAfter(new AuthenticationJsonBodyLimitFilter(errors), BoundedCorsFilter.class)
                 .addFilterAfter(bearer, LogoutFilter.class)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .requestCache(cache -> cache.disable())
@@ -136,6 +194,11 @@ class SecurityConfiguration {
         return request -> method.equals(request.getMethod()) && path.equals(request.getRequestURI());
     }
 
+    private List<String> parseOrigins(String allowedOrigins) {
+        return Arrays.stream(allowedOrigins == null ? new String[0] : allowedOrigins.split(","))
+                .map(String::trim).filter(origin -> !origin.isEmpty()).toList();
+    }
+
     private boolean isUnsafeHealthRequest(jakarta.servlet.http.HttpServletRequest request) {
         String path = request.getRequestURI();
         boolean healthPath = "/actuator/health/liveness".equals(path)
@@ -145,11 +208,15 @@ class SecurityConfiguration {
         return healthPath && !safeMethod;
     }
 
-    private boolean isProductionProfile(String activeProfiles) {
-        return Arrays.stream(activeProfiles == null ? new String[0] : activeProfiles.split(","))
+    private boolean allowsLocalDevelopmentOverrides(String activeProfiles) {
+        List<String> profiles = Arrays.stream(activeProfiles == null ? new String[0] : activeProfiles.split(","))
                 .map(String::trim)
-                .anyMatch(profile -> "prod".equalsIgnoreCase(profile)
-                        || "production".equalsIgnoreCase(profile));
+                .filter(profile -> !profile.isEmpty())
+                .toList();
+        return !profiles.isEmpty() && profiles.stream().allMatch(profile -> "dev".equalsIgnoreCase(profile)
+                        || "development".equalsIgnoreCase(profile)
+                        || "local".equalsIgnoreCase(profile)
+                        || "test".equalsIgnoreCase(profile));
     }
 
     static final class AuthConfigurationValidation {}

@@ -5,10 +5,13 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.net.SocketException;
 import java.util.HashSet;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 /** Disconnects this test's sessions without stopping the shared PostgreSQL server. */
 final class DisconnectableTcpProxy implements AutoCloseable {
@@ -16,15 +19,23 @@ final class DisconnectableTcpProxy implements AutoCloseable {
     private final int upstreamPort;
     private final ServerSocket listener;
     private final ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor();
+    private final Future<?> acceptTask;
     private final Set<Socket> sockets = new HashSet<>();
     private boolean connected = true;
     private boolean closed;
 
     DisconnectableTcpProxy(String host, int port) throws IOException {
+        this(host, port, new ServerSocket(0, 32, InetAddress.getLoopbackAddress()));
+    }
+
+    DisconnectableTcpProxy(String host, int port, ServerSocket listener) {
         upstreamHost = host;
         upstreamPort = port;
-        listener = new ServerSocket(0, 32, InetAddress.getLoopbackAddress());
-        executor.submit(this::acceptConnections);
+        this.listener = listener;
+        acceptTask = executor.submit(() -> {
+            acceptConnections();
+            return null;
+        });
     }
 
     int port() { return listener.getLocalPort(); }
@@ -37,14 +48,16 @@ final class DisconnectableTcpProxy implements AutoCloseable {
 
     synchronized void reconnect() { connected = true; }
 
-    private void acceptConnections() {
+    private void acceptConnections() throws IOException {
         while (!listener.isClosed()) {
+            Socket incoming;
             try {
-                var incoming = listener.accept();
-                executor.submit(() -> forward(incoming));
+                incoming = listener.accept();
             } catch (IOException exception) {
-                if (!listener.isClosed()) throw new IllegalStateException("Test proxy listener failed");
+                if (listener.isClosed() && exception instanceof SocketException) return;
+                throw exception;
             }
+            executor.submit(() -> forward(incoming));
         }
     }
 
@@ -94,7 +107,16 @@ final class DisconnectableTcpProxy implements AutoCloseable {
     public synchronized void close() throws IOException {
         closed = true;
         disconnect();
-        listener.close();
-        executor.shutdownNow();
+        try {
+            listener.close();
+            acceptTask.get();
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IOException("Interrupted while stopping test proxy listener", exception);
+        } catch (ExecutionException exception) {
+            throw new IOException("Test proxy listener failed", exception.getCause());
+        } finally {
+            executor.shutdownNow();
+        }
     }
 }
