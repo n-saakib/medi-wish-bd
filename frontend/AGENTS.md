@@ -11,6 +11,16 @@ This guide applies to `frontend/`. Read [../AGENTS.md](../AGENTS.md) first for r
 - Keep English user-facing text in [`messages/`](messages/) through `next-intl`. Components should not add hard-coded translatable strings.
 - Native Windows is the normal workflow. Docker is optional and must not be required for frontend development.
 
+## Page design
+
+Build every new page, and any restyled page, from the static designs in [`agent-docs/ui-design/`](../agent-docs/ui-design/). Its README lists each page's design file and owning ticket; `assets/styles.css` holds the design tokens and components, and `assets/layout.js` the shared headers, footer and icons. Planning folders may be ignored locally: if the design folder is missing, ask for it rather than inventing a layout.
+
+- Match the design page's layout, components, copy and accessibility rules (44 px targets, amber `:focus-visible` ring, status not shown by color alone). Show error, empty and alternate states from its **Other states** panel only when they occur.
+- Port tokens and component styles into [`src/app/globals.css`](src/app/globals.css) when a page first needs them and reuse them afterwards. Do not copy unused design-system parts, the prototype's JavaScript or its sample data.
+- Put design copy in `messages/` like any other user-facing text.
+- The design is a proposal: the specification, accepted decisions and the running API contract win. Leave out elements whose feature is not delivered or is on hold, and record each deviation from the design in the ticket.
+- If a page has no design file, reuse the tokens and patterns of the closest designed page instead of creating a new visual style.
+
 ## Environment and privacy
 
 The frontend has no committed application credentials or local environment file. `MEDI_WISH_API_URL` is a process environment variable for backend integration tests and the health probe; the probe defaults to `http://127.0.0.1:8080` when it is absent. Treat API responses, URL parameters, browser storage, and client state as untrusted. Keep credentials, tokens, passwords, OTPs, personal data, medicine searches, and order contents out of logs, URLs, client errors, and telemetry. Preserve established backend error and authorization contracts.

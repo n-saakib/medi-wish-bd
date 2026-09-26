@@ -7,7 +7,9 @@
 .scratch
 .tools
 agent-docs
+local-docs
 scripts
 PUKU.md
 
 **/README.md
+**/**claude**

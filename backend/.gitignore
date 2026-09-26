@@ -1,6 +1,7 @@
 # Maven and Java build output
 /target/
 /.mvn/timing.properties
+/.m2/
 
 # Local runtime files
 /.env

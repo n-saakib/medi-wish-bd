@@ -13,6 +13,7 @@ Read only the references relevant to the task:
 - Testing and completion: `TESTING.md` and `WORKFLOW.md` in that ticket-drafts directory
 - Domain decisions: `agent-docs/plans/plan2/CONTEXT.md`, its ADRs, and `agent-docs/plans/plan3/DECISIONS.md`
 - Latest continuation state: `agent-docs/Handoff/`
+- Frontend page designs: `agent-docs/ui-design/`; see the frontend guide's Page design rules
 
 Planning and handoff material may be ignored locally. Locate the actual file before treating an old index or link as authoritative. If required acceptance context is missing, request it; do not invent product policy or force-add ignored planning files.
 
