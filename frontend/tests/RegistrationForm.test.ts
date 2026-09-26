@@ -3,9 +3,9 @@
 import { act, createElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RegistrationForm } from '../src/auth/RegistrationForm';
+import { deferred } from './fakeApi';
 import {
   createSessionSource,
-  deferred,
   renderWithSession,
   requiredElement,
   setInputValue,
@@ -18,7 +18,8 @@ import {
 const router = vi.hoisted(() => ({ replace: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => router, usePathname: () => '/register' }));
 
-const registeredUser = { username: 'sana', mobile: '01700000000', email: null, mobileVerificationDeferred: true };
+// Registration needs only the 201 status, so the API's response body is left out.
+const created = () => new Response(null, { status: 201 });
 
 beforeEach(() => router.replace.mockClear());
 afterEach(() => {
@@ -73,7 +74,7 @@ describe('RegistrationForm', () => {
     expect(submit.disabled).toBe(true);
     expect(submit.textContent).toBe('Creating account…');
 
-    await act(async () => registration.resolve(Response.json(registeredUser, { status: 201 })));
+    await act(async () => registration.resolve(created()));
     await settle();
 
     expect(source.signIn).toHaveBeenCalledWith('sana', 'synthetic-password');
@@ -86,7 +87,7 @@ describe('RegistrationForm', () => {
   });
 
   it('sends a filled-in email', async () => {
-    const fetch = stubRegistration(Promise.resolve(Response.json({ ...registeredUser, email: 'sana@example.test' }, { status: 201 })));
+    const fetch = stubRegistration(Promise.resolve(created()));
     const form = await renderWithSession(createElement(RegistrationForm));
 
     await fillAndSubmit(form, 'sana@example.test');
@@ -96,7 +97,7 @@ describe('RegistrationForm', () => {
   });
 
   it('sends the visitor to sign-in with a notice when the automatic sign-in fails', async () => {
-    stubRegistration(Promise.resolve(Response.json(registeredUser, { status: 201 })));
+    stubRegistration(Promise.resolve(created()));
     const form = await renderWithSession(createElement(RegistrationForm), createSessionSource({
       signIn: vi.fn().mockRejectedValue(new Error('private failure detail')),
     }));
@@ -109,11 +110,8 @@ describe('RegistrationForm', () => {
     expect(JSON.stringify(router.replace.mock.calls)).not.toMatch(/sana|01700000000|synthetic-password/);
   });
 
-  it('shows the bounded duplicate message and re-enables the form', async () => {
-    stubRegistration(Promise.resolve(Response.json({
-      code: 'DUPLICATE_USER',
-      message: 'The username or mobile number is already in use.',
-    }, { status: 409 })));
+  it('shows the duplicate-user copy whatever the API message says, and re-enables the form', async () => {
+    stubRegistration(Promise.resolve(Response.json({ code: 'DUPLICATE_USER', message: 'different server text' }, { status: 409 })));
     const source = createSessionSource();
     const form = await renderWithSession(createElement(RegistrationForm), source);
 
@@ -134,7 +132,7 @@ describe('RegistrationForm', () => {
     await settle();
 
     expect(requiredElement(form, '[role="alert"]').textContent)
-      .toBe('Check your details. Usernames use 3–50 letters, numbers, dots, hyphens or underscores.');
+      .toBe('Check your details. Usernames use 3–50 letters, numbers, dots, hyphens or underscores, with at least one letter.');
   });
 
   it('keeps transport details out of the alert', async () => {

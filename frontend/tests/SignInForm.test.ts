@@ -5,9 +5,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSessionClient } from '../src/lib/session';
 import { useSession } from '../src/auth/SessionProvider';
 import { SignInForm } from '../src/auth/SignInForm';
+import { apiRoutes, deferred, sessionBody, installFakeLocks } from './fakeApi';
 import {
   createSessionSource,
-  deferred,
   renderWithSession,
   requiredElement,
   setInputValue,
@@ -16,6 +16,9 @@ import {
   submitForm,
   unmountAll,
 } from './renderWithSession';
+
+// jsdom has no Web Locks, which the real session client requires.
+installFakeLocks();
 
 const router = vi.hoisted(() => ({ replace: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => router, usePathname: () => '/sign-in' }));
@@ -78,9 +81,24 @@ describe('SignInForm', () => {
     expect(form.querySelector('[role="alert"]')).toBeNull();
   });
 
+  it('shows the sign-in failure copy for a rejected password, whatever the API message says', async () => {
+    const client = createSessionClient({
+      fetch: apiRoutes({
+        '/api/auth/refresh': () => new Response(null, { status: 204 }),
+        '/api/auth/login': () => Response.json({ code: 'AUTHENTICATION_FAILED', message: 'different server text' }, { status: 401 }),
+      }).fetch,
+    });
+    const form = await renderWithSession(createElement(SignInForm), client);
+
+    await fillAndSubmit(form);
+    await settle();
+
+    expect(requiredElement(form, '[role="alert"]').textContent).toBe('Those details don’t match an account.');
+  });
+
   it('announces and focuses an expired session', async () => {
-    const form = await renderWithSession(createElement(SignInForm), createSessionSource({
-      isAuthenticated: vi.fn().mockReturnValue(true),
+    const form = await renderWithSession(createElement(SignInForm), createSessionClient({
+      fetch: apiRoutes({ '/api/auth/refresh': () => Response.json({ code: 'AUTHENTICATION_REQUIRED' }, { status: 401 }) }).fetch,
     }));
     const notice = requiredElement(form, '[role="status"]');
 
@@ -119,24 +137,17 @@ describe('SignInForm', () => {
       vi.spyOn(window.history, 'pushState'),
       vi.spyOn(window.history, 'replaceState'),
     ];
-    const source = createSessionClient({
-      baseUrl: 'http://127.0.0.1:8080',
-      fetch: async (input) => {
-        const pathname = new URL(input instanceof Request ? input.url : input.toString()).pathname;
-        if (pathname === '/api/auth/csrf') return Response.json({ csrfToken: 'synthetic-csrf-token' });
-        if (pathname === '/api/auth/refresh') {
-          return Response.json({ code: 'AUTHENTICATION_REQUIRED', message: 'Authentication is required.' }, { status: 401 });
-        }
-        if (pathname === '/api/auth/login') return Response.json({ ...signedInResponse, accessToken });
-        throw new Error(`Unexpected session request: ${pathname}`);
-      },
+    const client = createSessionClient({
+      fetch: apiRoutes({
+        '/api/auth/refresh': () => new Response(null, { status: 204 }),
+        '/api/auth/login': () => Response.json(sessionBody(accessToken)),
+      }).fetch,
     });
 
-    const form = await renderWithSession(createElement(SignInForm), source);
+    const form = await renderWithSession(createElement(SignInForm), client);
     await fillAndSubmit(form);
     await settle();
 
-    expect(source.isAuthenticated()).toBe(true);
     expect(router.replace).toHaveBeenCalledWith('/account');
     expect(window.location.href).toBe(startUrl);
     for (const write of historyWrites) {

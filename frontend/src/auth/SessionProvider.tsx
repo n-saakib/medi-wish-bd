@@ -2,16 +2,17 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from 'react';
 import { usePathname } from 'next/navigation';
-import type { UserProfile } from '../lib/user';
+import { ApiError } from '../lib/api';
 import {
-  isAuthenticated,
+  authenticatedFetch,
   restoreSession,
   signIn,
   signOut,
   type SessionClient,
+  type SessionUser,
 } from '../lib/session';
 
-export type SessionSource = Pick<SessionClient, 'signIn' | 'restoreSession' | 'signOut' | 'isAuthenticated'>;
+export type SessionSource = Pick<SessionClient, 'signIn' | 'restoreSession' | 'signOut' | 'authenticatedFetch'>;
 
 /** Feedback that outlives the page that caused it, until the visitor leaves the page that shows it. */
 export type SessionNotice = 'sessionExpired' | 'restoreError' | 'accountCreated' | 'signedOut' | 'signOutError';
@@ -25,7 +26,7 @@ const noticePages: Record<SessionNotice, string> = {
 };
 
 export type SessionState = {
-  profile: UserProfile | null;
+  profile: SessionUser | null;
   restoring: boolean;
   signingIn: boolean;
   signingOut: boolean;
@@ -41,11 +42,12 @@ export const initialSessionState: SessionState = {
 };
 
 type SessionAction =
-  | { type: 'restore-success'; profile: UserProfile }
-  | { type: 'restore-empty'; expired: boolean }
-  | { type: 'restore-error' }
+  | { type: 'restore-success'; profile: SessionUser }
+  | { type: 'restore-empty' }
+  | { type: 'restore-error'; notice: 'sessionExpired' | 'restoreError' }
+  | { type: 'expire' }
   | { type: 'signin-start' }
-  | { type: 'signin-success'; profile: UserProfile }
+  | { type: 'signin-success'; profile: SessionUser }
   | { type: 'signin-error' }
   | { type: 'signout-start' }
   | { type: 'signout-success' }
@@ -58,10 +60,12 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     case 'restore-success':
       return { ...state, profile: action.profile, restoring: false };
     case 'restore-empty':
-      return { ...state, profile: null, restoring: false, notice: action.expired ? 'sessionExpired' : state.notice };
+      return { ...state, profile: null, restoring: false };
     case 'restore-error':
       // A restore that fails after, or while, the user signs in must not report a stale failure.
-      return { ...state, restoring: false, notice: state.profile || state.signingIn ? state.notice : 'restoreError' };
+      return { ...state, restoring: false, notice: state.profile || state.signingIn ? state.notice : action.notice };
+    case 'expire':
+      return { ...state, profile: null, notice: 'sessionExpired' };
     case 'signin-start':
       return { ...state, signingIn: true, notice: null };
     case 'signin-success':
@@ -69,7 +73,8 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
     case 'signin-error':
       return { ...state, signingIn: false };
     case 'signout-start':
-      return { ...state, signingOut: true, notice: null };
+      // Only a failed sign-out's retry starts with a notice, and its alert stays until the retry settles.
+      return { ...state, signingOut: true };
     case 'signout-success':
       return { ...state, profile: null, signingOut: false, notice: 'signedOut' };
     case 'signout-error':
@@ -85,15 +90,20 @@ export function sessionReducer(state: SessionState, action: SessionAction): Sess
   }
 }
 
-export type SessionContextValue = SessionState & {
-  signIn(identifier: string, password: string): Promise<UserProfile>;
+/** A 401 from the API means the refresh cookie, or the session behind it, is no longer accepted. */
+function isSessionExpired(reason: unknown): boolean {
+  return reason instanceof ApiError && reason.status === 401;
+}
+
+export type SessionContextValue = SessionState & Pick<SessionClient, 'authenticatedFetch'> & {
+  signIn(identifier: string, password: string): Promise<SessionUser>;
   signOut(): Promise<void>;
   showNotice(notice: SessionNotice): void;
 };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
 
-const defaultSource: SessionSource = { signIn, restoreSession, signOut, isAuthenticated };
+const defaultSource: SessionSource = { signIn, restoreSession, signOut, authenticatedFetch };
 
 type SessionProviderProps = {
   children: React.ReactNode;
@@ -109,15 +119,14 @@ export function SessionProvider({ children, source = defaultSource }: SessionPro
 
   useEffect(() => {
     let mounted = true;
-    const hadSession = source.isAuthenticated();
-    void source.restoreSession()
-      .then((profile) => {
-        if (!mounted) return;
-        dispatch(profile ? { type: 'restore-success', profile } : { type: 'restore-empty', expired: hadSession });
-      })
-      .catch(() => {
-        if (mounted) dispatch({ type: 'restore-error' });
-      });
+    void source.restoreSession().then(
+      (profile) => {
+        if (mounted) dispatch(profile ? { type: 'restore-success', profile } : { type: 'restore-empty' });
+      },
+      (reason: unknown) => {
+        if (mounted) dispatch({ type: 'restore-error', notice: isSessionExpired(reason) ? 'sessionExpired' : 'restoreError' });
+      },
+    );
     return () => {
       mounted = false;
     };
@@ -145,14 +154,24 @@ export function SessionProvider({ children, source = defaultSource }: SessionPro
     }
   }, [source]);
 
+  // A protected request that is still unauthorized after its single refresh ends the session here too.
+  const authenticatedFetchOrExpire = useCallback<SessionClient['authenticatedFetch']>(
+    (path, init, readResponse) => source.authenticatedFetch(path, init, readResponse).catch((reason: unknown) => {
+      if (isSessionExpired(reason)) dispatch({ type: 'expire' });
+      throw reason;
+    }),
+    [source],
+  );
+
   const showNotice = useCallback((notice: SessionNotice) => dispatch({ type: 'show-notice', notice }), []);
 
   const value = useMemo(() => ({
     ...state,
     signIn: signInWithPassword,
     signOut: signOutOfSession,
+    authenticatedFetch: authenticatedFetchOrExpire,
     showNotice,
-  }), [state, signInWithPassword, signOutOfSession, showNotice]);
+  }), [state, signInWithPassword, signOutOfSession, authenticatedFetchOrExpire, showNotice]);
 
   return <SessionContext value={value}>{children}</SessionContext>;
 }

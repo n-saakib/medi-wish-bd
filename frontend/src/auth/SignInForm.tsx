@@ -3,7 +3,7 @@
 import { type FormEvent, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
-import { userErrorMessage } from '../lib/user';
+import { errorMessageKey } from '../lib/api';
 import { Alert } from '../shell/Alert';
 import { type SessionNotice, useSession } from './SessionProvider';
 import { useSessionRedirect } from './sessionRedirect';
@@ -25,7 +25,7 @@ export function SignInForm() {
     try {
       await session.signIn(identifier, password);
     } catch (reason) {
-      setError(userErrorMessage(reason, tErrors));
+      setError(tErrors(errorMessageKey(reason)));
       identifierRef.current?.focus();
     } finally {
       setPassword('');

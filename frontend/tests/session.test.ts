@@ -1,16 +1,43 @@
-import { describe, expect, it } from 'vitest';
-import { createSessionClient, readJsonResponse, UserApiError } from '../src/lib/session.ts';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createSessionClient, type SessionClient } from '../src/lib/session.ts';
+import { apiRoutes, deferred, flushTasks, installFakeLocks, sessionBody, signedInUser, stalledRoute } from './fakeApi.ts';
 
-const profile = { username: 'alice_1', mobile: '01700000000', email: 'alice@example.com', mobileVerified: true };
-const responseFor = (accessToken: string, expiresIn = 900) => ({ accessToken, tokenType: 'Bearer', expiresIn, user: profile });
-const csrfResponse = (csrfToken = 'csrf') => Response.json({ csrfToken });
+const lockName = 'medi-wish:auth-cookie-mutation';
+const authenticationRequired = { code: 'AUTHENTICATION_REQUIRED', status: 401 };
+const requestFailed = { code: 'REQUEST_FAILED', status: 0, message: '' };
+const unauthorized = () => Response.json({ code: 'AUTHENTICATION_REQUIRED' }, { status: 401 });
+const noContent = () => new Response(null, { status: 204 });
+const readJson = (response: Response) => response.json();
 
-function deferred() {
-  let resolve!: () => void;
-  const promise = new Promise<void>((done) => { resolve = done; });
-  return { promise, resolve };
+let locks: ReturnType<typeof installFakeLocks>;
+beforeEach(() => {
+  locks = installFakeLocks();
+});
+afterEach(() => {
+  vi.useRealTimers();
+  locks.restore();
+});
+
+/** A client signed in with `access-old`. */
+async function signedInClient(routes: Parameters<typeof apiRoutes>[0] = {}) {
+  const api = apiRoutes({ '/api/auth/login': () => Response.json(sessionBody('access-old')), ...routes });
+  const client = createSessionClient({ fetch: api.fetch });
+  await client.signIn('sana', 'password');
+  return { api, client };
 }
 
+function loadProfile(client: SessionClient, path = '/api/user/me') {
+  return client.authenticatedFetch(path, { method: 'GET' }, readJson);
+}
+
+/** The `Authorization` header of each profile request, in order. */
+function profileAuthorizations(api: ReturnType<typeof apiRoutes>) {
+  return api.requests
+    .filter((request) => new URL(request.url).pathname === '/api/user/me')
+    .map((request) => request.headers.get('Authorization'));
+}
+
+/** A JSON response whose body stays open until `release` settles. */
 function blockedJsonResponse(value: unknown, release: Promise<void>): Response {
   const body = new ReadableStream<Uint8Array>({
     start(controller) {
@@ -21,984 +48,544 @@ function blockedJsonResponse(value: unknown, release: Promise<void>): Response {
   return new Response(body, { headers: { 'Content-Type': 'application/json' } });
 }
 
-describe('browser session client', () => {
-  it('signs in with the fixed identifier payload and refresh-cookie credentials', async () => {
-    let request: Request | undefined;
+describe('sign-in', () => {
+  it('posts the identifier payload with refresh-cookie credentials and keeps only the token and user', async () => {
+    const api = apiRoutes({ '/api/auth/login': () => Response.json(sessionBody()) });
+    const client = createSessionClient({ baseUrl: 'https://api.example.test', fetch: api.fetch });
+
+    await expect(client.signIn('sana', 'password')).resolves.toEqual({ accessToken: 'synthetic-access-token', user: signedInUser });
+    const [request] = api.requests;
+    expect(request.url).toBe('https://api.example.test/api/auth/login');
+    expect(request.method).toBe('POST');
+    expect(request.credentials).toBe('include');
+    expect(request.cache).toBe('no-store');
+    expect(request.redirect).toBe('error');
+    expect(await request.json()).toEqual({ identifier: 'sana', password: 'password' });
+  });
+
+  it('keeps only the code and status of a failed sign-in', async () => {
     const client = createSessionClient({
-      baseUrl: 'http://127.0.0.1:8080',
-      fetch: async (input, init) => {
-        request = new Request(input, init);
-        return Response.json(responseFor('access-1'));
-      },
+      fetch: apiRoutes({
+        '/api/auth/login': () => Response.json({ code: 'AUTHENTICATION_FAILED', message: 'server text' }, { status: 401 }),
+      }).fetch,
     });
 
-    await expect(client.signIn('alice@example.com', 'password')).resolves.toMatchObject({ accessToken: 'access-1', tokenType: 'Bearer' });
-    expect(request?.url).toBe('http://127.0.0.1:8080/api/auth/login');
-    expect(request?.method).toBe('POST');
-    expect(request?.credentials).toBe('include');
-    expect(await request?.json()).toEqual({ identifier: 'alice@example.com', password: 'password' });
+    await expect(client.signIn('sana', 'wrong')).rejects.toMatchObject({ code: 'AUTHENTICATION_FAILED', status: 401, message: '' });
   });
 
-  it('accepts positive integer session lifetimes longer than one day', async () => {
+  it('reads a session body of exactly 16 KiB and rejects a larger one', async () => {
+    const json = JSON.stringify(sessionBody());
+    const clientAnswering = (bytes: number) => createSessionClient({
+      fetch: apiRoutes({
+        '/api/auth/login': () => new Response(json.padEnd(bytes), { headers: { 'Content-Type': 'application/json' } }),
+      }).fetch,
+    });
+
+    await expect(clientAnswering(16 * 1024).signIn('sana', 'password')).resolves.toMatchObject({ user: signedInUser });
+    await expect(clientAnswering(16 * 1024 + 1).signIn('sana', 'password'))
+      .rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 200 });
+  });
+
+  it.each([
+    ['an empty token', { ...sessionBody(), accessToken: '' }],
+    ['an oversized token', { ...sessionBody(), accessToken: 'x'.repeat(4097) }],
+    ['a malformed user', { ...sessionBody(), user: { ...signedInUser, mobileVerified: 'no' } }],
+    ['no user', { accessToken: 'synthetic-access-token' }],
+  ])('rejects a session response with %s without exposing it', async (_, body) => {
+    const client = createSessionClient({ fetch: apiRoutes({ '/api/auth/login': () => Response.json(body) }).fetch });
+
+    await expect(client.signIn('sana', 'password')).rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 200, message: '' });
+  });
+
+  it('serializes concurrent sign-ins so their cookies apply in request order', async () => {
+    const firstReleased = deferred();
+    const identifiers: string[] = [];
     const client = createSessionClient({
-      fetch: async () => Response.json(responseFor('access-long-lived', 86_401)),
-    });
-
-    await expect(client.signIn('alice_1', 'password')).resolves.toMatchObject({ expiresIn: 86_401 });
-  });
-
-  it.each([0, -1, 1.5])('rejects non-positive or non-integer session lifetimes (%s)', async (expiresIn) => {
-    const client = createSessionClient({
-      fetch: async () => Response.json(responseFor('access-invalid-lifetime', expiresIn)),
-    });
-
-    await expect(client.signIn('alice_1', 'password')).rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 200 });
-  });
-
-  it('accepts a valid JSON response exactly at the 16 KiB byte limit', async () => {
-    const json = JSON.stringify(responseFor('access-at-limit'));
-    const maxBytes = 16 * 1024;
-    const jsonBytes = new TextEncoder().encode(json).byteLength;
-    const body = `${json}${' '.repeat(maxBytes - jsonBytes)}`;
-    const client = createSessionClient({
-      fetch: async () => new Response(body, {
-        status: 200,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    });
-
-    await expect(client.signIn('alice_1', 'password')).resolves.toMatchObject({ accessToken: 'access-at-limit' });
-  });
-
-  it('bootstraps the CSRF nonce and restores through refresh', async () => {
-    const requests: Request[] = [];
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        requests.push(request);
-        return request.url.endsWith('/api/auth/csrf') ? csrfResponse('csrf+value') : Response.json(responseFor('access-2'));
-      },
-    });
-
-    await expect(client.restoreSession()).resolves.toEqual(profile);
-    expect(requests.map((request) => request.url)).toEqual([
-      'http://127.0.0.1:8080/api/auth/csrf',
-      'http://127.0.0.1:8080/api/auth/refresh',
-    ]);
-    expect(requests[0].credentials).toBe('include');
-    expect(requests[1].credentials).toBe('include');
-    expect(requests[1].headers.get('X-XSRF-TOKEN')).toBe('csrf+value');
-    expect(requests[1].headers.get('Authorization')).toBeNull();
-  });
-
-  it('serializes refresh-cookie rotation across independent session clients', async () => {
-    const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
-    let refreshGeneration = 0;
-    let activeRefreshes = 0;
-    let maxActiveRefreshes = 0;
-    const lockNames: string[] = [];
-    let lockTail = Promise.resolve();
-    const locks = {
-      request: async (name: string, options: { mode: string }, callback: (lock: object) => Promise<unknown>) => {
-        lockNames.push(name);
-        expect(options.mode).toBe('exclusive');
-        const earlier = lockTail;
-        let release!: () => void;
-        lockTail = new Promise<void>((resolve) => { release = resolve; });
-        await earlier;
-        try {
-          return await callback({});
-        } finally {
-          release();
-        }
-      },
-    };
-    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { locks } });
-
-    try {
-      const fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/csrf')) return csrfResponse();
-
-        const generationAtStart = refreshGeneration;
-        activeRefreshes += 1;
-        maxActiveRefreshes = Math.max(maxActiveRefreshes, activeRefreshes);
-        await Promise.resolve();
-        activeRefreshes -= 1;
-        if (generationAtStart !== refreshGeneration) {
-          return Response.json({ code: 'AUTHENTICATION_REQUIRED' }, { status: 401 });
-        }
-        refreshGeneration += 1;
-        return Response.json(responseFor('access-' + refreshGeneration));
-      };
-      const firstClient = createSessionClient({ fetch });
-      const secondClient = createSessionClient({ fetch });
-
-      await expect(Promise.all([firstClient.restoreSession(), secondClient.restoreSession()]))
-        .resolves.toEqual([profile, profile]);
-      expect(refreshGeneration).toBe(2);
-      expect(maxActiveRefreshes).toBe(1);
-      expect(lockNames).toEqual(['medi-wish:auth-cookie-mutation', 'medi-wish:auth-cookie-mutation']);
-    } finally {
-      if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator);
-      else Reflect.deleteProperty(globalThis, 'navigator');
-    }
-  });
-
-  it('serializes sign-in, refresh, and logout cookie mutations through full response parsing', async () => {
-    const previousNavigator = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
-    const lockNames: string[] = [];
-    const lockRequests = Array.from({ length: 4 }, () => deferred());
-    const csrfStarts = Array.from({ length: 3 }, () => deferred());
-    const loginBodyRelease = deferred();
-    const loginStarted = deferred();
-    const refreshBodyRelease = deferred();
-    const refreshStarted = deferred();
-    const logoutRelease = deferred();
-    const logoutStarted = deferred();
-    const requests: string[] = [];
-    const requestsOutsideLock: string[] = [];
-    let csrfCount = 0;
-    let activeLocks = 0;
-    let lockTail = Promise.resolve();
-    const locks = {
-      request: async (name: string, options: { mode: string }, callback: (lock: object) => Promise<unknown>) => {
-        lockNames.push(name);
-        lockRequests[lockNames.length - 1]?.resolve();
-        expect(options.mode).toBe('exclusive');
-        const earlier = lockTail;
-        let release!: () => void;
-        lockTail = new Promise<void>((resolve) => { release = resolve; });
-        await earlier;
-        activeLocks += 1;
-        try {
-          return await callback({});
-        } finally {
-          activeLocks -= 1;
-          release();
-        }
-      },
-    };
-    Object.defineProperty(globalThis, 'navigator', { configurable: true, value: { locks } });
-
-    const fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
-      const request = new Request(input, init);
-      const path = new URL(request.url).pathname;
-      requests.push(path);
-      if (activeLocks !== 1) requestsOutsideLock.push(path);
-      if (path.endsWith('/api/auth/csrf')) {
-        csrfStarts[csrfCount++]?.resolve();
-        return csrfResponse();
-      }
-      if (path.endsWith('/api/auth/login')) {
-        loginStarted.resolve();
-        return blockedJsonResponse(responseFor('access-login'), loginBodyRelease.promise);
-      }
-      if (path.endsWith('/api/auth/refresh')) {
-        refreshStarted.resolve();
-        return blockedJsonResponse(responseFor('access-refresh'), refreshBodyRelease.promise);
-      }
-      if (path.endsWith('/api/auth/logout')) {
-        logoutStarted.resolve();
-        await logoutRelease.promise;
-        return new Response(null, { status: 204 });
-      }
-      throw new Error(`Unexpected session request: ${path}`);
-    };
-
-    const firstClient = createSessionClient({ fetch });
-    const secondClient = createSessionClient({ fetch });
-    const pending: Promise<unknown>[] = [];
-    try {
-      const signIn = firstClient.signIn('alice_1', 'password');
-      pending.push(signIn);
-      await loginStarted.promise;
-
-      const refresh = secondClient.refreshSession();
-      pending.push(refresh);
-      const refreshAdmission = await Promise.race([
-        lockRequests[1].promise.then(() => 'queued'),
-        csrfStarts[0].promise.then(() => 'csrf-started-before-login-finished'),
-      ]);
-      expect(refreshAdmission).toBe('queued');
-      expect(requests).toEqual(['/api/auth/login']);
-
-      loginBodyRelease.resolve();
-      await refreshStarted.promise;
-      const signOut = firstClient.signOut();
-      pending.push(signOut);
-      const signOutAdmission = await Promise.race([
-        lockRequests[2].promise.then(() => 'queued'),
-        csrfStarts[1].promise.then(() => 'csrf-started-before-refresh-finished'),
-        logoutStarted.promise.then(() => 'logout-started-without-lock'),
-      ]);
-      expect(signOutAdmission).toBe('queued');
-      expect(requests).toEqual(['/api/auth/login', '/api/auth/csrf', '/api/auth/refresh']);
-
-      refreshBodyRelease.resolve();
-      await logoutStarted.promise;
-      const nextRefresh = secondClient.refreshSession();
-      pending.push(nextRefresh);
-      const nextRefreshAdmission = await Promise.race([
-        lockRequests[3].promise.then(() => 'queued'),
-        csrfStarts[2].promise.then(() => 'csrf-started-before-logout-finished'),
-      ]);
-      expect(nextRefreshAdmission).toBe('queued');
-      expect(requests).toEqual([
-        '/api/auth/login', '/api/auth/csrf', '/api/auth/refresh', '/api/auth/csrf', '/api/auth/logout',
-      ]);
-
-      logoutRelease.resolve();
-      await Promise.all(pending);
-      expect(lockNames).toEqual(Array(4).fill('medi-wish:auth-cookie-mutation'));
-      expect(requests).toEqual([
-        '/api/auth/login', '/api/auth/csrf', '/api/auth/refresh', '/api/auth/csrf', '/api/auth/logout',
-        '/api/auth/csrf', '/api/auth/refresh',
-      ]);
-      expect(requestsOutsideLock).toEqual([]);
-    } finally {
-      loginBodyRelease.resolve();
-      refreshBodyRelease.resolve();
-      logoutRelease.resolve();
-      await Promise.allSettled(pending);
-      if (previousNavigator) Object.defineProperty(globalThis, 'navigator', previousNavigator);
-      else Reflect.deleteProperty(globalThis, 'navigator');
-    }
-  });
-
-  it('shares one refresh request between concurrent callers', async () => {
-    let refreshCalls = 0;
-    let releaseRefresh!: () => void;
-    let refreshStartedResolve!: () => void;
-    const refreshReleased = new Promise<void>((resolve) => { releaseRefresh = resolve; });
-    const refreshStarted = new Promise<void>((resolve) => { refreshStartedResolve = resolve; });
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/csrf')) return csrfResponse();
-        refreshCalls += 1;
-        refreshStartedResolve();
-        await refreshReleased;
-        return Response.json(responseFor('access-shared'));
-      },
-    });
-
-    const first = client.refreshSession();
-    const second = client.refreshSession();
-    await refreshStarted;
-    expect(refreshCalls).toBe(1);
-    releaseRefresh();
-    await expect(Promise.all([first, second])).resolves.toHaveLength(2);
-  });
-
-  it('shares one in-flight refresh across concurrent expired requests and retries each once', async () => {
-    let refreshCalls = 0;
-    let initialRequestCount = 0;
-    let releaseInitialResponses!: () => void;
-    let releaseRefresh!: () => void;
-    let initialRequestsStartedResolve!: () => void;
-    let refreshStartedResolve!: () => void;
-    const initialResponsesReleased = new Promise<void>((resolve) => { releaseInitialResponses = resolve; });
-    const refreshReleased = new Promise<void>((resolve) => { releaseRefresh = resolve; });
-    const initialRequestsStarted = new Promise<void>((resolve) => { initialRequestsStartedResolve = resolve; });
-    const refreshStarted = new Promise<void>((resolve) => { refreshStartedResolve = resolve; });
-    const attempts: Array<{ requestId: string | null; authorization: string | null }> = [];
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) return Response.json(responseFor('access-old'));
-        if (request.url.endsWith('/api/auth/csrf')) return csrfResponse();
-        if (request.url.endsWith('/api/auth/refresh')) {
-          refreshCalls += 1;
-          refreshStartedResolve();
-          await refreshReleased;
-          return Response.json(responseFor('access-new'));
-        }
-
-        const attempt = {
-          requestId: new URL(request.url).searchParams.get('request'),
-          authorization: request.headers.get('Authorization'),
-        };
-        attempts.push(attempt);
-        if (attempt.authorization === 'Bearer access-old') {
-          initialRequestCount += 1;
-          if (initialRequestCount === 2) initialRequestsStartedResolve();
-          await initialResponsesReleased;
-          return new Response(null, { status: 401 });
-        }
-        return Response.json({ requestId: attempt.requestId });
-      },
-    });
-    await client.signIn('alice_1', 'password');
-
-    const first = client.authenticatedFetch('http://127.0.0.1:8080/api/user/me?request=first');
-    const second = client.authenticatedFetch('http://127.0.0.1:8080/api/user/me?request=second');
-    await initialRequestsStarted;
-    releaseInitialResponses();
-    await refreshStarted;
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    expect(refreshCalls).toBe(1);
-    releaseRefresh();
-
-    await expect(Promise.all([first, second])).resolves.toMatchObject([
-      { status: 200 },
-      { status: 200 },
-    ]);
-    expect(refreshCalls).toBe(1);
-    expect(attempts.filter(({ requestId }) => requestId === 'first')).toEqual([
-      { requestId: 'first', authorization: 'Bearer access-old' },
-      { requestId: 'first', authorization: 'Bearer access-new' },
-    ]);
-    expect(attempts.filter(({ requestId }) => requestId === 'second')).toEqual([
-      { requestId: 'second', authorization: 'Bearer access-old' },
-      { requestId: 'second', authorization: 'Bearer access-new' },
-    ]);
-  });
-
-  it('retries one expired-access request after refresh and never loops on a second 401', async () => {
-    const authorizationHeaders: string[] = [];
-    let profileCalls = 0;
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) return Response.json(responseFor('access-old'));
-        if (request.url.endsWith('/api/auth/csrf')) return csrfResponse();
-        if (request.url.endsWith('/api/auth/refresh')) return Response.json(responseFor('access-new'));
-        profileCalls += 1;
-        authorizationHeaders.push(request.headers.get('Authorization') ?? '');
-        return new Response(null, { status: 401 });
-      },
-    });
-    await client.signIn('alice_1', 'password');
-
-    await expect(client.authenticatedFetch('http://127.0.0.1:8080/api/user/me')).resolves.toMatchObject({ status: 401 });
-    expect(profileCalls).toBe(2);
-    expect(authorizationHeaders).toEqual(['Bearer access-old', 'Bearer access-new']);
-  });
-
-  it('replays a body-bearing Request when one expired-access request is retried', async () => {
-    const attempts: Array<{ authorization: string | null; body: string }> = [];
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) return Response.json(responseFor('access-old'));
-        if (request.url.endsWith('/api/auth/csrf')) return csrfResponse();
-        if (request.url.endsWith('/api/auth/refresh')) return Response.json(responseFor('access-new'));
-        const attempt = { authorization: request.headers.get('Authorization'), body: await request.text() };
-        attempts.push(attempt);
-        return attempts.length === 1 ? new Response(null, { status: 401 }) : Response.json({ saved: true });
-      },
-    });
-    await client.signIn('alice_1', 'password');
-
-    const action = new Request('http://127.0.0.1:8080/api/user/action', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: '{"note":"synthetic"}',
-    });
-    await expect(client.authenticatedFetch(action)).resolves.toMatchObject({ status: 200 });
-    expect(attempts).toEqual([
-      { authorization: 'Bearer access-old', body: '{"note":"synthetic"}' },
-      { authorization: 'Bearer access-new', body: '{"note":"synthetic"}' },
-    ]);
-  });
-
-  it('rejects a pre-aborted authenticated request without dispatching it', async () => {
-    let profileCalls = 0;
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) return Response.json(responseFor('access-abort'));
-        profileCalls += 1;
-        return Response.json(profile);
-      },
-    });
-    await client.signIn('alice_1', 'password');
-    const initController = new AbortController();
-    initController.abort();
-    const requestController = new AbortController();
-    requestController.abort();
-
-    await expect(client.authenticatedFetch('http://127.0.0.1:8080/api/user/me', { signal: initController.signal }))
-      .rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 0, message: '' });
-    await expect(client.authenticatedFetch(
-      new Request('http://127.0.0.1:8080/api/user/me', { signal: requestController.signal }),
-    ))
-      .rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 0, message: '' });
-    expect(profileCalls).toBe(0);
-  });
-
-  it('aborts an in-flight authenticated request when its caller signal aborts', async () => {
-    let requestStartedResolve!: () => void;
-    let releaseResponse!: () => void;
-    let requestSignal: AbortSignal | undefined;
-    const requestStarted = new Promise<void>((resolve) => { requestStartedResolve = resolve; });
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) return Response.json(responseFor('access-abort'));
-        return new Promise<Response>((resolve) => {
-          requestSignal = request.signal;
-          releaseResponse = () => resolve(Response.json(profile));
-          requestStartedResolve();
-        });
-      },
-    });
-    await client.signIn('alice_1', 'password');
-    const controller = new AbortController();
-    const input = new Request('http://127.0.0.1:8080/api/user/me', { signal: controller.signal });
-    const request = client.authenticatedFetch(input);
-    await requestStarted;
-    controller.abort();
-    const wasAborted = requestSignal?.aborted;
-    releaseResponse();
-
-    await expect(request).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 0, message: '' });
-    expect(wasAborted).toBe(true);
-  });
-
-  it('reports body-read cancellation even when its reason resembles malformed JSON', async () => {
-    let bodyStartedResolve!: () => void;
-    const bodyStarted = new Promise<void>((resolve) => { bodyStartedResolve = resolve; });
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) return Response.json(responseFor('access-abort'));
-        const body = new ReadableStream<Uint8Array>({
-          start(controller) {
-            request.signal.addEventListener('abort', () => controller.error(request.signal.reason), { once: true });
-            bodyStartedResolve();
-          },
-        });
-        return new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
-      },
-    });
-    await client.signIn('alice_1', 'password');
-    const controller = new AbortController();
-    const request = client.authenticatedFetch(
-      'http://127.0.0.1:8080/api/user/me',
-      { signal: controller.signal },
-      readJsonResponse,
-    );
-    await bodyStarted;
-    controller.abort(new SyntaxError('caller cancellation'));
-
-    await expect(request).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 0, message: '' });
-  });
-
-  it('does not dispatch an expired-access retry after its caller cancels during refresh', async () => {
-    let refreshStartedResolve!: () => void;
-    let releaseRefresh!: () => void;
-    const refreshStarted = new Promise<void>((resolve) => { refreshStartedResolve = resolve; });
-    const refreshReleased = new Promise<void>((resolve) => { releaseRefresh = resolve; });
-    let profileRequestStartedResolve!: () => void;
-    const profileRequestStarted = new Promise<void>((resolve) => { profileRequestStartedResolve = resolve; });
-    let profileCalls = 0;
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) return Response.json(responseFor('access-old'));
-        if (request.url.endsWith('/api/auth/csrf')) return csrfResponse();
-        if (request.url.endsWith('/api/auth/refresh')) {
-          refreshStartedResolve();
-          await refreshReleased;
-          return Response.json(responseFor('access-new'));
-        }
-        profileCalls += 1;
-        profileRequestStartedResolve();
-        return new Response(null, { status: 401 });
-      },
-    });
-    await client.signIn('alice_1', 'password');
-    const refresh = client.refreshSession();
-    await refreshStarted;
-    const controller = new AbortController();
-    const request = client.authenticatedFetch('http://127.0.0.1:8080/api/user/me', { signal: controller.signal });
-    let requestSettledBeforeRefresh: boolean | undefined;
-    const requestOutcome = request.then(
-      () => ({ status: 'resolved' as const }),
-      (reason: unknown) => ({ status: 'rejected' as const, reason }),
-    ).finally(() => { requestSettledBeforeRefresh = true; });
-    await profileRequestStarted;
-    controller.abort();
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    const settledBeforeRefreshWasReleased = requestSettledBeforeRefresh === true;
-    releaseRefresh();
-
-    await expect(refresh).resolves.toMatchObject({ accessToken: 'access-new' });
-    await expect(requestOutcome).resolves.toMatchObject({
-      status: 'rejected',
-      reason: { code: 'REQUEST_FAILED', status: 0, message: '' },
-    });
-    expect(settledBeforeRefreshWasReleased).toBe(true);
-    expect(profileCalls).toBe(1);
-    expect(client.isAuthenticated()).toBe(true);
-  });
-
-  it('returns the native Response when no response reader is supplied', async () => {
-    const profileResponse = Response.json(profile);
-    const client = createSessionClient({
-      fetch: async (input) => String(input).endsWith('/api/auth/login')
-        ? Response.json(responseFor('access-response'))
-        : profileResponse,
-    });
-    await client.signIn('alice_1', 'password');
-
-    const response = await client.authenticatedFetch('http://127.0.0.1:8080/api/user/me');
-    expect(response).toBe(profileResponse);
-    await expect(response.json()).resolves.toEqual(profile);
-  });
-
-  it('clears a rejected retry token and accepts a later explicit sign-in', async () => {
-    const authorizationHeaders: string[] = [];
-    let signInCalls = 0;
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) {
-          signInCalls += 1;
-          return Response.json(responseFor(signInCalls === 1 ? 'access-old' : 'access-later'));
-        }
-        if (request.url.endsWith('/api/auth/csrf')) return csrfResponse();
-        if (request.url.endsWith('/api/auth/refresh')) return Response.json(responseFor('access-rejected'));
-
-        const authorization = request.headers.get('Authorization') ?? '';
-        authorizationHeaders.push(authorization);
-        return authorization === 'Bearer access-later'
-          ? Response.json(profile)
-          : new Response(null, { status: 401 });
-      },
-    });
-    await client.signIn('alice_1', 'password');
-
-    await expect(client.authenticatedFetch('http://127.0.0.1:8080/api/user/me'))
-      .resolves.toMatchObject({ status: 401 });
-    expect(client.isAuthenticated()).toBe(false);
-
-    await expect(client.signIn('alice_1', 'password')).resolves.toMatchObject({ accessToken: 'access-later' });
-    expect(client.isAuthenticated()).toBe(true);
-    await expect(client.authenticatedFetch('http://127.0.0.1:8080/api/user/me'))
-      .resolves.toMatchObject({ status: 200 });
-    expect(authorizationHeaders).toEqual([
-      'Bearer access-old',
-      'Bearer access-rejected',
-      'Bearer access-later',
-    ]);
-  });
-
-  it('does not cancel a newer sign-in queued while an authenticated retry is pending', async () => {
-    let loginCalls = 0;
-    let signalRetryStarted!: () => void;
-    let releaseRetry!: () => void;
-    let signalSecondLoginStarted!: () => void;
-    let releaseSecondLogin!: () => void;
-    const retryStarted = new Promise<void>((resolve) => { signalRetryStarted = resolve; });
-    const retryResponse = new Promise<void>((resolve) => { releaseRetry = resolve; });
-    const secondLoginStarted = new Promise<void>((resolve) => { signalSecondLoginStarted = resolve; });
-    const secondLoginResponse = new Promise<void>((resolve) => { releaseSecondLogin = resolve; });
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) {
-          loginCalls += 1;
-          if (loginCalls === 1) return Response.json(responseFor('access-old'));
-          signalSecondLoginStarted();
-          await secondLoginResponse;
-          return Response.json(responseFor('access-later'));
-        }
-        if (request.url.endsWith('/api/auth/csrf')) return csrfResponse();
-        if (request.url.endsWith('/api/auth/refresh')) return Response.json(responseFor('access-retried'));
-
-        const authorization = request.headers.get('Authorization');
-        if (authorization === 'Bearer access-old') return new Response(null, { status: 401 });
-        if (authorization === 'Bearer access-retried') {
-          signalRetryStarted();
-          await retryResponse;
-          return new Response(null, { status: 401 });
-        }
-        return Response.json(profile);
-      },
-    });
-    await client.signIn('alice_1', 'password');
-
-    const oldRequest = client.authenticatedFetch('http://127.0.0.1:8080/api/user/me');
-    await retryStarted;
-    const laterSignIn = client.signIn('bob_2', 'password');
-    await secondLoginStarted;
-    releaseRetry();
-
-    await expect(oldRequest).resolves.toMatchObject({ status: 401 });
-    releaseSecondLogin();
-    await expect(laterSignIn).resolves.toMatchObject({ accessToken: 'access-later' });
-    expect(client.isAuthenticated()).toBe(true);
-    await expect(client.authenticatedFetch('http://127.0.0.1:8080/api/user/me'))
-      .resolves.toMatchObject({ status: 200 });
-  });
-
-  it('invalidates another request result after a retried 401 rejects the session', async () => {
-    let retryCalls = 0;
-    let signalSecondRetryStarted!: () => void;
-    let releaseSecondRetry!: () => void;
-    const secondRetryStarted = new Promise<void>((resolve) => { signalSecondRetryStarted = resolve; });
-    const secondRetryResponse = new Promise<void>((resolve) => { releaseSecondRetry = resolve; });
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) return Response.json(responseFor('access-old'));
-        if (request.url.endsWith('/api/auth/csrf')) return csrfResponse();
-        if (request.url.endsWith('/api/auth/refresh')) return Response.json(responseFor('access-retried'));
-        if (request.headers.get('Authorization') === 'Bearer access-old') {
-          return new Response(null, { status: 401 });
-        }
-
-        retryCalls += 1;
-        if (retryCalls === 1) {
-          await secondRetryStarted;
-          return new Response(null, { status: 401 });
-        }
-        signalSecondRetryStarted();
-        await secondRetryResponse;
-        return Response.json(profile);
-      },
-    });
-    await client.signIn('alice_1', 'password');
-
-    const rejectedRequest = client.authenticatedFetch('http://127.0.0.1:8080/api/user/me?call=rejected');
-    const staleRequest = client.authenticatedFetch('http://127.0.0.1:8080/api/user/me?call=stale');
-    await secondRetryStarted;
-
-    await expect(rejectedRequest).resolves.toMatchObject({ status: 401 });
-    expect(client.isAuthenticated()).toBe(false);
-    releaseSecondRetry();
-    await expect(staleRequest).rejects.toMatchObject({ code: 'AUTHENTICATION_REQUIRED', status: 401 });
-  });
-
-  it('rejects off-origin authenticated requests before invoking fetch', async () => {
-    let fetchCalls = 0;
-    const client = createSessionClient({
-      baseUrl: 'https://api.example.test',
-      fetch: async () => {
-        fetchCalls += 1;
-        return Response.json(responseFor('access-origin-guard'));
-      },
-    });
-    const offOriginInputs: Array<RequestInfo | URL> = [
-      'https://attacker.example/api/user/me',
-      new URL('https://attacker.example/api/user/me'),
-      new Request('https://attacker.example/api/user/me'),
-    ];
-    await client.signIn('alice_1', 'password');
-    fetchCalls = 0;
-
-    for (const input of offOriginInputs) {
-      await expect(client.authenticatedFetch(input)).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 0 });
-    }
-    expect(fetchCalls).toBe(0);
-  });
-
-  it('rechecks a mutable request URL before an authenticated retry', async () => {
-    const userProfileUrl = new URL('http://127.0.0.1:8080/api/user/me');
-    const requestUrls: string[] = [];
-    let profileCalls = 0;
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        requestUrls.push(request.url);
-        if (request.url.endsWith('/api/auth/login')) return Response.json(responseFor('access-old'));
-        if (request.url.endsWith('/api/auth/csrf')) return csrfResponse();
-        if (request.url.endsWith('/api/auth/refresh')) return Response.json(responseFor('access-new'));
-        profileCalls += 1;
-        userProfileUrl.href = 'https://attacker.example/api/user/me';
-        return new Response(null, { status: 401 });
-      },
-    });
-    await client.signIn('alice_1', 'password');
-
-    await expect(client.authenticatedFetch(userProfileUrl)).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 0 });
-    expect(profileCalls).toBe(1);
-    expect(requestUrls).not.toContain('https://attacker.example/api/user/me');
-  });
-
-  it('does not retry with a cleared session after refresh succeeds', async () => {
-    let refreshStartedResolve!: () => void;
-    let releaseRefresh!: (response: Response) => void;
-    let retrySeamResolve!: () => void;
-    const refreshStarted = new Promise<void>((resolve) => { refreshStartedResolve = resolve; });
-    const refreshResponse = new Promise<Response>((resolve) => { releaseRefresh = resolve; });
-    const retrySeamReached = new Promise<void>((resolve) => { retrySeamResolve = resolve; });
-    const authorizationHeaders: string[] = [];
-    let profileCalls = 0;
-    const clientResponse = new Response(null, { status: 401 });
-    Object.defineProperty(clientResponse, 'status', {
-      configurable: true,
-      get: () => {
-        retrySeamResolve();
-        return 401;
-      },
-    });
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) return Response.json(responseFor('access-old'));
-        if (request.url.endsWith('/api/auth/csrf')) return csrfResponse();
-        if (request.url.endsWith('/api/auth/refresh')) {
-          refreshStartedResolve();
-          return refreshResponse;
-        }
-        profileCalls += 1;
-        authorizationHeaders.push(request.headers.get('Authorization') ?? '');
-        return clientResponse;
-      },
-    });
-
-    await client.signIn('alice_1', 'password');
-    const refresh = client.refreshSession();
-    await refreshStarted;
-    const clearAfterRefresh = refresh.then(() => client.clearSession());
-
-    const request = client.authenticatedFetch('http://127.0.0.1:8080/api/user/me');
-    await retrySeamReached;
-    releaseRefresh(Response.json(responseFor('access-new')));
-
-    await expect(request).rejects.toMatchObject({ code: 'AUTHENTICATION_REQUIRED', status: 401 });
-    await clearAfterRefresh;
-    expect(profileCalls).toBe(1);
-    expect(authorizationHeaders).toEqual(['Bearer access-old']);
-  });
-
-  it('returns absent sessions quietly and clears memory after logout failure', async () => {
-    const client = createSessionClient({
-      fetch: async (input) => {
-        const url = String(input);
-        if (url.endsWith('/api/auth/csrf')) return csrfResponse();
-        if (url.endsWith('/api/auth/refresh')) return Response.json({ code: 'AUTHENTICATION_REQUIRED' }, { status: 401 });
-        throw new Error('logout transport down');
-      },
-    });
-    await expect(client.restoreSession()).resolves.toBeNull();
-    await expect(client.signOut()).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 0 });
-    await expect(client.authenticatedFetch('http://127.0.0.1:8080/api/user/me')).rejects.toMatchObject({ code: 'AUTHENTICATION_REQUIRED', status: 401 });
-  });
-
-  it('clears a signed-in client after logout transport failure without dispatching later authenticated requests', async () => {
-    const requests: Request[] = [];
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        requests.push(request);
-        if (request.url.endsWith('/api/auth/login')) return Response.json(responseFor('access-before-logout-failure'));
-        if (request.url.endsWith('/api/auth/csrf')) return csrfResponse();
-        if (request.url.endsWith('/api/auth/logout')) throw new TypeError('network unavailable');
-        throw new Error(`Unexpected session request: ${request.url}`);
-      },
-    });
-
-    await client.signIn('alice_1', 'password');
-    expect(client.isAuthenticated()).toBe(true);
-
-    await expect(client.signOut()).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 0 });
-
-    expect(client.isAuthenticated()).toBe(false);
-    await expect(client.authenticatedFetch('http://127.0.0.1:8080/api/user/me'))
-      .rejects.toMatchObject({ code: 'AUTHENTICATION_REQUIRED', status: 401 });
-    expect(requests.map((request) => new URL(request.url).pathname)).toEqual([
-      '/api/auth/login',
-      '/api/auth/csrf',
-      '/api/auth/logout',
-    ]);
-  });
-
-  it('rejects an in-flight authenticated response after a separate refresh fails', async () => {
-    let signalProfileReader!: () => void;
-    let releaseProfileReader!: () => void;
-    const profileReaderStarted = new Promise<void>((resolve) => { signalProfileReader = resolve; });
-    const profileReaderReleased = new Promise<void>((resolve) => { releaseProfileReader = resolve; });
-    let profileCalls = 0;
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) return Response.json(responseFor('access-current'));
-        if (request.url.endsWith('/api/auth/csrf')) return csrfResponse();
-        if (request.url.endsWith('/api/auth/refresh')) {
-          return Response.json({ code: 'AUTHENTICATION_REQUIRED' }, { status: 401 });
-        }
-        profileCalls += 1;
-        return Response.json(profile);
-      },
-    });
-    await client.signIn('alice_1', 'password');
-
-    const profileRequest = client.authenticatedFetch(
-      'http://127.0.0.1:8080/api/user/me',
-      undefined,
-      async (response) => {
-        signalProfileReader();
-        await profileReaderReleased;
-        return response.json();
-      },
-    );
-    await profileReaderStarted;
-
-    await expect(client.refreshSession()).rejects.toMatchObject({ status: 401 });
-    expect(client.isAuthenticated()).toBe(false);
-    releaseProfileReader();
-    await expect(profileRequest).rejects.toMatchObject({ code: 'AUTHENTICATION_REQUIRED', status: 401 });
-    expect(profileCalls).toBe(1);
-  });
-
-  it('keeps logout clearing effective when an earlier refresh finishes afterward', async () => {
-    let releaseRefresh!: () => void;
-    let refreshStartedResolve!: () => void;
-    const refreshReleased = new Promise<void>((resolve) => { releaseRefresh = resolve; });
-    const refreshStarted = new Promise<void>((resolve) => { refreshStartedResolve = resolve; });
-    let logoutRequest: Request | undefined;
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) return Response.json(responseFor('access-before-refresh'));
-        if (request.url.endsWith('/api/auth/csrf')) return csrfResponse();
-        if (request.url.endsWith('/api/auth/refresh')) {
-          refreshStartedResolve();
-          await refreshReleased;
-          return Response.json(responseFor('access-after-logout'));
-        }
-        logoutRequest = request;
-        return new Response(null, { status: 204 });
-      },
-    });
-
-    await client.signIn('alice_1', 'password');
-    const refresh = client.refreshSession();
-    await refreshStarted;
-    const logout = client.signOut();
-    releaseRefresh();
-    await expect(refresh).rejects.toMatchObject({ code: 'AUTHENTICATION_REQUIRED', status: 401 });
-    await expect(logout).resolves.toBeUndefined();
-    expect(logoutRequest?.credentials).toBe('include');
-    expect(logoutRequest?.headers.get('X-XSRF-TOKEN')).toBe('csrf');
-    await expect(client.authenticatedFetch('http://127.0.0.1:8080/api/user/me')).rejects.toMatchObject({
-      code: 'AUTHENTICATION_REQUIRED', status: 401,
-    });
-    await expect(client.authenticatedFetch('http://127.0.0.1:8080/api/user/me')).rejects.toMatchObject({
-      code: 'AUTHENTICATION_REQUIRED', status: 401,
-    });
-  });
-
-  it('rejects a delayed sign-in after the caller clears the session', async () => {
-    let releaseLogin!: () => void;
-    let loginStartedResolve!: () => void;
-    const loginReleased = new Promise<void>((resolve) => { releaseLogin = resolve; });
-    const loginStarted = new Promise<void>((resolve) => { loginStartedResolve = resolve; });
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) {
-          loginStartedResolve();
-          await loginReleased;
-          return Response.json(responseFor('stale-access'));
-        }
-        return Response.json(responseFor('unexpected-access'));
-      },
-    });
-
-    const login = client.signIn('alice_1', 'password');
-    await loginStarted;
-    client.clearSession();
-    releaseLogin();
-
-    await expect(login).rejects.toMatchObject({ code: 'AUTHENTICATION_REQUIRED', status: 401 });
-    await expect(client.authenticatedFetch('http://127.0.0.1:8080/api/user/me')).rejects.toMatchObject({
-      code: 'AUTHENTICATION_REQUIRED', status: 401,
-    });
-  });
-
-  it('does not start a queued sign-in after the caller clears the session', async () => {
-    let releaseRefresh!: () => void;
-    let refreshStartedResolve!: () => void;
-    const refreshReleased = new Promise<void>((resolve) => { releaseRefresh = resolve; });
-    const refreshStarted = new Promise<void>((resolve) => { refreshStartedResolve = resolve; });
-    let loginCalls = 0;
-    const client = createSessionClient({
-      fetch: async (input) => {
-        const url = String(input);
-        if (url.endsWith('/api/auth/csrf')) return csrfResponse();
-        if (url.endsWith('/api/auth/refresh')) {
-          refreshStartedResolve();
-          await refreshReleased;
-          return Response.json(responseFor('stale-refresh'));
-        }
-        loginCalls += 1;
-        return Response.json(responseFor('stale-login'));
-      },
-    });
-
-    const refresh = client.refreshSession();
-    await refreshStarted;
-    const login = client.signIn('alice_1', 'password');
-    client.clearSession();
-    releaseRefresh();
-
-    await expect(refresh).rejects.toMatchObject({ code: 'AUTHENTICATION_REQUIRED', status: 401 });
-    await expect(login).rejects.toMatchObject({ code: 'AUTHENTICATION_REQUIRED', status: 401 });
-    expect(loginCalls).toBe(0);
-  });
-
-  it('serializes concurrent sign-ins so cookie responses apply in request order', async () => {
-    const requests: string[] = [];
-    let releaseFirst!: () => void;
-    const firstReleased = new Promise<void>((resolve) => { releaseFirst = resolve; });
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) {
-          const body = await request.json() as { identifier: string };
-          requests.push(body.identifier);
-          if (body.identifier === 'first') await firstReleased;
-          return Response.json(responseFor(body.identifier === 'first' ? 'first-access' : 'second-access'));
-        }
-        return Response.json(responseFor('unexpected-access'));
-      },
+      fetch: apiRoutes({
+        '/api/auth/login': async (request) => {
+          const { identifier } = await request.json() as { identifier: string };
+          identifiers.push(identifier);
+          if (identifier === 'first') await firstReleased.promise;
+          return Response.json(sessionBody(`${identifier}-access`));
+        },
+      }).fetch,
     });
 
     const first = client.signIn('first', 'password');
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
     const second = client.signIn('second', 'password');
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-    expect(requests).toEqual(['first']);
+    await flushTasks();
+    expect(identifiers).toEqual(['first']);
 
-    releaseFirst();
+    firstReleased.resolve();
     await expect(first).resolves.toMatchObject({ accessToken: 'first-access' });
     await expect(second).resolves.toMatchObject({ accessToken: 'second-access' });
-    expect(requests).toEqual(['first', 'second']);
+    expect(identifiers).toEqual(['first', 'second']);
+  });
+});
+
+describe('restore', () => {
+  it('bootstraps the CSRF token and restores the user through refresh', async () => {
+    const api = apiRoutes({
+      '/api/auth/csrf': () => Response.json({ csrfToken: 'csrf+value' }),
+      '/api/auth/refresh': () => Response.json(sessionBody()),
+    });
+
+    await expect(createSessionClient({ fetch: api.fetch }).restoreSession()).resolves.toEqual(signedInUser);
+    const [csrf, refresh] = api.requests;
+    expect(api.paths()).toEqual(['/api/auth/csrf', '/api/auth/refresh']);
+    expect(csrf.credentials).toBe('include');
+    expect(refresh.credentials).toBe('include');
+    expect(refresh.headers.get('X-XSRF-TOKEN')).toBe('csrf+value');
+    expect(refresh.headers.get('Authorization')).toBeNull();
   });
 
-  it('does not call browser storage APIs while managing the access token', async () => {
-    let storageCalls = 0;
-    const storage = {
-      getItem: () => { storageCalls += 1; return null; },
-      setItem: () => { storageCalls += 1; },
-      removeItem: () => { storageCalls += 1; },
+  it('restores nothing when the browser has no refresh cookie', async () => {
+    const client = createSessionClient({ fetch: apiRoutes({ '/api/auth/refresh': noContent }).fetch });
+
+    await expect(client.restoreSession()).resolves.toBeNull();
+  });
+
+  it('rejects an expired refresh cookie with a 401', async () => {
+    const client = createSessionClient({ fetch: apiRoutes({ '/api/auth/refresh': unauthorized }).fetch });
+
+    await expect(client.restoreSession()).rejects.toMatchObject(authenticationRequired);
+  });
+
+  it.each([
+    ['an error status', { '/api/auth/refresh': () => Response.json({ code: 'INTERNAL_ERROR' }, { status: 500 }) }, { code: 'INTERNAL_ERROR', status: 500 }],
+    ['a failed CSRF bootstrap', { '/api/auth/csrf': () => Response.json({ code: 'ACCESS_DENIED' }, { status: 403 }) }, { code: 'ACCESS_DENIED', status: 403 }],
+    ['a missing CSRF token', { '/api/auth/csrf': () => Response.json({}) }, { code: 'INVALID_RESPONSE', status: 200 }],
+    ['a malformed session',{ '/api/auth/refresh': () => Response.json({ accessToken: 'token' }) }, { code: 'INVALID_RESPONSE', status: 200 }],
+    ['a transport failure', { '/api/auth/refresh': () => { throw new TypeError('offline'); } }, requestFailed],
+  ])('rethrows a restore that fails with %s', async (_, routes, failure) => {
+    const client = createSessionClient({ fetch: apiRoutes(routes).fetch });
+
+    await expect(client.restoreSession()).rejects.toMatchObject(failure);
+  });
+
+  it('shares one refresh between concurrent restores', async () => {
+    const refreshReleased = deferred();
+    const api = apiRoutes({
+      '/api/auth/refresh': async () => {
+        await refreshReleased.promise;
+        return Response.json(sessionBody());
+      },
+    });
+    const client = createSessionClient({ fetch: api.fetch });
+
+    const restores = Promise.all([client.restoreSession(), client.restoreSession()]);
+    await flushTasks();
+    refreshReleased.resolve();
+    await expect(restores).resolves.toEqual([signedInUser, signedInUser]);
+    expect(api.paths()).toEqual(['/api/auth/csrf', '/api/auth/refresh']);
+  });
+});
+
+describe('cookie-mutation lock', () => {
+  it('holds the shared lock for every sign-in, refresh and logout request', async () => {
+    const api = apiRoutes({
+      '/api/auth/login': () => Response.json(sessionBody()),
+      '/api/auth/refresh': () => Response.json(sessionBody()),
+      '/api/auth/logout': noContent,
+    });
+    const heldDuringRequest: boolean[] = [];
+    const client = createSessionClient({
+      fetch: (input, init) => {
+        heldDuringRequest.push(locks.held());
+        return api.fetch(input, init);
+      },
+    });
+
+    await client.signIn('sana', 'password');
+    await client.restoreSession();
+    await client.signOut();
+    expect(api.paths()).toEqual([
+      '/api/auth/login', '/api/auth/csrf', '/api/auth/refresh', '/api/auth/csrf', '/api/auth/logout',
+    ]);
+    expect(heldDuringRequest).toEqual(Array(5).fill(true));
+    expect(locks.names).toEqual(Array(3).fill(lockName));
+  });
+
+  it.each([
+    ['sign-in', (client: SessionClient) => client.signIn('sana', 'password'), ['/api/auth/login']],
+    ['refresh', (client: SessionClient) => client.restoreSession(), ['/api/auth/csrf', '/api/auth/refresh']],
+  ])('makes another client wait until a %s response body is read', async (_, start, pathsBeforeRelease) => {
+    const bodyReleased = deferred();
+    let blocked = false;
+    const answer = () => {
+      if (blocked) return Response.json(sessionBody());
+      blocked = true;
+      return blockedJsonResponse(sessionBody(), bodyReleased.promise);
     };
-    const localStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
-    const sessionStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
-    try {
-      Object.assign(globalThis, { localStorage: storage, sessionStorage: storage });
-      const client = createSessionClient({ fetch: async () => Response.json(responseFor('access-memory')) });
+    const api = apiRoutes({ '/api/auth/login': answer, '/api/auth/refresh': answer });
 
-      await client.signIn('alice_1', 'password');
-      client.clearSession();
-      expect(storageCalls).toBe(0);
-    } finally {
-      if (localStorageDescriptor) Object.defineProperty(globalThis, 'localStorage', localStorageDescriptor);
-      else Reflect.deleteProperty(globalThis, 'localStorage');
-      if (sessionStorageDescriptor) Object.defineProperty(globalThis, 'sessionStorage', sessionStorageDescriptor);
-      else Reflect.deleteProperty(globalThis, 'sessionStorage');
-    }
+    const first = start(createSessionClient({ fetch: api.fetch }));
+    const restore = createSessionClient({ fetch: api.fetch }).restoreSession();
+    await flushTasks();
+    expect(api.paths()).toEqual(pathsBeforeRelease);
+
+    bodyReleased.resolve();
+    await first;
+    await expect(restore).resolves.toEqual(signedInUser);
+    expect(api.paths()).toEqual([...pathsBeforeRelease, '/api/auth/csrf', '/api/auth/refresh']);
   });
 
-  it('rejects malformed session responses without exposing token details', async () => {
-    const client = createSessionClient({ fetch: async () => Response.json({ accessToken: 'x', tokenType: 'Basic', expiresIn: 900, user: profile }) });
-    await expect(client.signIn('alice_1', 'password')).rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 200, message: '' });
-    await expect(client.authenticatedFetch('http://127.0.0.1:8080/api/user/me')).rejects.toBeInstanceOf(UserApiError);
+  it('makes another client wait until a logout is answered', async () => {
+    const logoutReleased = deferred();
+    const api = apiRoutes({
+      '/api/auth/logout': async () => {
+        await logoutReleased.promise;
+        return noContent();
+      },
+      '/api/auth/refresh': noContent,
+    });
+
+    const signOut = createSessionClient({ fetch: api.fetch }).signOut();
+    const restore = createSessionClient({ fetch: api.fetch }).restoreSession();
+    await flushTasks();
+    expect(api.paths()).toEqual(['/api/auth/csrf', '/api/auth/logout']);
+
+    logoutReleased.resolve();
+    await expect(Promise.all([signOut, restore])).resolves.toEqual([undefined, null]);
+    expect(api.paths()).toEqual(['/api/auth/csrf', '/api/auth/logout', '/api/auth/csrf', '/api/auth/refresh']);
   });
+});
+
+describe('authenticated requests', () => {
+  it('sends the Bearer token to the API origin and returns what the reader returns', async () => {
+    const { api, client } = await signedInClient({ '/api/user/me': () => Response.json(signedInUser) });
+
+    await expect(loadProfile(client)).resolves.toEqual(signedInUser);
+    const profileRequest = api.requests.at(-1);
+    expect(profileRequest?.url).toBe('http://127.0.0.1:8080/api/user/me');
+    expect(profileRequest?.headers.get('Authorization')).toBe('Bearer access-old');
+    expect(profileRequest?.cache).toBe('no-store');
+  });
+
+  it.each(['https://attacker.example/api/user/me', '//attacker.example/api/user/me'])(
+    'rejects the off-origin path %s before fetching',
+    async (path) => {
+      const { api, client } = await signedInClient();
+
+      await expect(loadProfile(client, path)).rejects.toMatchObject(requestFailed);
+      expect(api.paths()).toEqual(['/api/auth/login']);
+    },
+  );
+
+  it('refreshes first when no access token is in memory', async () => {
+    const api = apiRoutes({
+      '/api/auth/refresh': () => Response.json(sessionBody('access-restored')),
+      '/api/user/me': () => Response.json(signedInUser),
+    });
+
+    await expect(loadProfile(createSessionClient({ fetch: api.fetch }))).resolves.toEqual(signedInUser);
+    expect(api.paths()).toEqual(['/api/auth/csrf', '/api/auth/refresh', '/api/user/me']);
+    expect(profileAuthorizations(api)).toEqual(['Bearer access-restored']);
+  });
+
+  it('fails without sending the request when there is no session to refresh', async () => {
+    const api = apiRoutes({ '/api/auth/refresh': noContent });
+
+    await expect(loadProfile(createSessionClient({ fetch: api.fetch }))).rejects.toMatchObject(authenticationRequired);
+    expect(api.paths()).toEqual(['/api/auth/csrf', '/api/auth/refresh']);
+  });
+
+  it('does not refresh again when a request is unauthorized right after the first refresh', async () => {
+    const api = apiRoutes({
+      '/api/auth/refresh': () => Response.json(sessionBody('access-restored')),
+      '/api/user/me': unauthorized,
+    });
+
+    await expect(loadProfile(createSessionClient({ fetch: api.fetch }))).rejects.toMatchObject(authenticationRequired);
+    expect(api.paths()).toEqual(['/api/auth/csrf', '/api/auth/refresh', '/api/user/me']);
+  });
+
+  it('retries an expired request once with the refreshed token', async () => {
+    const { api, client } = await signedInClient({
+      '/api/auth/refresh': () => Response.json(sessionBody('access-new')),
+      '/api/user/me': (request) => request.headers.get('Authorization') === 'Bearer access-new'
+        ? Response.json(signedInUser)
+        : unauthorized(),
+    });
+
+    await expect(loadProfile(client)).resolves.toEqual(signedInUser);
+    expect(profileAuthorizations(api)).toEqual(['Bearer access-old', 'Bearer access-new']);
+  });
+
+  it('ends the session without a retry when the refresh cookie is gone', async () => {
+    const { api, client } = await signedInClient({ '/api/auth/refresh': noContent, '/api/user/me': unauthorized });
+
+    await expect(loadProfile(client)).rejects.toMatchObject(authenticationRequired);
+    expect(profileAuthorizations(api)).toEqual(['Bearer access-old']);
+  });
+
+  it('ends the session when the retried request is still unauthorized, until the next sign-in', async () => {
+    let logins = 0;
+    const { api, client } = await signedInClient({
+      '/api/auth/login': () => Response.json(sessionBody((logins += 1) === 1 ? 'access-old' : 'access-later')),
+      '/api/auth/refresh': () => Response.json(sessionBody('access-rejected')),
+      '/api/user/me': (request) => request.headers.get('Authorization') === 'Bearer access-later'
+        ? Response.json(signedInUser)
+        : unauthorized(),
+    });
+    const readResponse = vi.fn(readJson);
+
+    await expect(client.authenticatedFetch('/api/user/me', { method: 'GET' }, readResponse))
+      .rejects.toMatchObject(authenticationRequired);
+    expect(readResponse).not.toHaveBeenCalled();
+    await client.signIn('sana', 'password');
+    await expect(loadProfile(client)).resolves.toEqual(signedInUser);
+    expect(profileAuthorizations(api)).toEqual(['Bearer access-old', 'Bearer access-rejected', 'Bearer access-later']);
+    expect(api.paths().filter((path) => path === '/api/auth/refresh')).toHaveLength(1);
+  });
+
+  it('shares one refresh between concurrent expired requests and retries each once', async () => {
+    const bothExpired = deferred();
+    const expiredAnswered = deferred();
+    let expired = 0;
+    const { api, client } = await signedInClient({
+      '/api/auth/refresh': () => Response.json(sessionBody('access-new')),
+      '/api/user/me': async (request) => {
+        if (request.headers.get('Authorization') === 'Bearer access-new') {
+          return Response.json({ call: new URL(request.url).searchParams.get('call') });
+        }
+        if ((expired += 1) === 2) bothExpired.resolve();
+        await expiredAnswered.promise;
+        return unauthorized();
+      },
+    });
+
+    const requests = Promise.all([loadProfile(client, '/api/user/me?call=first'), loadProfile(client, '/api/user/me?call=second')]);
+    await bothExpired.promise;
+    expiredAnswered.resolve();
+    await expect(requests).resolves.toEqual([{ call: 'first' }, { call: 'second' }]);
+    expect(profileAuthorizations(api)).toEqual(['Bearer access-old', 'Bearer access-old', 'Bearer access-new', 'Bearer access-new']);
+    expect(api.paths().filter((path) => path === '/api/auth/refresh')).toHaveLength(1);
+  });
+
+  it('keeps a newer sign-in that finishes after an older request ends the session', async () => {
+    const retryStarted = deferred();
+    const retryAnswered = deferred();
+    const laterLoginStarted = deferred();
+    const laterLoginAnswered = deferred();
+    let logins = 0;
+    const { client } = await signedInClient({
+      '/api/auth/login': async () => {
+        if ((logins += 1) === 1) return Response.json(sessionBody('access-old'));
+        laterLoginStarted.resolve();
+        await laterLoginAnswered.promise;
+        return Response.json(sessionBody('access-later'));
+      },
+      '/api/auth/refresh': () => Response.json(sessionBody('access-retried')),
+      '/api/user/me': async (request) => {
+        const authorization = request.headers.get('Authorization');
+        if (authorization === 'Bearer access-later') return Response.json(signedInUser);
+        if (authorization === 'Bearer access-retried') {
+          retryStarted.resolve();
+          await retryAnswered.promise;
+        }
+        return unauthorized();
+      },
+    });
+
+    const olderRequest = loadProfile(client);
+    await retryStarted.promise;
+    const laterSignIn = client.signIn('sana', 'password');
+    await laterLoginStarted.promise;
+    retryAnswered.resolve();
+    await expect(olderRequest).rejects.toMatchObject(authenticationRequired);
+
+    laterLoginAnswered.resolve();
+    await expect(laterSignIn).resolves.toMatchObject({ accessToken: 'access-later' });
+    await expect(loadProfile(client)).resolves.toEqual(signedInUser);
+  });
+
+  it('rejects another request result once a retried 401 ends the session', async () => {
+    const secondRetryStarted = deferred();
+    const secondRetryAnswered = deferred();
+    let retries = 0;
+    const { client } = await signedInClient({
+      '/api/auth/refresh': () => Response.json(sessionBody('access-retried')),
+      '/api/user/me': async (request) => {
+        if (request.headers.get('Authorization') === 'Bearer access-old') return unauthorized();
+        if ((retries += 1) === 1) {
+          await secondRetryStarted.promise;
+          return unauthorized();
+        }
+        secondRetryStarted.resolve();
+        await secondRetryAnswered.promise;
+        return Response.json(signedInUser);
+      },
+    });
+
+    const rejectedRequest = loadProfile(client, '/api/user/me?call=rejected');
+    const staleRequest = loadProfile(client, '/api/user/me?call=stale');
+    await expect(rejectedRequest).rejects.toMatchObject(authenticationRequired);
+    secondRetryAnswered.resolve();
+    await expect(staleRequest).rejects.toMatchObject(authenticationRequired);
+  });
+
+  it('rejects a response still being read when a separate refresh fails', async () => {
+    const readerStarted = deferred();
+    const readerReleased = deferred();
+    const { api, client } = await signedInClient({
+      '/api/auth/refresh': unauthorized,
+      '/api/user/me': () => Response.json(signedInUser),
+    });
+
+    const profileRequest = client.authenticatedFetch('/api/user/me', { method: 'GET' }, async (response) => {
+      readerStarted.resolve();
+      await readerReleased.promise;
+      return response.json();
+    });
+    await readerStarted.promise;
+    await expect(client.restoreSession()).rejects.toMatchObject(authenticationRequired);
+    readerReleased.resolve();
+    await expect(profileRequest).rejects.toMatchObject(authenticationRequired);
+    expect(profileAuthorizations(api)).toEqual(['Bearer access-old']);
+  });
+});
+
+describe('sign-out', () => {
+  it('revokes the refresh cookie with the CSRF token and forgets the access token', async () => {
+    const { api, client } = await signedInClient({ '/api/auth/logout': noContent, '/api/auth/refresh': noContent });
+
+    await expect(client.signOut()).resolves.toBeUndefined();
+    const logout = api.requests.at(-1);
+    expect(logout?.method).toBe('POST');
+    expect(logout?.credentials).toBe('include');
+    expect(logout?.headers.get('X-XSRF-TOKEN')).toBe('csrf');
+
+    await expect(loadProfile(client)).rejects.toMatchObject(authenticationRequired);
+    expect(api.paths()).toEqual([
+      '/api/auth/login', '/api/auth/csrf', '/api/auth/logout', '/api/auth/csrf', '/api/auth/refresh',
+    ]);
+  });
+
+  it.each([
+    ['an error status', () => Response.json({ code: 'INTERNAL_ERROR' }, { status: 500 }), { code: 'INTERNAL_ERROR', status: 500 }],
+    ['a transport failure', () => { throw new TypeError('offline'); }, requestFailed],
+  ])('rejects a logout that fails with %s but still forgets the access token', async (_, logout, failure) => {
+    const { api, client } = await signedInClient({ '/api/auth/logout': logout, '/api/auth/refresh': noContent });
+
+    await expect(client.signOut()).rejects.toMatchObject(failure);
+    await expect(loadProfile(client)).rejects.toMatchObject(authenticationRequired);
+    expect(profileAuthorizations(api)).toEqual([]);
+  });
+
+  it('discards a refresh that finishes after sign-out, never retries with it and refreshes afresh later', async () => {
+    const refreshStarted = deferred();
+    const refreshAnswered = deferred();
+    let refreshes = 0;
+    const { api, client } = await signedInClient({
+      '/api/auth/refresh': async () => {
+        if ((refreshes += 1) > 1) return noContent();
+        refreshStarted.resolve();
+        await refreshAnswered.promise;
+        return Response.json(sessionBody('access-late'));
+      },
+      '/api/auth/logout': noContent,
+      '/api/user/me': unauthorized,
+    });
+
+    const request = loadProfile(client);
+    await refreshStarted.promise;
+    const signOut = client.signOut();
+    const laterRestore = client.restoreSession();
+    refreshAnswered.resolve();
+    await expect(request).rejects.toMatchObject(authenticationRequired);
+    await expect(signOut).resolves.toBeUndefined();
+    await expect(laterRestore).resolves.toBeNull();
+    await expect(loadProfile(client)).rejects.toMatchObject(authenticationRequired);
+    expect(profileAuthorizations(api)).toEqual(['Bearer access-old']);
+  });
+
+  it('rejects a sign-in still in flight when sign-out starts', async () => {
+    const loginStarted = deferred();
+    const loginAnswered = deferred();
+    const api = apiRoutes({
+      '/api/auth/login': async () => {
+        loginStarted.resolve();
+        await loginAnswered.promise;
+        return Response.json(sessionBody('access-stale'));
+      },
+      '/api/auth/logout': noContent,
+      '/api/auth/refresh': noContent,
+    });
+    const client = createSessionClient({ fetch: api.fetch });
+
+    const signIn = client.signIn('sana', 'password');
+    await loginStarted.promise;
+    const signOut = client.signOut();
+    loginAnswered.resolve();
+    await expect(signIn).rejects.toMatchObject(authenticationRequired);
+    await signOut;
+    await expect(loadProfile(client)).rejects.toMatchObject(authenticationRequired);
+    expect(profileAuthorizations(api)).toEqual([]);
+  });
+
+  it('does not start a sign-in queued before sign-out', async () => {
+    const refreshStarted = deferred();
+    const refreshAnswered = deferred();
+    const api = apiRoutes({
+      '/api/auth/refresh': async () => {
+        refreshStarted.resolve();
+        await refreshAnswered.promise;
+        return Response.json(sessionBody('access-stale'));
+      },
+      '/api/auth/login': () => Response.json(sessionBody('access-stale')),
+      '/api/auth/logout': noContent,
+    });
+    const client = createSessionClient({ fetch: api.fetch });
+
+    const restore = client.restoreSession();
+    await refreshStarted.promise;
+    const signIn = client.signIn('sana', 'password');
+    const signOut = client.signOut();
+    refreshAnswered.resolve();
+    await expect(restore).rejects.toMatchObject(authenticationRequired);
+    await expect(signIn).rejects.toMatchObject(authenticationRequired);
+    await signOut;
+    expect(api.paths()).not.toContain('/api/auth/login');
+  });
+});
+
+it.each([
+  ['sign-in', '/api/auth/login', (client: SessionClient) => client.signIn('sana', 'password')],
+  ['refresh', '/api/auth/refresh', (client: SessionClient) => client.restoreSession()],
+  ['logout', '/api/auth/logout', (client: SessionClient) => client.signOut()],
+])('abandons a %s request the API does not answer within 10 seconds', async (_, path, start) => {
+  vi.useFakeTimers();
+  const client = createSessionClient({ fetch: apiRoutes({ [path]: stalledRoute }).fetch });
+  const settled = vi.fn();
+
+  const operation = start(client);
+  operation.then(settled, settled);
+  await vi.advanceTimersByTimeAsync(9_999);
+  expect(settled).not.toHaveBeenCalled();
+  await vi.advanceTimersByTimeAsync(1);
+  await expect(operation).rejects.toMatchObject(requestFailed);
+});
+
+it('keeps the access token out of browser storage', async () => {
+  let storageCalls = 0;
+  const storage = {
+    getItem: () => { storageCalls += 1; return null; },
+    setItem: () => { storageCalls += 1; },
+    removeItem: () => { storageCalls += 1; },
+  };
+  const localStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  const sessionStorageDescriptor = Object.getOwnPropertyDescriptor(globalThis, 'sessionStorage');
+  try {
+    Object.assign(globalThis, { localStorage: storage, sessionStorage: storage });
+    const { client } = await signedInClient({ '/api/auth/logout': noContent });
+
+    await client.signOut();
+    expect(storageCalls).toBe(0);
+  } finally {
+    if (localStorageDescriptor) Object.defineProperty(globalThis, 'localStorage', localStorageDescriptor);
+    else Reflect.deleteProperty(globalThis, 'localStorage');
+    if (sessionStorageDescriptor) Object.defineProperty(globalThis, 'sessionStorage', sessionStorageDescriptor);
+    else Reflect.deleteProperty(globalThis, 'sessionStorage');
+  }
 });

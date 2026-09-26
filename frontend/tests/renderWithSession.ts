@@ -4,20 +4,11 @@ import { NextIntlClientProvider } from 'next-intl';
 import { vi } from 'vitest';
 import messages from '../messages/en.json';
 import { SessionProvider, type SessionSource } from '../src/auth/SessionProvider';
+import { ApiError } from '../src/lib/api';
+import type { SessionResponse } from '../src/lib/session';
+import { flushTasks, signedInUser } from './fakeApi';
 
-export const signedInUser = {
-  username: 'sana',
-  mobile: '01700000000',
-  email: null,
-  mobileVerified: false,
-};
-
-export const signedInResponse = {
-  accessToken: 'synthetic-access-token',
-  tokenType: 'Bearer' as const,
-  expiresIn: 900,
-  user: signedInUser,
-};
+export const signedInResponse: SessionResponse = { accessToken: 'synthetic-access-token', user: signedInUser };
 
 Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { value: true, configurable: true });
 
@@ -29,16 +20,14 @@ export function createSessionSource(overrides: Partial<SessionSource> = {}): Ses
     signIn: vi.fn().mockResolvedValue(signedInResponse),
     restoreSession: vi.fn().mockResolvedValue(null),
     signOut: vi.fn().mockResolvedValue(undefined),
-    isAuthenticated: vi.fn().mockReturnValue(false),
+    authenticatedFetch: vi.fn().mockRejectedValue(new ApiError('AUTHENTICATION_REQUIRED', 401)),
     ...overrides,
   };
 }
 
 /** Lets pending promises and the effects they trigger finish. */
 export async function settle(): Promise<void> {
-  await act(async () => {
-    await new Promise<void>((resolve) => setTimeout(resolve, 0));
-  });
+  await act(flushTasks);
 }
 
 /** Mounts an element inside the real translation and session providers, then waits for the restore. */
@@ -90,15 +79,4 @@ export async function submitForm(container: ParentNode): Promise<void> {
   await act(async () => {
     form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
   });
-}
-
-/** Returns a promise plus the function that settles it, to hold a request open mid-test. */
-export function deferred<T>(): { promise: Promise<T>; resolve(value: T): void; reject(reason: unknown): void } {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
 }

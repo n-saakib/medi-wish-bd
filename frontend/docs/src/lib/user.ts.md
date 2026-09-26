@@ -4,17 +4,18 @@ Source: [`src/lib/user.ts`](../../../src/lib/user.ts)
 
 ## Purpose
 
-Small typed boundary for the shared User registration and profile API. Registration and session/profile responses share one bounded username/mobile/email projection; each endpoint adds only its own documented fields. The module maps bounded server error fields plus an optional bounded request ID on `UserApiError`, and avoids copying diagnostic fields or credentials into client state. Profile requests use the supplied `SessionClient` origin so the URL and Bearer token stay on the same API origin; profile status/error handling and JSON parsing run through the session response-reader overload so they remain inside the operation deadline. It does not invent user-facing fallback text; the calling client component translates missing messages.
+The User API calls: public registration and the signed-in user's profile. Both run through the shared [`api.ts`](api.ts.md) boundary, so they have the 10-second operation timeout and fail with a bounded `ApiError`.
 
 ## Exports
 
-- `registerUser` sends a no-store JSON `POST /api/auth/register` request and accepts only the documented registration response; JSON bodies use the shared 16 KiB bounded reader.
-- `loadUserProfile` sends a no-store `GET /api/user/me` request through the session seam with an in-memory Bearer header and accepts only the documented profile response.
-- `userErrorMessage` converts bounded API failures into either a safe server message or a caller-provided translated fallback without depending on React components.
-- `UserApiError` carries a bounded code, optional bounded server message and HTTP status for UI decisions. Missing or invalid response text remains empty so the UI can select a locale-specific catalog message.
+- `registerUser(input, { baseUrl?, fetch? })` posts `{ username, mobile, email?, password }` as JSON to `POST /api/auth/register` and resolves with nothing on `201`, whatever the body. Any other status rejects with the response's bounded error code.
+- `loadUserProfile(session)` calls `GET /api/user/me` through the session's `authenticatedFetch`, so the request carries the Bearer token, stays on the session's API origin and gets the single refresh-and-retry. It resolves with the projected `SessionUser`; an error status rejects with its bounded code, and a malformed profile with `INVALID_RESPONSE`.
+- `RegistrationInput` — the registration payload type.
 
-The base API URL uses `NEXT_PUBLIC_MEDI_WISH_API_URL` when configured and otherwise defaults to the local backend. Registration remains public and unchanged; sign-in, refresh and logout are owned by `session.ts`. OTP, MFA, recovery, OAuth and token persistence are outside this boundary.
+## Use cases and boundaries
+
+[`RegistrationForm`](../auth/RegistrationForm.tsx.md) calls `registerUser`, then signs in. [`AccountSummary`](../account/AccountSummary.tsx.md) calls `loadUserProfile` with the provider's `authenticatedFetch`, so a final `401` also ends the session in the UI. Sign-in, refresh and logout belong to [`session.ts`](session.ts.md). OTP, MFA, recovery and OAuth are outside this module.
 
 ## Verification
 
-`tests/user.test.ts` checks registration request method/body, response validation, bounded error/request-ID mapping, oversized UTF-8 error-body cancellation with absent or understated `Content-Length`, translated fallback selection, same-origin custom-client profile requests and Bearer authorization without using a live service.
+[`tests/user.test.ts`](../../tests/user.test.ts.md) covers the registration request, any `201` body, non-`201` statuses, bounded and overlong error codes, unreadable and oversized error bodies, transport failures and the timeout, plus the profile request's origin and Bearer header, field projection, malformed profiles, error codes and body deadline.

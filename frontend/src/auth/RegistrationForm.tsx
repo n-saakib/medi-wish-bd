@@ -4,7 +4,8 @@ import { type FormEvent, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { registerUser, UserApiError, userErrorMessage } from '../lib/user';
+import { ApiError, errorMessageKey } from '../lib/api';
+import { registerUser } from '../lib/user';
 import { Alert } from '../shell/Alert';
 import { useSession } from './SessionProvider';
 import { useSessionRedirect } from './sessionRedirect';
@@ -39,9 +40,9 @@ export function RegistrationForm() {
     try {
       await registerUser({ username, mobile, email: email || undefined, password });
     } catch (reason) {
-      setError(reason instanceof UserApiError && reason.code === 'INVALID_REQUEST'
+      setError(reason instanceof ApiError && reason.code === 'INVALID_REQUEST'
         ? t('invalid')
-        : userErrorMessage(reason, tErrors));
+        : tErrors(errorMessageKey(reason)));
       setBusy(false);
       return;
     }

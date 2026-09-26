@@ -15,8 +15,8 @@ Renders the `Create an account` heading, an optional danger alert, a form with u
 ## Observable behavior
 
 - **Submit.** The form has `method="post"`, so a submission before hydration never puts credentials in the URL. On submit the password is cleared from component state, the button is disabled and reads `Creating account…`, and a blank email is omitted from the request.
-- **Registration failure.** An `INVALID_REQUEST` response shows the translated username-rule message (`register.invalid`). Other failures show `userErrorMessage` output: a bounded server message such as the duplicate-user message, or the translated generic/invalid-response fallback, so transport details are never shown. The button is re-enabled; editing any field removes the alert.
-- **Registration success.** The form calls the provider's `signIn` with the submitted identifier (username) and password. On success the guest redirect opens `/account`.
+- **Registration failure.** An `INVALID_REQUEST` response shows the translated username-rule message (`register.invalid`), including the rule that a username needs at least one letter. Other failures show the `errors` copy that [`errorMessageKey`](../lib/api.ts.md) picks for the code, such as the duplicate-user message for `DUPLICATE_USER`, or the generic message; the API's message text and transport details are never shown. The button is re-enabled; editing any field removes the alert.
+- **Registration success.** Any `201` counts; the response body is not needed. The form calls the provider's `signIn` with the submitted identifier (username) and password. On success the guest redirect opens `/account`.
 - **Follow-up sign-in failure.** The account exists, so the form sets the `accountCreated` notice and calls `router.replace('/sign-in')`, where the notice asks the visitor to sign in. No username, mobile, email or password is placed in the URL.
 
 ## Design deviations
@@ -25,4 +25,4 @@ The `+880` mobile prefix, the Terms/Privacy consent line and the OTP verificatio
 
 ## Verification
 
-[`tests/RegistrationForm.test.ts`](../../tests/RegistrationForm.test.ts.md) covers the fields and hint, the request body with and without email, busy state and password clearing, the automatic sign-in and both redirect outcomes, and the bounded, invalid-request and transport-failure alerts. Browser verification is recorded in the Ticket 03.01 evidence.
+[`tests/RegistrationForm.test.ts`](../../tests/RegistrationForm.test.ts.md) covers the fields and hint, the request body with and without email, busy state and password clearing, the automatic sign-in after a `201` with an empty body and both redirect outcomes, and the duplicate-user (while the API sends a different message), invalid-request and transport-failure alerts. Browser verification is recorded in the Ticket 03.01 evidence.

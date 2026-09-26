@@ -50,6 +50,7 @@ flowchart TD
     subgraph LIB[src/lib - client seams]
         SESSION[session.ts<br/>memory-only access session]
         USER[user.ts<br/>registration + profile client]
+        APIMOD[api.ts<br/>request, timeout, bounded errors]
         HEALTH[health.ts<br/>health response probe]
     end
 
@@ -85,10 +86,15 @@ flowchart TD
     SUMMARY --> PROVIDER
     SITEHEADER --> PROVIDER
     PROVIDER --> SESSION
-    REGISTER -->|registerUser, userErrorMessage| USER
-    SIGNIN -->|userErrorMessage| USER
-    SESSION -->|csrf/login/refresh/logout<br/>authenticatedFetch client seam| API
-    USER -->|POST /api/auth/register<br/>GET /api/user/me| API
+    REGISTER -->|registerUser| USER
+    SUMMARY -->|loadUserProfile via provider authenticatedFetch| USER
+    USER -->|authenticatedFetch| SESSION
+    REGISTER -->|errorMessageKey| APIMOD
+    SIGNIN -->|errorMessageKey| APIMOD
+    SESSION --> APIMOD
+    USER --> APIMOD
+    SESSION -->|csrf/login/refresh/logout<br/>GET /api/user/me with Bearer| API
+    USER -->|POST /api/auth/register| API
     HEALTH -->|GET /actuator/health/*| API
     TESTS --> PROVIDER
     TESTS --> USER
@@ -124,15 +130,15 @@ sequenceDiagram
     R->>P: read state (restoring, so no redirect yet)
     P->>S: restoreSession (once per page load)
     S->>A: Same-origin exclusive lock, CSRF bootstrap and refresh cookie
-    A-->>S: rotated session or bounded authentication failure
-    S-->>P: profile, none, or error
+    A-->>S: rotated session, 204 without a cookie, or 401 for an expired one
+    S-->>P: profile, none (204), or error (401 = sessionExpired, other = restoreError)
     P-->>R: restoring ends and the guard picks a target or stays
 
     alt register on /register
         V->>R: submit username, mobile, optional email, password
         R->>U: registerUser (blank email omitted)
         U->>A: POST /api/auth/register
-        A-->>U: 201 public RegisteredUser or bounded error
+        A-->>U: 201 (body not read) or bounded error code
         Note over R,U: an error shows one alert and stops here
         R->>P: signIn with the same username and password
         Note over R,P: success - guest guard opens /account<br/>failure - accountCreated notice and replace /sign-in
@@ -144,12 +150,19 @@ sequenceDiagram
         A-->>S: SessionResponse + refresh cookie
         S-->>P: public profile, access token kept in module memory
         Note over R,P: guest guard opens /account
+    else profile on /account
+        R->>U: loadUserProfile(provider authenticatedFetch)
+        U->>P: authenticatedFetch GET /api/user/me
+        P->>S: authenticatedFetch (refreshes first without a token)
+        S->>A: GET /api/user/me with Bearer token
+        A-->>S: profile, or 401 then one refresh and one retry
+        Note over R,P: profile shows the card, another error shows a generic alert<br/>a second 401 expires the session and the guard opens /sign-in
     else sign out on /account
         V->>R: press Sign out
         R->>P: signOut
         P->>S: signOut (token cleared locally first)
         S->>A: POST /api/auth/logout
-        Note over R,P: signedOut or signOutError notice<br/>account guard opens / and SignOutNotice announces it
+        Note over R,P: signedOut or signOutError notice<br/>account guard opens / and SignOutNotice announces it<br/>signOutError offers Try again, which signs out again
     end
 ```
 
@@ -173,26 +186,28 @@ calls the API.
 
 ## Session client seam
 
-The session module serializes cookie-mutating sign-in/refresh/logout
-operations within each client and obtains one same-origin exclusive Web Lock
-across each full request and response-validation operation, including CSRF
-bootstrap for refresh and logout. This prevents same-origin tabs from applying
-cookie updates out of order. Browsers without Web Locks retain only the
-per-client queue, and distinct frontend origins do not coordinate. The module
-uses an epoch to discard stale in-memory results and is the only browser seam
-for access credentials: it bootstraps a bounded CSRF nonce response and echoes
-it in the required header, while the API manages the matching non-secret
-cookie. It keeps the access JWT in module memory without localStorage,
-sessionStorage, IndexedDB, URL, console or durable application state. The
-one-time protected-request retry belongs to `authenticatedFetch`, not to
-`restoreSession`.
+`src/lib/session.ts` is the only browser holder of access credentials. It
+keeps the access JWT in module memory, never in storage, URLs or logs, and
+reaches the API through `src/lib/api.ts`, which gives every request
+`no-store`, `redirect: 'error'`, a 10-second operation timeout and a bounded
+`ApiError` (code and status only). Sign-in, refresh and logout hold one
+same-origin exclusive Web Lock from the CSRF bootstrap until the response is
+read, so tabs apply refresh-cookie rotations in order; the supported Chrome and
+Edge always provide Web Locks. Epochs discard results that a sign-out or a
+dropped token made stale.
+
+A refresh `204` means no refresh cookie (signed out) and a `401` means an
+expired or revoked one. `authenticatedFetch` refreshes first when no token is
+in memory, and refreshes and retries once after a `401`; a `401` after that
+single refresh ends the session. The provider wraps it, so that final `401`
+also clears the profile and shows the session-expired notice.
 
 The mounted UI calls `signIn`, `restoreSession`, `signOut` and
-`isAuthenticated` through the provider, and `registerUser` and
-`userErrorMessage` from `user.ts`. It does not call `loadUserProfile` or
-`authenticatedFetch`; those exports are the protected-data client seam for
-future consumers, and the single-refresh retry is covered by
-`session.test.ts`, not by a mounted page.
+`authenticatedFetch` through the provider. `/account` loads
+`GET /api/user/me` with `loadUserProfile` through the provider's
+`authenticatedFetch`, and registration calls `registerUser`. Forms turn error
+codes into `messages/en.json` copy with `errorMessageKey`; the API's own
+message text is never shown.
 
 ## Module responsibilities
 
@@ -203,21 +218,22 @@ future consumers, and the single-refresh retry is covered by
 | `src/app/(auth)/*` | Auth layout with `AuthHeader` and centered card; sign-in (`/sign-in`) and registration (`/register`) pages. | Server route files composing client components. |
 | `src/app/globals.css` | Design tokens and component styles ported from `agent-docs/ui-design/assets/styles.css`, limited to the current pages. | Global stylesheet. |
 | `src/auth/` | Session provider and reducer, redirect rules, sign-in and registration forms, sign-out notice. | Client UI and state; network only through `src/lib`. |
-| `src/account/` | Read-only account summary and sign-out button. | Client UI; no API calls of its own. |
+| `src/account/` | Account summary: loads the current profile, shows loading, profile or generic error, and the sign-out button. | Client UI; the profile call goes through `user.ts` and the provider. |
 | `src/shell/` | Store and auth headers, logo, decorative icons and the alert component. | Presentation; `SiteHeader` reads session state. |
-| `src/lib/session.ts` | Login, CSRF bootstrap, memory-only access token, per-client cookie mutation queue, same-origin cross-tab cookie-mutation Web Lock, refresh single-flight/retry, epoch invalidation, restore and logout cleanup. | Injectable browser session seam; refresh credentials remain cookie-backed. |
-| `src/lib/user.ts` | Registration request construction, same-origin Bearer profile delegation, bounded error/request-ID mapping and response validation. | Network seam to the backend; no credential persistence. |
+| `src/lib/api.ts` | Base URL, request defaults and 10-second timeout, 16 KiB JSON reading, `ApiError` and the error-code-to-copy key. | Shared HTTP boundary for the API clients. |
+| `src/lib/session.ts` | Login, CSRF bootstrap, memory-only access token, cross-tab cookie-mutation Web Lock, refresh single-flight, restore (`204` none, `401` expired), Bearer requests with one refresh and retry, epoch invalidation and logout. | Injectable browser session seam; refresh credentials remain cookie-backed. |
+| `src/lib/user.ts` | Registration (any `201` succeeds) and the `GET /api/user/me` profile through `authenticatedFetch`, with field projection. | Network seam to the backend; no credential persistence. |
 | `src/lib/health.ts` | Parallel liveness/readiness probe with bounded result states and timeout. | Operational probe seam. |
 | `src/i18n/request.ts` | Selects the English locale and loads the message catalog. | Server localization boundary. |
 | `messages/en.json` | User-visible English strings by feature namespace (`metadata`, `header`, `home`, `signIn`, `register`, `account`, `errors`). | Externalized message source. |
-| `tests/` and `tools/` | Exercise the API seams, provider and redirect rules, mounted pages' components, health integration and the supported probe path. | Verification boundary; synthetic data only. |
+| `tests/` and `tools/` | Exercise the API seams, provider and redirect rules, mounted pages' components (with real session clients over the shared `fakeApi` routes), health integration and the supported probe path. | Verification boundary; synthetic data only. |
 
 ## Frontend safety rules
 
 - Keep credentials, tokens, OTPs, personal data and order data out of browser
   storage, URLs, logs and ordinary error text.
-- Keep backend error handling bounded and use translated client fallbacks when
-  a response is malformed or lacks a safe message.
+- Keep backend errors bounded to a code and status, and show only the
+  `messages/en.json` copy chosen for the code, never the API's message.
 - Keep `session.ts`, `user.ts` and `health.ts` injectable through their fetch or
   cookie options, and `SessionProvider` injectable through its `source`, so
   unit tests do not require a running backend; reserve real API behavior for

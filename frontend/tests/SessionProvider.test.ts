@@ -10,7 +10,15 @@ import {
   type SessionState,
 } from '../src/auth/SessionProvider';
 import { sessionRedirect } from '../src/auth/sessionRedirect';
-import { createSessionSource, renderWithSession, signedInUser, unmountAll } from './renderWithSession';
+import { ApiError } from '../src/lib/api';
+import { createSessionClient } from '../src/lib/session';
+import { apiRoutes, signedInUser, installFakeLocks } from './fakeApi';
+import { createSessionSource, renderWithSession, unmountAll } from './renderWithSession';
+
+// jsdom has no Web Locks, which the real session client requires.
+installFakeLocks();
+
+const expired = new ApiError('AUTHENTICATION_REQUIRED', 401);
 
 afterEach(unmountAll);
 
@@ -40,22 +48,26 @@ describe('SessionProvider restore', () => {
     expect(session.current()).toMatchObject({ profile: null, restoring: false, notice: null });
   });
 
-  it('reports an expired session only when an in-memory session was lost', async () => {
-    const session = await mountProvider(createSessionSource({ isAuthenticated: vi.fn().mockReturnValue(true) }));
+  it('reports an expired session when the API rejects the refresh cookie', async () => {
+    const client = createSessionClient({
+      fetch: apiRoutes({ '/api/auth/refresh': () => Response.json({ code: 'AUTHENTICATION_REQUIRED' }, { status: 401 }) }).fetch,
+    });
+    const session = await mountProvider(client);
     expect(session.current()).toMatchObject({ profile: null, restoring: false, notice: 'sessionExpired' });
   });
 
-  it('reports a restore failure without exposing its detail', async () => {
-    const session = await mountProvider(createSessionSource({
-      restoreSession: vi.fn().mockRejectedValue(new Error('private failure detail')),
-    }));
+  it.each([
+    ['an unexpected error', new Error('private failure detail')],
+    ['an API error other than 401', new ApiError('INTERNAL_ERROR', 500)],
+  ])('reports a restore failure from %s without exposing its detail', async (_, failure) => {
+    const session = await mountProvider(createSessionSource({ restoreSession: vi.fn().mockRejectedValue(failure) }));
     expect(session.current()).toMatchObject({ profile: null, restoring: false, notice: 'restoreError' });
   });
 });
 
 describe('SessionProvider actions', () => {
   it('signs in, shares the profile and clears an earlier notice', async () => {
-    const source = createSessionSource({ isAuthenticated: vi.fn().mockReturnValue(true) });
+    const source = createSessionSource({ restoreSession: vi.fn().mockRejectedValue(expired) });
     const session = await mountProvider(source);
     expect(session.current().notice).toBe('sessionExpired');
 
@@ -98,12 +110,39 @@ describe('SessionProvider actions', () => {
 
     expect(session.current()).toMatchObject({ profile: null, signingOut: false, notice: 'signOutError' });
   });
+
+  it('ends the session when a protected request is still unauthorized', async () => {
+    const session = await mountProvider(createSessionSource({
+      restoreSession: vi.fn().mockResolvedValue(signedInUser),
+      authenticatedFetch: vi.fn().mockRejectedValue(expired),
+    }));
+
+    await act(async () => {
+      await expect(session.current().authenticatedFetch('/api/user/me', { method: 'GET' }, vi.fn())).rejects.toBe(expired);
+    });
+
+    expect(session.current()).toMatchObject({ profile: null, notice: 'sessionExpired' });
+  });
+
+  it('keeps the session when a protected request fails for another reason', async () => {
+    const failure = new ApiError('INTERNAL_ERROR', 500);
+    const session = await mountProvider(createSessionSource({
+      restoreSession: vi.fn().mockResolvedValue(signedInUser),
+      authenticatedFetch: vi.fn().mockRejectedValue(failure),
+    }));
+
+    await act(async () => {
+      await expect(session.current().authenticatedFetch('/api/user/me', { method: 'GET' }, vi.fn())).rejects.toBe(failure);
+    });
+
+    expect(session.current()).toMatchObject({ profile: signedInUser, notice: null });
+  });
 });
 
 describe('sessionReducer stale-result guards', () => {
   it('suppresses a restore error that arrives while sign-in is pending', () => {
     const signingIn = sessionReducer(initialSessionState, { type: 'signin-start' });
-    const restoreFailed = sessionReducer(signingIn, { type: 'restore-error' });
+    const restoreFailed = sessionReducer(signingIn, { type: 'restore-error', notice: 'restoreError' });
     const signedIn = sessionReducer(restoreFailed, { type: 'signin-success', profile: signedInUser });
 
     expect(restoreFailed.notice).toBeNull();
@@ -115,7 +154,7 @@ describe('sessionReducer stale-result guards', () => {
       sessionReducer(initialSessionState, { type: 'signin-start' }),
       { type: 'signin-success', profile: signedInUser },
     );
-    const lateFailure = sessionReducer(signedIn, { type: 'restore-error' });
+    const lateFailure = sessionReducer(signedIn, { type: 'restore-error', notice: 'restoreError' });
 
     expect(lateFailure).toMatchObject({ profile: signedInUser, restoring: false, notice: null });
   });

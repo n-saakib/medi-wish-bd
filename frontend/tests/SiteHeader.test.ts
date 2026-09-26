@@ -3,7 +3,8 @@
 import { createElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SiteHeader } from '../src/shell/SiteHeader';
-import { createSessionSource, deferred, renderWithSession, signedInUser, unmountAll } from './renderWithSession';
+import { deferred, signedInUser } from './fakeApi';
+import { createSessionSource, renderWithSession, unmountAll } from './renderWithSession';
 
 afterEach(unmountAll);
 

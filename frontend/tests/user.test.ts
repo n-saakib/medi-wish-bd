@@ -1,69 +1,80 @@
-import { describe, expect, it, vi } from 'vitest';
-import { createSessionClient, UserApiError } from '../src/lib/session.ts';
-import { loadUserProfile, registerUser, userErrorMessage } from '../src/lib/user.ts';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createSessionClient } from '../src/lib/session.ts';
+import { loadUserProfile, registerUser, type RegistrationInput } from '../src/lib/user.ts';
+import { apiRoutes, sessionBody, signedInUser, stalledRoute } from './fakeApi.ts';
 
-const profile = { username: 'alice_1', mobile: '01700000000', email: null, mobileVerified: false };
-const session = { accessToken: 'access-token', tokenType: 'Bearer', expiresIn: 900, user: profile };
+const registration: RegistrationInput = {
+  username: 'sana', mobile: '01700000000', email: 'sana@example.com', password: 'a-very-long-password',
+};
 
-describe('user API boundary', () => {
-  it('registers through the public endpoint without inventing OTP behavior', async () => {
-    let request: Request | undefined;
-    const user = await registerUser({
-      username: 'alice_1', mobile: '01700000000', email: 'alice@example.com', password: 'a-very-long-password',
-    }, {
-      baseUrl: 'http://127.0.0.1:8080',
-      fetch: async (input, init) => {
-        request = new Request(input, init);
-        return Response.json({ username: 'alice_1', mobile: '01700000000', email: 'alice@example.com', mobileVerificationDeferred: true }, { status: 201 });
-      },
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+describe('registration', () => {
+  it('posts the registration to the public endpoint', async () => {
+    const api = apiRoutes({ '/api/auth/register': () => new Response(null, { status: 201 }) });
+
+    await expect(registerUser(registration, { baseUrl: 'https://api.example.test', fetch: api.fetch })).resolves.toBeUndefined();
+    const [request] = api.requests;
+    expect(request.url).toBe('https://api.example.test/api/auth/register');
+    expect(request.method).toBe('POST');
+    expect(request.headers.get('Content-Type')).toBe('application/json');
+    expect(await request.json()).toEqual(registration);
+  });
+
+  it.each([
+    ['an empty body', null],
+    ['a registered user', JSON.stringify({ username: 'sana', mobileVerificationDeferred: false })],
+    ['a non-JSON body', 'created'],
+  ])('accepts a 201 with %s', async (_, body) => {
+    const api = apiRoutes({ '/api/auth/register': () => new Response(body, { status: 201 }) });
+
+    await expect(registerUser(registration, { fetch: api.fetch })).resolves.toBeUndefined();
+  });
+
+  it('rejects a success status other than 201', async () => {
+    const api = apiRoutes({ '/api/auth/register': () => Response.json({}) });
+
+    await expect(registerUser(registration, { fetch: api.fetch })).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 200 });
+  });
+
+  it('keeps only the code and status of an API error', async () => {
+    const api = apiRoutes({
+      '/api/auth/register': () => Response.json({
+        code: 'DUPLICATE_USER', message: 'server text', requestId: 'safe-1', secret: 'must-not-escape',
+      }, { status: 409 }),
     });
 
-    expect(user.mobileVerificationDeferred).toBe(true);
-    expect(request?.url).toBe('http://127.0.0.1:8080/api/auth/register');
-    expect(request?.method).toBe('POST');
-    expect(await request?.json()).toEqual({ username: 'alice_1', mobile: '01700000000', email: 'alice@example.com', password: 'a-very-long-password' });
+    const failure = await registerUser(registration, { fetch: api.fetch }).catch((reason: unknown) => reason);
+    expect(failure).toMatchObject({ name: 'ApiError', code: 'DUPLICATE_USER', status: 409, message: '' });
+    expect(Object.keys(failure as object).sort()).toEqual(['code', 'name', 'status']);
   });
 
-  it('maps bounded API errors without exposing response internals', async () => {
-    await expect(registerUser({ username: 'alice_1', mobile: '01700000000', password: 'a-very-long-password' }, {
-      fetch: async () => new Response(JSON.stringify({
-        code: 'DUPLICATE_USER',
-        message: 'The username or mobile number is already in use.',
-        requestId: 'safe-1',
-        secret: 'must-not-escape',
-      }), { status: 409, headers: { 'Content-Type': 'application/json', 'X-Request-ID': 'header-1' } }),
-    })).rejects.toMatchObject({
-      code: 'DUPLICATE_USER', status: 409, message: 'The username or mobile number is already in use.', requestId: 'safe-1',
-    } satisfies Partial<UserApiError>);
+  it('replaces an overlong error code with the generic request failure', async () => {
+    const api = apiRoutes({ '/api/auth/register': () => Response.json({ code: 'X'.repeat(65) }, { status: 400 }) });
+
+    await expect(registerUser(registration, { fetch: api.fetch })).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 400 });
   });
 
-  it('maps a registration response-body transport failure as a request failure', async () => {
+  it('reports a failure to read the error body as a request failure', async () => {
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.error(new TypeError('private body-read detail'));
       },
     });
+    const api = apiRoutes({ '/api/auth/register': () => new Response(body, { status: 409 }) });
 
-    await expect(registerUser({
-      username: 'alice_1', mobile: '01700000000', password: 'a-very-long-password',
-    }, {
-      fetch: async () => new Response(body, {
-        status: 201,
-        headers: { 'Content-Type': 'application/json' },
-      }),
-    })).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 0, message: '' });
+    await expect(registerUser(registration, { fetch: api.fetch })).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 0, message: '' });
   });
 
   it.each([
     ['missing', undefined],
     ['understated', '1'],
-  ] as const)('bounds oversized registration error bodies with %s Content-Length', async (_, contentLength) => {
+  ] as const)('bounds an oversized error body with %s Content-Length', async (_, contentLength) => {
     let cancelled = false;
     let pulls = 0;
-    const payload = new TextEncoder().encode(JSON.stringify({
-      code: 'x'.repeat(128),
-      message: 'é'.repeat(9 * 1024),
-    }));
+    const payload = new TextEncoder().encode(JSON.stringify({ code: 'x'.repeat(128), message: 'é'.repeat(9 * 1024) }));
     const body = new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(payload);
@@ -78,161 +89,77 @@ describe('user API boundary', () => {
     });
     const headers = new Headers({ 'Content-Type': 'application/json' });
     if (contentLength) headers.set('Content-Length', contentLength);
+    const api = apiRoutes({ '/api/auth/register': () => new Response(body, { status: 500, headers }) });
 
-    await expect(registerUser({
-      username: 'alice_1', mobile: '01700000000', password: 'a-very-long-password',
-    }, {
-      fetch: async () => new Response(body, { status: 500, headers }),
-    })).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 500, message: '' });
+    await expect(registerUser(registration, { fetch: api.fetch })).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 500, message: '' });
     expect(cancelled).toBe(true);
   });
 
-  it('loads a profile through the Bearer session seam and never constructs Basic credentials', async () => {
-    let profileRequest: Request | undefined;
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) return Response.json(session);
-        profileRequest = request;
-        return Response.json(profile);
-      },
-    });
-    await client.signIn('alice_1', 'pässword-12345');
+  it('reports a transport failure without its detail', async () => {
+    const api = apiRoutes({ '/api/auth/register': () => { throw new Error('network internals must not escape'); } });
 
-    await expect(loadUserProfile({ session: client })).resolves.toEqual(profile);
-    expect(profileRequest?.headers.get('Authorization')).toBe('Bearer access-token');
-    expect(profileRequest?.headers.get('Authorization')).not.toMatch(/^Basic /);
+    await expect(registerUser(registration, { fetch: api.fetch })).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 0, message: '' });
   });
 
-  it('keeps profile requests on the SessionClient origin', async () => {
-    let profileRequest: Request | undefined;
-    const client = createSessionClient({
-      baseUrl: 'https://api.example.test',
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) return Response.json(session);
-        profileRequest = request;
-        return Response.json({ ...profile, diagnostic: 'must-not-escape' });
-      },
-    });
-    await client.signIn('alice_1', 'password');
-
-    await expect(loadUserProfile({ session: client, baseUrl: 'https://wrong.example.test' })).resolves.toEqual(profile);
-    expect(profileRequest?.url).toBe('https://api.example.test/api/user/me');
-    expect(profileRequest?.headers.get('Authorization')).toBe('Bearer access-token');
-  });
-
-  it('rejects malformed profiles and keeps the translated fallback', async () => {
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) return Response.json(session);
-        return Response.json({ unexpected: true });
-      },
-    });
-    await client.signIn('alice_1', 'password');
-
-    let error: unknown;
-    try {
-      await loadUserProfile({ session: client });
-    } catch (reason) {
-      error = reason;
-    }
-
-    expect(error).toMatchObject({ code: 'INVALID_RESPONSE', status: 200, message: '' });
-    expect(userErrorMessage(error, (key) => ({ genericError: 'translated generic error', invalidResponse: 'translated invalid response' }[key] ?? key)))
-      .toBe('translated invalid response');
-  });
-
-  it('distinguishes malformed profile JSON from a response body that exceeds the deadline', async () => {
-    const malformedClient = createSessionClient({
-      fetch: async (input) => String(input).endsWith('/api/auth/login')
-        ? Response.json(session)
-        : new Response('{', { status: 200, headers: { 'Content-Type': 'application/json' } }),
-    });
-    await malformedClient.signIn('alice_1', 'password');
-    await expect(loadUserProfile({ session: malformedClient }))
-      .rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 200, message: '' });
-
+  it('abandons a registration the API does not answer within 10 seconds', async () => {
     vi.useFakeTimers();
-    try {
-      let profileRequestStartedResolve!: () => void;
-      const profileRequestStarted = new Promise<void>((resolve) => { profileRequestStartedResolve = resolve; });
-      const stalledClient = createSessionClient({
-        operationTimeoutMs: 50,
-        fetch: async (input, init) => {
-          const request = new Request(input, init);
-          if (request.url.endsWith('/api/auth/login')) return Response.json(session);
-          const body = new ReadableStream<Uint8Array>({
-            start(controller) {
-              controller.enqueue(new TextEncoder().encode('{'));
-              request.signal.addEventListener('abort', () => {
-                controller.error(new DOMException('aborted', 'AbortError'));
-              }, { once: true });
-            },
-          });
-          profileRequestStartedResolve();
-          return new Response(body, { status: 200, headers: { 'Content-Type': 'application/json' } });
-        },
-      });
-      await stalledClient.signIn('alice_1', 'password');
-      let outcome: { status: 'resolved' } | { status: 'rejected'; reason: unknown } | undefined;
-      const pending = loadUserProfile({ session: stalledClient }).then(
-        () => { outcome = { status: 'resolved' }; },
-        (reason: unknown) => { outcome = { status: 'rejected', reason }; },
-      );
-      await profileRequestStarted;
-      await vi.advanceTimersByTimeAsync(50);
-      for (let attempt = 0; attempt < 10 && outcome === undefined; attempt += 1) await Promise.resolve();
+    const api = apiRoutes({ '/api/auth/register': stalledRoute });
+    const settled = vi.fn();
 
-      expect(outcome).toEqual({
-        status: 'rejected',
-        reason: expect.objectContaining({ code: 'REQUEST_FAILED', status: 0, message: '' }),
-      });
-      await pending;
-    } finally {
-      vi.useRealTimers();
-    }
+    const registering = registerUser(registration, { fetch: api.fetch });
+    registering.then(settled, settled);
+    await vi.advanceTimersByTimeAsync(9_999);
+    expect(settled).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(1);
+    await expect(registering).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 0 });
+  });
+});
+
+describe('profile', () => {
+  async function signedInClient(profileRoute: Parameters<typeof apiRoutes>[0][string]) {
+    const api = apiRoutes({ '/api/auth/login': () => Response.json(sessionBody()), '/api/user/me': profileRoute });
+    const client = createSessionClient({ baseUrl: 'https://api.example.test', fetch: api.fetch });
+    await client.signIn('sana', 'password');
+    return { api, client };
+  }
+
+  it('loads the documented profile fields from the session origin with the Bearer token', async () => {
+    const { api, client } = await signedInClient(() => Response.json({ ...signedInUser, internal: 'hidden' }));
+
+    await expect(loadUserProfile(client)).resolves.toEqual(signedInUser);
+    const profileRequest = api.requests.at(-1);
+    expect(profileRequest?.url).toBe('https://api.example.test/api/user/me');
+    expect(profileRequest?.method).toBe('GET');
+    expect(profileRequest?.headers.get('Authorization')).toBe('Bearer synthetic-access-token');
   });
 
-  it('retains bounded API errors while parsing the authenticated response', async () => {
-    const client = createSessionClient({
-      fetch: async (input) => {
-        if (String(input).endsWith('/api/auth/login')) return Response.json(session);
-        return Response.json({
-          code: 'PROFILE_FORBIDDEN',
-          message: 'Profile access is not available.',
-          requestId: 'profile-1',
-          secret: 'must-not-escape',
-        }, { status: 403 });
+  it.each([
+    ['a malformed profile', () => Response.json({ unexpected: true })],
+    ['malformed JSON', () => new Response('{', { headers: { 'Content-Type': 'application/json' } })],
+  ])('rejects %s as an invalid response', async (_, profileRoute) => {
+    const { client } = await signedInClient(profileRoute);
+
+    await expect(loadUserProfile(client)).rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 200, message: '' });
+  });
+
+  it('keeps only the code and status of a profile error', async () => {
+    const { client } = await signedInClient(() => Response.json({ code: 'ACCESS_DENIED', message: 'server text' }, { status: 403 }));
+
+    await expect(loadUserProfile(client)).rejects.toMatchObject({ code: 'ACCESS_DENIED', status: 403, message: '' });
+  });
+
+  it('abandons a profile body that is still arriving after 10 seconds', async () => {
+    const { client } = await signedInClient((request) => new Response(new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('{'));
+        request.signal.addEventListener('abort', () => controller.error(request.signal.reason), { once: true });
       },
-    });
-    await client.signIn('alice_1', 'password');
+    }), { headers: { 'Content-Type': 'application/json' } }));
+    vi.useFakeTimers();
 
-    await expect(loadUserProfile({ session: client })).rejects.toMatchObject({
-      code: 'PROFILE_FORBIDDEN',
-      status: 403,
-      message: 'Profile access is not available.',
-      requestId: 'profile-1',
-    });
-  });
-
-  it('projects only the documented profile fields', async () => {
-    const client = createSessionClient({
-      fetch: async (input, init) => {
-        const request = new Request(input, init);
-        if (request.url.endsWith('/api/auth/login')) return Response.json({ ...session, internal: 'hidden' });
-        return Response.json({ ...profile, internal: 'hidden' });
-      },
-    });
-    await client.signIn('alice_1', 'password');
-
-    await expect(loadUserProfile({ session: client })).resolves.toEqual(profile);
-  });
-
-  it('maps transport failures without exposing the underlying error', async () => {
-    await expect(registerUser({ username: 'alice_1', mobile: '01700000000', password: 'a-very-long-password' }, {
-      fetch: async () => { throw new Error('network internals must not escape'); },
-    })).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 0, message: '' });
+    const loading = loadUserProfile(client);
+    const rejected = expect(loading).rejects.toMatchObject({ code: 'REQUEST_FAILED', status: 0, message: '' });
+    await vi.advanceTimersByTimeAsync(10_000);
+    await rejected;
   });
 });

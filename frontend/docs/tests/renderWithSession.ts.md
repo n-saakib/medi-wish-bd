@@ -8,15 +8,14 @@ Shared helper for the mounted component tests. It is not a test file itself (it 
 
 ## Exports
 
-- `signedInUser` and `signedInResponse` — synthetic profile and sign-in response fixtures.
-- `createSessionSource(overrides?)` — a signed-out `SessionSource` of Vitest mocks (sign-in succeeds, restore finds no session, sign-out succeeds, no in-memory session); tests override individual methods.
+- `signedInResponse` — the session client's sign-in result for the shared [`fakeApi`](fakeApi.ts.md) `signedInUser`.
+- `createSessionSource(overrides?)` — a signed-out `SessionSource` of Vitest mocks (sign-in succeeds, restore finds no session, sign-out succeeds, protected requests reject with a `401` `ApiError`); tests override individual methods, or pass a real session client instead.
 - `renderWithSession(element, source?)` — mounts the element in a new container, waits for the provider's restore to settle and returns the container.
-- `settle()` — flushes pending promises and the effects they trigger inside `act`.
+- `settle()` — runs `fakeApi`'s `flushTasks` inside `act`, so pending promises and the effects they trigger finish.
 - `unmountAll()` — unmounts every mounted root and clears the document body; used in `afterEach`.
 - `requiredElement(container, selector)` — `querySelector` that throws if the element is missing.
 - `setInputValue(container, selector, value)` — sets an input through the native value setter and dispatches `input`, so React's `onChange` runs.
 - `submitForm(container)` — dispatches a cancelable `submit` on the first form without waiting for the requests it starts.
-- `deferred()` — a promise with external `resolve`/`reject`, used to hold a request open mid-test.
 
 The module also sets `IS_REACT_ACT_ENVIRONMENT` so React's `act` warnings stay meaningful.
 
@@ -26,4 +25,4 @@ Used by the `SessionProvider`, `SiteHeader`, `SignInForm`, `RegistrationForm` an
 
 ## Verification
 
-Exercised by those five suites; on 2026-09-26 `npm run test:unit` passed (8 files, 92 tests) and `npm run typecheck` and `npm run lint` passed over this file.
+Exercised by those five suites; on 2026-09-26 `npm run verify` passed over this file.

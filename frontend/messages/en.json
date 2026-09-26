@@ -13,7 +13,8 @@
     "title": "Medi Wish",
     "description": "Our online store is being prepared. Please check back soon.",
     "signedOut": "You have been signed out.",
-    "signOutError": "Sign-out could not be completed. Please try again."
+    "signOutError": "Sign-out could not be completed.",
+    "tryAgain": "Try again"
   },
   "signIn": {
     "title": "Sign in",
@@ -39,7 +40,7 @@
     "submitting": "Creating account…",
     "haveAccount": "Have an account?",
     "signIn": "Sign in",
-    "invalid": "Check your details. Usernames use 3–50 letters, numbers, dots, hyphens or underscores."
+    "invalid": "Check your details. Usernames use 3–50 letters, numbers, dots, hyphens or underscores, with at least one letter."
   },
   "account": {
     "title": "Your account",
@@ -52,6 +53,8 @@
   },
   "errors": {
     "genericError": "The request could not be completed.",
+    "authenticationFailed": "Those details don’t match an account.",
+    "duplicateUser": "The username or mobile number is already in use.",
     "invalidResponse": "The service returned an invalid response."
   }
 }
