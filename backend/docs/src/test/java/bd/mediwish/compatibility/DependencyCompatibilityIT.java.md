@@ -25,4 +25,4 @@ The test uses `TestDatabase` and a unique schema in real PostgreSQL 18. Restart 
 
 Run with `.\backend\mvnw.cmd -f backend/pom.xml -Pcompatibility verify` after loading test database settings. The class is tagged `integration` and `compatibility`.
 
-Verified 2026-09-26 on `45cbc7e` plus the uncommitted T4 worktree: `./mvnw.cmd -o verify` passed 168 unit and 105 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 168 and 105 with no skip.
+Verified 2026-09-26 on `72634a6`: `./mvnw.cmd -o verify` passed 171 unit and 106 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 106 with no skip.
