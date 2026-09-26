@@ -43,4 +43,4 @@ The test is tagged `integration` and `regression`; selected methods also carry `
 
 Run with the real PostgreSQL 18 test environment and the Maven `verify` lifecycle. This test is the cumulative guard: later stories must retain it and add their own feature and cross-story journeys. Caller-provided request IDs are not echoed; headers, error bodies and structured logs use the filter-generated UUID.
 
-Verified 2026-09-27 on `724b0c8`: `./mvnw.cmd -o verify` passed 171 unit and 109 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 109 with no skip. `HealthIT` ran 9 tests.
+Verified 2026-09-27 on `ed1e006`: `./mvnw.cmd -o verify` passed 171 unit and 109 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 109 with no skip. `HealthIT` ran 9 tests.

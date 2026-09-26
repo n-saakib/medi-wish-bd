@@ -21,4 +21,4 @@ Source: [`src/test/java/bd/mediwish/auth/SignInIT.java`](../../../../../../../sr
 
 24 tests. On 2026-09-26 the collision test failed under a temporary "username wins" and then a "mobile wins" mutation of `AuthenticationService.resolve`, and passed after the exact revert.
 
-Verified 2026-09-27 on `724b0c8`: `./mvnw.cmd -o verify` passed 171 unit and 109 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 109 with no skip.
+Verified 2026-09-27 on `ed1e006`: `./mvnw.cmd -o verify` passed 171 unit and 109 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 109 with no skip.

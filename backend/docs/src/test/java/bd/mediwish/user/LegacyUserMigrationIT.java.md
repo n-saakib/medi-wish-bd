@@ -19,4 +19,4 @@ Only fixed synthetic values are used. The encoded verifier and password are test
 
 2 tests. Earlier single-scenario runs are recorded in the [Ticket 02 follow-up evidence](../../../../../../../../.scratch/launch-reconciliation/ticket-drafts/02%20-%20Register%20a%20Customer%20with%20simple%20authentication/evidence/2026-09-24-follow-up.md).
 
-Verified 2026-09-27 on `724b0c8`: `./mvnw.cmd -o verify` passed 171 unit and 109 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 109 with no skip.
+Verified 2026-09-27 on `ed1e006`: `./mvnw.cmd -o verify` passed 171 unit and 109 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 109 with no skip.
