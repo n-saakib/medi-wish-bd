@@ -19,7 +19,7 @@ Planning and handoff material may be ignored locally. Locate the actual file bef
 
 ## Start and design
 
-1. Inspect `git status --short --branch` and `git log -1 --oneline`. Continue the current ticket branch or create one descriptive ticket branch before editing; never edit `main` or create extra branches for subtasks. If Git access is blocked, use the approved environment mechanism; do not change global Git trust settings.
+1. Inspect `git status --short --branch` and `git log -1 --oneline`. `dev` and `test` are shared branches; `dev` is the integration branch. Edit and commit only on a descriptive ticket branch created from `dev`: continue the current ticket branch, or create one before the first edit, and keep subtasks on it. Never edit or commit directly on `dev` or `test`; changes reach them only through an authorized merge. If Git access is blocked, use the approved environment mechanism; do not change global Git trust settings.
 2. Preserve unrelated changes and stage explicit paths. Delegate bounded, non-overlapping work to sub-agents, then integrate and review their results before verification.
 3. Implement only accepted behavior. Keep code minimal, package feature code by feature, add layers or abstractions only when the feature needs them, and avoid speculative dependencies or scripts.
 4. Source and build files are authoritative. Whenever backend or frontend code, configuration, tests, resources, scripts or build files change, update the matching page under that area's `docs/` and its index.

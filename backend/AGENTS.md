@@ -4,7 +4,7 @@ This guide applies to `backend/`. Read [`../AGENTS.md`](../AGENTS.md) first for 
 
 ## Start and scope
 
-1. Check `git status --short --branch` and `git log -1 --oneline`. Continue the appropriate descriptive ticket branch or create one before editing; never work on `main`. Preserve unrelated changes and stage explicit paths.
+1. Check `git status --short --branch` and `git log -1 --oneline`. Edit and commit only on a descriptive ticket branch created from `dev`, per the root guide; never directly on `dev` or `test`. Preserve unrelated changes and stage explicit paths.
 2. Read the story and `sub-tickets/` under [`../.scratch/launch-reconciliation/ticket-drafts/`](../.scratch/launch-reconciliation/ticket-drafts/), plus `spec.md`, `TESTING.md`, `WORKFLOW.md` and the latest applicable handoff. Use sub-agents for bounded, non-overlapping backend implementation, research or review work.
 3. Read each affected page under [`docs/`](docs/) before editing. Documentation is part of the same change.
 

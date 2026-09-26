@@ -4,7 +4,7 @@ This guide applies to `frontend/`. Read [../AGENTS.md](../AGENTS.md) first for r
 
 ## Frontend rules
 
-- Confirm `git status --short --branch` and the latest commit before editing. Work on a descriptive ticket branch, never `main`; preserve unrelated changes and stage only task files.
+- Confirm `git status --short --branch` and the latest commit before editing. Edit and commit only on a descriptive ticket branch created from `dev`, per the root guide, never directly on `dev` or `test`; preserve unrelated changes and stage only task files.
 - Use a bounded sub-agent for non-trivial frontend work when available. Assign non-overlapping paths and review its result before integration.
 - Choose names deliberately: use clear domain, component and responsibility names; avoid generic buckets and ambiguous abbreviations. Keep the implementation minimal and be careful with over-engineering: follow the existing Next.js, React and TypeScript patterns, organize growing features by feature, and add a layer, abstraction or dependency only when the current story needs it.
 - Follow the versions and scripts in [`package.json`](package.json) and [`package-lock.json`](package-lock.json). The supported runtime is Node.js `>=24.15.0 <25` with npm 11; install with `npm ci`.
