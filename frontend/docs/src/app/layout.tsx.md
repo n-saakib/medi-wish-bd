@@ -1,25 +1,25 @@
 # `src/app/layout.tsx`
 
-Source: [`../../../src/app/layout.tsx`](../../../src/app/layout.tsx)
+Source: [`src/app/layout.tsx`](../../../src/app/layout.tsx)
 
 ## Purpose
 
-This file defines the Next.js App Router document shell shared by every route. It also supplies page metadata through the same message catalog used by the UI.
+This file defines the Next.js App Router document shell shared by every route. It supplies page metadata from the message catalog and mounts the translation and session providers once, so the `(store)` and `(auth)` route groups share one signed-in state.
 
 ## Exports
 
 ### `generateMetadata(): Promise<Metadata>`
 
-This server function reads the `metadata` namespace through `getTranslations` and returns the translated `title` and `description` in Next.js’s `Metadata` shape. Keeping metadata in `messages/en.json` avoids a second hard-coded copy of the store name and description and leaves room for future locale support.
+This server function reads the `metadata` namespace through `getTranslations` and returns a title object with `default` set to the store name and `template` set to `%s · <store name>`, plus the translated `description`. Route pages that export their own title (`Sign in`, `Create an account`, `Your account`) are therefore rendered as, for example, `Sign in · Medi Wish`, while the home page keeps the plain store name.
 
 ### `RootLayout({ children })`
 
-The async default layout accepts immutable React children, loads the configured messages with `getMessages`, and renders the required `<html lang="en">` and `<body>` elements around a `NextIntlClientProvider`. It imports `globals.css` once at the root, so every route receives the baseline styles and client components can use the same English catalog. The fixed language matches the current single-locale request configuration.
+The async default layout loads the configured messages with `getMessages` and renders `<html lang="en">` and `<body>` around `NextIntlClientProvider`, which wraps [`SessionProvider`](../auth/SessionProvider.tsx.md) around the route content. It imports `globals.css` once, so every route receives the ported design tokens and component styles.
 
 ## Use cases and boundaries
 
-Every current and future App Router page passes through this shell, making it the correct place for document metadata, global CSS and the client translation context. It deliberately contains no authentication state or API calls; those concerns remain in feature components.
+Every route passes through this shell, which makes it the place for document metadata, global CSS, the client translation context and the single session provider. Because the provider sits above both route groups, the session is restored once per page load and survives client-side navigation between the home, account, sign-in and registration pages. The layout itself holds no session state and makes no API calls; the provider and the feature components own those concerns. Route-group layouts ([`(store)`]((store)/layout.tsx.md) and [`(auth)`]((auth)/layout.tsx.md)) add the page headers.
 
 ## Verification
 
-TypeScript checking verifies `Metadata` and the readonly children contract. `next build` verifies the server component, metadata generation, and global stylesheet integration. The visible result is currently exercised by the foundation page.
+TypeScript checking verifies the `Metadata` shape and readonly children contract. On 2026-09-26 `npm run build` compiled the layout and produced static `/`, `/account`, `/register` and `/sign-in` routes. The provider's behavior is covered by [`tests/SessionProvider.test.ts`](../../tests/SessionProvider.test.ts.md); browser verification of the rendered titles and pages is recorded in the Ticket 03.01 evidence.

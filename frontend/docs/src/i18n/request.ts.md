@@ -4,7 +4,7 @@ Source: [`../../../src/i18n/request.ts`](../../../src/i18n/request.ts)
 
 ## Purpose
 
-This is the `next-intl` request configuration. It chooses the current locale and loads the message catalog for server components such as the root layout and home page.
+This is the `next-intl` request configuration. It chooses the current locale and loads the message catalog for server components such as the root layout and route pages.
 
 ## Export
 
@@ -23,4 +23,4 @@ The dynamic import lets the internationalization plugin load the catalog through
 
 ## Verification
 
-The Next.js build exercises plugin discovery and message loading. TypeScript checking verifies the imported JSON and configuration shape. The visible message consumers are documented in [`src/app/layout.tsx`](../app/layout.tsx.md) and [`src/app/page.tsx`](../app/page.tsx.md).
+The Next.js build exercises plugin discovery and message loading. TypeScript checking verifies the imported JSON and configuration shape. The visible message consumers are documented in [`src/app/layout.tsx`](../app/layout.tsx.md), [`src/app/(store)/page.tsx`](../app/(store)/page.tsx.md) and the other route and component pages listed in the [index](../../index.md).

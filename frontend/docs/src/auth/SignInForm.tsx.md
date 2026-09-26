@@ -1,0 +1,28 @@
+# `src/auth/SignInForm.tsx`
+
+Source: [`src/auth/SignInForm.tsx`](../../../src/auth/SignInForm.tsx)
+
+## Purpose
+
+Client component for the `/sign-in` page: identifier-and-password sign-in against the shared session, with the notices that bring a visitor here. It follows `agent-docs/ui-design/sign-in.html`.
+
+## Export
+
+### `SignInForm()`
+
+Renders the `Sign in` heading, at most one alert, a form with a `Mobile, email or username` field (`autocomplete="username"`) and a password field (`autocomplete="current-password"`), a full-width submit button and a `Create an account` link to `/register`. It calls `useSessionRedirect('guest')`.
+
+## Observable behavior
+
+- **Submit.** The form has `method="post"`, so a submission before hydration never puts credentials in the URL; after hydration the handler prevents the default submission and calls the provider's `signIn`. The button is disabled and reads `Signing in…` while the provider's `signingIn` is set.
+- **Success.** The password is cleared and the guest redirect opens `/account`; the form does not navigate explicitly.
+- **Failure.** One danger alert shows the text from `userErrorMessage`: a bounded server message when one is available, otherwise the translated generic or invalid-response fallback. The password is cleared and focus returns to the identifier field. Editing either field removes the alert.
+- **Notices.** When no error is shown, the provider's notice appears only if it occurred: `sessionExpired` as a warning, `restoreError` as a danger alert and `accountCreated` (after a registration whose automatic sign-in failed) as a success alert. Each notice receives focus when shown so it is announced even though it replaces the page's context.
+
+## Design deviations
+
+The design's `Forgot?` password-recovery link and its note about the staff MFA step are omitted because recovery and staff MFA are not implemented in this slice.
+
+## Verification
+
+[`tests/SignInForm.test.ts`](../../tests/SignInForm.test.ts.md) covers labels and POST default, busy state, success redirect, the failure alert and focus, notice rendering, and an access-token privacy check with the real session client. Browser verification is recorded in the Ticket 03.01 evidence.

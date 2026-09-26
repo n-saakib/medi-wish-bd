@@ -1,23 +1,25 @@
 # `src/app/globals.css`
 
-Source: [`../../../src/app/globals.css`](../../../src/app/globals.css)
+Source: [`src/app/globals.css`](../../../src/app/globals.css)
 
 ## Purpose
 
-This is the global style baseline loaded by the root layout. It gives the foundation page and the reduced customer access panel a readable medical-store palette, predictable document spacing, responsive form layout and visible keyboard focus without introducing a component styling system.
+This is the global stylesheet loaded once by the root layout. It holds the design tokens and component styles ported from `agent-docs/ui-design/assets/styles.css`, limited to what the current home, account, sign-in and registration pages use. There is no CSS framework or CSS-in-JS layer; components apply these class names directly.
 
 ## Rules
 
-- `:root` selects a light color scheme, an Arial/Helvetica fallback stack, dark green text (`#163b33`), and a pale green background (`#f6faf8`). These defaults establish the initial visual identity and remain usable when no feature-specific styles exist.
-- `body { margin: 0; }` removes browser default whitespace so page layout controls the outer spacing.
-- `main` constrains content to `60rem`, centers it with a `10vh` top margin, and adds `1.5rem` padding. This keeps the registration/sign-in panel readable on wide screens while retaining mobile breathing room.
-- `h1` uses `clamp(2rem, 6vw, 3rem)` so the foundation heading scales between accessible minimum and maximum sizes.
-- `p` sets a `1.6` line height and muted green text for comfortable explanatory copy.
-- `.account-panel` and `.account-grid` provide the bordered responsive customer-access surface. The grid uses `minmax(min(100%, 16rem), 1fr)`, so its minimum track is capped by the available inline size: the 16rem preference remains on wider layouts, while a 320px viewport can shrink the track to the panel instead of pushing controls past its edge.
-- `form`, `label`, `input`, and `button` establish consistent readable controls, while `:focus-visible` adds a high-contrast keyboard focus ring. `.status` and `.error` provide the success/error colors used with the component's live regions.
+- **Tokens.** `:root` defines the brand greens, amber accent, ink/muted text, line, background and surface colors, tinted alert backgrounds, radii, a light shadow, the `--font` stack and the `1240px` content width, and sets `color-scheme: light`. The font stack names Inter and Hind Siliguri first but no webfont is downloaded; browsers fall back to installed or system fonts.
+- **Base.** Border-box sizing, text-size-adjust, body font/color/background, link color, heading sizes, paragraph spacing and the helpers `.small`, `.muted`, `.center`, `.mt-16`, `.mt-24`. `:focus-visible` draws a 3 px amber outline on every focusable element.
+- **Layout.** `.container` centers content with 16 px gutters, `.page` adds vertical page padding, `.stack` spaces children, `.card`/`.card-pad` form the account surface, and `.dl` lays out label/value pairs with wrapping values.
+- **Buttons and icons.** `.btn` with `-primary`, `-secondary`, `-ghost` and `-block` variants; every button is at least 44 × 44 px. Disabled buttons are dimmed with a not-allowed cursor. The design's smaller `btn-sm` is deliberately not ported, so all targets stay at least 44 px. `.icon` (20 px) and `.icon-s` (16 px) size inline SVGs.
+- **Forms.** `.field`, `.hint` and `.input` give labelled 44 px inputs; focused inputs get the amber outline.
+- **Alerts.** `.alert` plus `-success`, `-warn` and `-danger` tones. The [`Alert`](../shell/Alert.tsx.md) component always pairs a tone with an icon and text, so status is not conveyed by color alone.
+- **Store header.** `.site-header` is sticky; `.logo`, `.logo-mark`, `.header-actions` and `.header-link` style the logo and account link, with the username truncated at 24 characters. At 860 px and below the link label is visually hidden with the `sr-only` technique rather than `display: none`, so the icon-only link keeps its accessible name.
+- **Home hero.** `.hero-main` is the green gradient panel for the home heading and preparation copy, with reduced padding at 860 px and below.
+- **Auth pages.** `.auth-header` is the 72 px sign-in/register header; at 480 px and below its button padding shrinks and the "Back to home" label is visually hidden in the same accessible way. `.auth-wrap` centers the form card below the header and `.auth-card` caps it at 440 px; the account page reuses `.auth-card` for its width.
 
-The stylesheet intentionally contains no global resets, layout framework, product-card styles, or product-specific visual language. Feature styling remains limited to the concrete Ticket 02 access surface.
+Search, cart, category navigation, footer, product and order styles from the design system are not included because those features are not implemented.
 
 ## Use and verification
 
-`src/app/layout.tsx` imports this file once for the App Router document. The production build passed after the responsive track correction, and a fresh isolated Chrome profile visually confirmed that the account panel and controls fit within a 320px viewport. This is a single-browser responsive check, not a supported-browser matrix; no runtime JavaScript is required.
+[`src/app/layout.tsx`](layout.tsx.md) imports this file once. On 2026-09-26 `npm run lint` and `npm run build` passed with this stylesheet. Responsive and focus appearance is a browser concern; its verification is recorded in the Ticket 03.01 evidence.
