@@ -40,9 +40,18 @@ const maxMobileLength = 30;
 const maxEmailLength = 320;
 const cookieMutationLockName = 'medi-wish:auth-cookie-mutation';
 
-/** Shares an exclusive same-origin lock across credentialed refresh-cookie mutations. */
+let tabCookieMutations: Promise<unknown> = Promise.resolve();
+
+/**
+ * Shares an exclusive same-origin lock across credentialed refresh-cookie mutations. Web Locks exist only in a
+ * secure context (HTTPS or loopback); without them, such as over plain HTTP at a LAN address, the mutations are
+ * serialized within this tab only.
+ */
 function withCookieMutationLock<T>(operation: () => Promise<T>): Promise<T> {
-  return navigator.locks.request(cookieMutationLockName, { mode: 'exclusive' }, operation);
+  if (navigator.locks) return navigator.locks.request(cookieMutationLockName, { mode: 'exclusive' }, operation);
+  const result = tabCookieMutations.then(operation);
+  tabCookieMutations = result.catch(() => undefined);
+  return result;
 }
 
 export function projectSessionUser(body: unknown): SessionUser | undefined {

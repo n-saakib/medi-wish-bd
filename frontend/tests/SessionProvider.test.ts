@@ -15,7 +15,7 @@ import { createSessionClient } from '../src/lib/session';
 import { apiRoutes, deferred, flushTasks, installFakeLocks, sessionBody, signedInUser } from './fakeApi';
 import { createSessionSource, renderWithSession, unmountAll } from './renderWithSession';
 
-// jsdom has no Web Locks, which the real session client requires.
+// jsdom has no Web Locks; the fake gives the real session client the cross-tab lock a secure context has.
 installFakeLocks();
 
 const expired = new ApiError('AUTHENTICATION_REQUIRED', 401);
@@ -166,6 +166,36 @@ describe('SessionProvider actions', () => {
     });
 
     expect(session.current()).toMatchObject(expected);
+  });
+
+  it('ends the session when a request started before a failed sign-in is still unauthorized', async () => {
+    const heldProfile = deferred<Response>();
+    let refreshes = 0;
+    const client = createSessionClient({
+      fetch: apiRoutes({
+        '/api/auth/refresh': () => (refreshes++ === 0
+          ? Response.json(sessionBody('access-old'))
+          : Response.json({ code: 'AUTHENTICATION_REQUIRED' }, { status: 401 })),
+        '/api/user/me': () => heldProfile.promise,
+        '/api/auth/login': () => Response.json({ code: 'AUTHENTICATION_FAILED' }, { status: 401 }),
+      }).fetch,
+    });
+    const session = await mountProvider(client);
+    let olderRequest!: Promise<unknown>;
+    await act(async () => {
+      olderRequest = session.current().authenticatedFetch('/api/user/me', { method: 'GET' }, (response) => response.json());
+      await flushTasks();
+    });
+
+    await act(async () => {
+      await expect(session.current().signIn('sana', 'wrong-password')).rejects.toMatchObject({ status: 401 });
+    });
+    await act(async () => {
+      heldProfile.resolve(Response.json({ code: 'AUTHENTICATION_REQUIRED' }, { status: 401 }));
+      await expect(olderRequest).rejects.toMatchObject({ status: 401 });
+    });
+
+    expect(session.current()).toMatchObject({ profile: null, notice: 'sessionExpired' });
   });
 });
 

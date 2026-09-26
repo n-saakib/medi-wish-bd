@@ -73,10 +73,12 @@ class RegistrationIT {
     }
 
     @Test
-    void aUserRegisteredWithoutAnEmailSignsIn() throws Exception {
-        User user = api.register(api.newUserWithoutEmail());
+    void usersRegisteredWithoutAnEmailSignIn() throws Exception {
+        User first = api.register(api.newUserWithoutEmail());
+        User second = api.register(api.newUserWithoutEmail());
 
-        assertThat(api.signIn(user).user()).isEqualTo(user.profile(false));
+        assertThat(api.signIn(first).user()).isEqualTo(first.profile(false));
+        assertThat(api.signIn(second).user()).isEqualTo(second.profile(false));
     }
 
     @ParameterizedTest(name = "{0}")
@@ -110,17 +112,23 @@ class RegistrationIT {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"username", "mobile"})
-    void aTakenUsernameOrMobileIsRejectedAsADuplicate(String taken) throws Exception {
+    @ValueSource(strings = {"username", "mobile", "email"})
+    void aTakenUsernameMobileOrEmailIsRejectedAsADuplicate(String taken) throws Exception {
         User owner = api.registered();
         User other = api.newUser();
-        User clash = taken.equals("username")
-                ? new User(owner.username().toUpperCase(Locale.ROOT), other.mobile(), other.email(), other.password())
-                : new User(other.username(), owner.mobile(), other.email(), other.password());
+        User clash = switch (taken) {
+            case "username" -> new User(owner.username().toUpperCase(Locale.ROOT), other.mobile(), other.email(),
+                    other.password());
+            case "mobile" -> new User(other.username(), owner.mobile(), other.email(), other.password());
+            default -> new User(other.username(), other.mobile(), owner.email().toUpperCase(Locale.ROOT),
+                    other.password());
+        };
+
+        long users = userCount();
 
         assertError(api.post(REGISTER, JSON_CONTENT, registration(clash)), 409, "DUPLICATE_USER");
-        assertThat(api.database().single("SELECT count(*) FROM users WHERE username = ? OR mobile = ?",
-                Long.class, other.username(), other.mobile())).isZero();
+        assertThat(userCount()).isEqualTo(users);
+        assertThat(api.session(api.login(owner.email(), owner.password())).user()).isEqualTo(owner.profile(false));
     }
 
     @Test
@@ -144,6 +152,18 @@ class RegistrationIT {
 
         assertThat(api.database().single("SELECT count(*) FROM users WHERE username = ?", Long.class,
                 first.username())).isOne();
+    }
+
+    @Test
+    void racingRegistrationsOfOneEmailIgnoringCaseCreateOneUser() throws Exception {
+        User first = api.newUser();
+        User second = api.newUser();
+
+        race(first, new User(second.username(), second.mobile(), first.email().toUpperCase(Locale.ROOT),
+                second.password()));
+
+        assertThat(api.database().single("SELECT count(*) FROM users WHERE email = ?", Long.class, first.email()))
+                .isOne();
     }
 
     /** Releases both registrations at once; whichever commits first wins and the other is a duplicate. */

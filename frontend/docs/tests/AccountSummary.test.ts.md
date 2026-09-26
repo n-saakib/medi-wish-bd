@@ -4,7 +4,7 @@ Source: [`tests/AccountSummary.test.ts`](../../tests/AccountSummary.test.ts)
 
 ## Purpose
 
-Mounted jsdom coverage for [`AccountSummary`](../src/account/AccountSummary.tsx.md) and [`SignOutNotice`](../src/auth/SignOutNotice.tsx.md) through [`renderWithSession`](renderWithSession.ts.md), with `next/navigation` mocked (router plus a fixed `/account` pathname). Each case uses a real session client over the [`fakeApi`](fakeApi.ts.md) routes, whose refresh cookie is accepted and whose `/api/user/me` returns the synthetic profile unless the case overrides a route. The sign-out cases mount both components under one provider, as the root layout shares one provider between the account and home pages. [`installFakeLocks`](fakeApi.ts.md) supplies the Web Locks that jsdom lacks and the real session client requires.
+Mounted jsdom coverage for [`AccountSummary`](../src/account/AccountSummary.tsx.md) and [`SignOutNotice`](../src/auth/SignOutNotice.tsx.md) through [`renderWithSession`](renderWithSession.ts.md), with `next/navigation` mocked (router plus a fixed `/account` pathname). Each case uses a real session client over the [`fakeApi`](fakeApi.ts.md) routes, whose refresh cookie is accepted and whose `/api/user/me` returns the synthetic profile unless the case overrides a route. The sign-out cases mount both components under one provider, as the root layout shares one provider between the account and home pages. [`installFakeLocks`](fakeApi.ts.md) gives the real session client the cross-tab lock of a secure context, which jsdom lacks.
 
 ## Verification
 

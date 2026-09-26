@@ -27,15 +27,19 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.util.Throwables.getStackTrace;
 
 @Tag("integration")
 @Tag("regression")
 class LegacyUserMigrationIT {
     private static final int LEGACY_CHANGESET_COUNT = 3;
+    private static final int ALL_CHANGESETS = Integer.MAX_VALUE;
     private static final UUID LEGACY_ID = UUID.fromString("a7cae613-9522-4d9b-8f72-7df2348c637e");
     private static final UUID SECOND_LEGACY_ID = UUID.fromString("3e2b10c6-d81f-41b6-902a-328218effa12");
     private static final UUID MIXED_CASE_LEGACY_ID = UUID.fromString("b4526f9b-bbef-4ea8-900c-34f712b7f97f");
@@ -45,7 +49,7 @@ class LegacyUserMigrationIT {
     private static final String LEGACY_MOBILE = "+8801700001234";
     private static final String SECOND_LEGACY_MOBILE = "+8801700001235";
     private static final String MIXED_CASE_LEGACY_MOBILE = "+8801700001236";
-    private static final String SHARED_LEGACY_EMAIL = "legacy-customer@example.invalid";
+    private static final String LEGACY_EMAIL = "legacy-customer@example.invalid";
     private static final String MIXED_CASE_LEGACY_EMAIL = "Legacy.Case.Customer@Example.Invalid";
     private static final String LEGACY_PASSWORD = "Legacy-Migration-Only-9!";
     private static final OffsetDateTime LEGACY_CREATED_AT =
@@ -68,9 +72,9 @@ class LegacyUserMigrationIT {
             String passwordHash = LEGACY_PASSWORDS.encode(LEGACY_PASSWORD);
             assertThat(passwordHash).startsWith("$argon2id$v=19$m=16384,t=2,p=1$");
             insertLegacyCustomer(database, LEGACY_ID, LEGACY_USERNAME, LEGACY_MOBILE,
-                    SHARED_LEGACY_EMAIL, passwordHash, LEGACY_CREATED_AT);
+                    LEGACY_EMAIL, passwordHash, LEGACY_CREATED_AT);
             insertLegacyCustomer(database, SECOND_LEGACY_ID, SECOND_LEGACY_USERNAME, SECOND_LEGACY_MOBILE,
-                    SHARED_LEGACY_EMAIL, passwordHash, SECOND_LEGACY_CREATED_AT);
+                    null, passwordHash, SECOND_LEGACY_CREATED_AT);
             insertLegacyCustomer(database, MIXED_CASE_LEGACY_ID,
                     MIXED_CASE_LEGACY_USERNAME, MIXED_CASE_LEGACY_MOBILE,
                     MIXED_CASE_LEGACY_EMAIL, passwordHash, MIXED_CASE_LEGACY_CREATED_AT);
@@ -80,36 +84,68 @@ class LegacyUserMigrationIT {
                          .connectTimeout(Duration.ofSeconds(2)).build()) {
                 assertThat(appliedChangesets(database)).contains(
                         "004-shared-users-and-roles", "005-user-password-sessions", "006-user-email-lookup",
-                        "007-user-email-case-insensitive-lookup", "008-drop-unused-exact-email-index");
+                        "007-user-email-case-insensitive-lookup", "008-drop-unused-exact-email-index",
+                        "009-unique-user-email");
                 assertLegacyUserWasPreserved(
-                        database, LEGACY_ID, LEGACY_USERNAME, LEGACY_MOBILE, SHARED_LEGACY_EMAIL,
+                        database, LEGACY_ID, LEGACY_USERNAME, LEGACY_MOBILE, LEGACY_EMAIL,
                         passwordHash, LEGACY_CREATED_AT);
                 assertLegacyUserWasPreserved(database, SECOND_LEGACY_ID, SECOND_LEGACY_USERNAME,
-                        SECOND_LEGACY_MOBILE, SHARED_LEGACY_EMAIL, passwordHash, SECOND_LEGACY_CREATED_AT);
+                        SECOND_LEGACY_MOBILE, null, passwordHash, SECOND_LEGACY_CREATED_AT);
                 assertLegacyUserWasPreserved(database, MIXED_CASE_LEGACY_ID, MIXED_CASE_LEGACY_USERNAME,
                         MIXED_CASE_LEGACY_MOBILE, MIXED_CASE_LEGACY_EMAIL, passwordHash,
                         MIXED_CASE_LEGACY_CREATED_AT);
-                assertThat(countUsersWithEmail(database, SHARED_LEGACY_EMAIL)).isEqualTo(2);
-                assertThat(countUsersWithEmail(database, MIXED_CASE_LEGACY_EMAIL)).isEqualTo(1);
                 assertThat(emailIndexDefinitions(database)).singleElement().satisfies(definition -> assertThat(definition)
-                        .as("shared emails need a non-unique case-insensitive lookup and no exact-email index")
-                        .startsWith("CREATE INDEX idx_users_email_upper ON")
+                        .as("one unique case-insensitive email index serves the rule and the lookup")
+                        .startsWith("CREATE UNIQUE INDEX uk_users_email_upper ON")
                         .endsWith("USING btree (upper((email)::text))"));
                 assertCustomerRoleWasBackfilled(database, LEGACY_ID);
                 assertCustomerRoleWasBackfilled(database, SECOND_LEGACY_ID);
                 assertCustomerRoleWasBackfilled(database, MIXED_CASE_LEGACY_ID);
                 assertLegacyUserCanAuthenticate(client, application, LEGACY_USERNAME, LEGACY_MOBILE,
-                        SHARED_LEGACY_EMAIL, LEGACY_USERNAME);
+                        LEGACY_EMAIL, LEGACY_EMAIL);
                 assertLegacyUserCanAuthenticate(client, application, SECOND_LEGACY_USERNAME,
-                        SECOND_LEGACY_MOBILE, SHARED_LEGACY_EMAIL, SECOND_LEGACY_USERNAME);
+                        SECOND_LEGACY_MOBILE, null, SECOND_LEGACY_USERNAME);
                 assertLegacyUserCanAuthenticate(client, application, MIXED_CASE_LEGACY_USERNAME,
                         MIXED_CASE_LEGACY_MOBILE, MIXED_CASE_LEGACY_EMAIL,
-                        MIXED_CASE_LEGACY_EMAIL.toLowerCase(java.util.Locale.ROOT));
+                        MIXED_CASE_LEGACY_EMAIL.toLowerCase(Locale.ROOT));
             }
         }
     }
 
+    @Test
+    void legacyEmailsDifferingOnlyInCaseHaltTheUniqueEmailMigrationAndStayUnchanged() throws Exception {
+        try (var database = TestDatabase.create()) {
+            applyLegacyChangelog(database);
+            String passwordHash = LEGACY_PASSWORDS.encode(LEGACY_PASSWORD);
+            insertLegacyCustomer(database, LEGACY_ID, LEGACY_USERNAME, LEGACY_MOBILE,
+                    MIXED_CASE_LEGACY_EMAIL, passwordHash, LEGACY_CREATED_AT);
+            insertLegacyCustomer(database, SECOND_LEGACY_ID, SECOND_LEGACY_USERNAME, SECOND_LEGACY_MOBILE,
+                    MIXED_CASE_LEGACY_EMAIL.toLowerCase(Locale.ROOT), passwordHash,
+                    SECOND_LEGACY_CREATED_AT);
+
+            Throwable halted = catchThrowable(() -> update(database, ALL_CHANGESETS));
+
+            assertThat(halted).isNotNull();
+            assertThat(getStackTrace(halted))
+                    .contains("Migration 009-unique-user-email stopped: some Users share an email ignoring case.")
+                    .doesNotContainIgnoringCase(MIXED_CASE_LEGACY_EMAIL);
+            assertThat(appliedChangesets(database)).last().isEqualTo("008-drop-unused-exact-email-index");
+            assertLegacyUserWasPreserved(database, LEGACY_ID, LEGACY_USERNAME, LEGACY_MOBILE,
+                    MIXED_CASE_LEGACY_EMAIL, passwordHash, LEGACY_CREATED_AT);
+            assertLegacyUserWasPreserved(database, SECOND_LEGACY_ID, SECOND_LEGACY_USERNAME, SECOND_LEGACY_MOBILE,
+                    MIXED_CASE_LEGACY_EMAIL.toLowerCase(Locale.ROOT), passwordHash,
+                    SECOND_LEGACY_CREATED_AT);
+            assertThat(emailIndexDefinitions(database)).singleElement().satisfies(definition -> assertThat(definition)
+                    .startsWith("CREATE INDEX idx_users_email_upper ON"));
+        }
+    }
+
     private static void applyLegacyChangelog(TestDatabase database) throws Exception {
+        update(database, LEGACY_CHANGESET_COUNT);
+    }
+
+    /** Applies the next {@code count} changesets of the master changelog directly, without the application. */
+    private static void update(TestDatabase database, int count) throws Exception {
         try (var resources = new ClassLoaderResourceAccessor(Thread.currentThread().getContextClassLoader());
              Connection connection = database.connect()) {
             var liquibaseDatabase = DatabaseFactory.getInstance()
@@ -118,7 +154,7 @@ class LegacyUserMigrationIT {
             liquibaseDatabase.setLiquibaseSchemaName(database.schema());
             var liquibase = new Liquibase(
                     "db/changelog/db.changelog-master.yaml", resources, liquibaseDatabase);
-            liquibase.update(LEGACY_CHANGESET_COUNT, new Contexts(), new LabelExpression());
+            liquibase.update(count, new Contexts(), new LabelExpression());
         }
     }
 
@@ -166,18 +202,6 @@ class LegacyUserMigrationIT {
                 assertThat(row.getBoolean("mobile_verified")).isFalse();
                 assertThat(row.getObject("created_at", OffsetDateTime.class)).isEqualTo(createdAt);
                 assertThat(row.next()).as("there is exactly one row for the legacy identifier").isFalse();
-            }
-        }
-    }
-
-    private static long countUsersWithEmail(TestDatabase database, String email) throws SQLException {
-        String sql = "SELECT count(*) FROM " + quotedSchema(database) + ".users WHERE email = ?";
-        try (Connection connection = database.connect();
-             PreparedStatement statement = connection.prepareStatement(sql)) {
-            statement.setString(1, email);
-            try (var rows = statement.executeQuery()) {
-                assertThat(rows.next()).isTrue();
-                return rows.getLong(1);
             }
         }
     }

@@ -114,7 +114,8 @@ type SessionProviderProps = {
 export function SessionProvider({ children, source = defaultSource }: SessionProviderProps) {
   const [state, dispatch] = useReducer(sessionReducer, initialSessionState);
   const pathname = usePathname();
-  // Counts sign-ins and sign-outs, so a request started before one cannot expire the session that follows it.
+  // Counts successful sign-ins and started sign-outs, so a request started before one cannot expire the session
+  // that follows it. A failed sign-in leaves the session as it was, so it does not count.
   const sessionChanges = useRef(0);
 
   useEffect(() => dispatch({ type: 'page-change', pathname }), [pathname]);
@@ -135,10 +136,10 @@ export function SessionProvider({ children, source = defaultSource }: SessionPro
   }, [source]);
 
   const signInWithPassword = useCallback(async (identifier: string, password: string) => {
-    sessionChanges.current += 1;
     dispatch({ type: 'signin-start' });
     try {
       const { user } = await source.signIn(identifier, password);
+      sessionChanges.current += 1;
       dispatch({ type: 'signin-success', profile: user });
       return user;
     } catch (reason) {

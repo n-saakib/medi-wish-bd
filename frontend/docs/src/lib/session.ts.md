@@ -18,11 +18,11 @@ The browser session client. It keeps the short-lived access token in module memo
 ## Concurrency
 
 - **One refresh at a time.** Concurrent callers share one in-flight refresh.
-- **Cookie-mutation lock.** Sign-in, refresh and logout hold one exclusive same-origin Web Lock (`medi-wish:auth-cookie-mutation`) from the CSRF request until the response is fully read, so tabs never apply refresh-cookie rotations out of order. The supported Chrome and Edge always provide Web Locks, so there is no unlocked path.
+- **Cookie-mutation lock.** Sign-in, refresh and logout hold one exclusive same-origin Web Lock (`medi-wish:auth-cookie-mutation`) from the CSRF request until the response is fully read, so tabs never apply refresh-cookie rotations out of order. Web Locks exist only in a secure context (HTTPS or loopback). Without them, for example over plain HTTP at a LAN address, the same operations queue on one module-level promise chain, so they are serialized within the tab but not across tabs (Ticket 03.03 D4). A failed operation does not block the queue. Hosted environments always use HTTPS.
 - **Stale results.** A session epoch makes results of requests that used a dropped token fail with `AUTHENTICATION_REQUIRED`. A cookie-mutation epoch does the same for sign-ins and refreshes still queued or in flight when sign-out starts, so none can revive a signed-out client. A request that ends the session advances only the session epoch, so a newer sign-in is kept.
 
 The CSRF token comes from `GET /api/auth/csrf` and is echoed as `X-XSRF-TOKEN`; the frontend and API are separate origins, so the page cannot read the API's cookie. No access credential is written to storage, URLs or logs.
 
 ## Verification
 
-[`tests/session.test.ts`](../../tests/session.test.ts.md) covers each operation, restore `204`/`401`/other failures, refreshing before a request without a token, the single retry, the lock, stale-result guards around sign-out, the timeouts and storage privacy, without a live backend.
+[`tests/session.test.ts`](../../tests/session.test.ts.md) covers each operation, restore `204`/`401`/other failures, refreshing before a request without a token, the single retry, the lock and its in-tab fallback, stale-result guards around sign-out, the timeouts and storage privacy, without a live backend.

@@ -17,7 +17,7 @@ import {
   unmountAll,
 } from './renderWithSession';
 
-// jsdom has no Web Locks, which the real session client requires.
+// jsdom has no Web Locks; the fake gives the real session client the cross-tab lock a secure context has.
 installFakeLocks();
 
 const router = vi.hoisted(() => ({ replace: vi.fn() }));

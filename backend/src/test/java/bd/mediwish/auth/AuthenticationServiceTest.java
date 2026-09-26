@@ -53,7 +53,7 @@ class AuthenticationServiceTest {
     void signsInTheOneUserAnIdentifierNamesAndReturnsItsProfile() {
         var user = new User("alice_1", "01700000000", "alice@example.com", VALID_VERIFIER);
         var session = new SessionService.SessionCredential(user.id(), UUID.randomUUID(), "raw-refresh", Instant.MAX);
-        lookups(" Alice@Example.COM ", null, null, List.of(user));
+        lookups(" Alice@Example.COM ", null, null, user);
         when(passwords.matches("correct-password", VALID_VERIFIER)).thenReturn(true);
         when(sessions.create(user)).thenReturn(session);
         when(accessTokens.issue(user.id(), session.sessionId())).thenReturn(new AccessTokenCodec.IssuedAccessToken("access", 900));
@@ -67,7 +67,7 @@ class AuthenticationServiceTest {
     @Test
     void aWrongPasswordFailsWithoutASession() {
         var user = new User("alice_1", "01700000000", null, VALID_VERIFIER);
-        lookups("alice_1", user, null, List.of());
+        lookups("alice_1", user, null, null);
 
         assertThatThrownBy(() -> service.signIn("alice_1", "wrong-password")).isInstanceOf(AuthenticationFailedException.class);
         verify(passwords).matches("wrong-password", VALID_VERIFIER);
@@ -76,7 +76,7 @@ class AuthenticationServiceTest {
 
     @Test
     void anUnknownIdentifierIsComparedAgainstTheDummyVerifier() {
-        lookups("missing", null, null, List.of());
+        lookups("missing", null, null, null);
 
         assertThatThrownBy(() -> service.signIn("missing", "candidate-password")).isInstanceOf(AuthenticationFailedException.class);
         verify(passwords).matches("candidate-password", DUMMY_VERIFIER);
@@ -90,7 +90,7 @@ class AuthenticationServiceTest {
         var mobileOwner = new User("bob_1", "01700000000", null, VALID_VERIFIER);
         when(users.findByUsername("01700000000")).thenReturn(Optional.of(usernameOwner));
         when(users.findByMobileAndMobileVerifiedTrue("01700000000")).thenReturn(Optional.of(mobileOwner));
-        when(users.findTop2ByEmailIgnoreCase("01700000000")).thenReturn(List.of());
+        when(users.findByEmailIgnoreCase("01700000000")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.signIn("01700000000", "candidate-password"))
                 .isInstanceOf(AuthenticationFailedException.class);
@@ -100,13 +100,13 @@ class AuthenticationServiceTest {
     }
 
     @Test
-    void anEmailSharedByTwoUsersFailsAgainstTheDummyVerifier() {
-        var first = new User("alice_1", "01700000000", "shared@example.com", VALID_VERIFIER);
-        var second = new User("alice_2", "01700000001", "shared@example.com", VALID_VERIFIER);
-        lookups("shared@example.com", null, null, List.of(first, second));
+    void aBlankIdentifierNeverLooksUpAMissingEmailAndFailsAgainstTheDummyVerifier() {
+        when(users.findByUsername("")).thenReturn(Optional.empty());
+        when(users.findByMobileAndMobileVerifiedTrue("")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.signIn("shared@example.com", "candidate-password"))
+        assertThatThrownBy(() -> service.signIn("   ", "candidate-password"))
                 .isInstanceOf(AuthenticationFailedException.class);
+        verify(users, never()).findByEmailIgnoreCase(any());
         verify(passwords).matches("candidate-password", DUMMY_VERIFIER);
         verifyNoInteractions(sessions, accessTokens);
     }
@@ -114,7 +114,7 @@ class AuthenticationServiceTest {
     @Test
     void anUnusablePersistedVerifierIsNeverHashedAndFailsAgainstTheDummy() {
         var user = new User("alice_1", "01700000000", null, "not-an-argon2-verifier");
-        lookups("alice_1", user, null, List.of());
+        lookups("alice_1", user, null, null);
 
         assertThatThrownBy(() -> service.signIn("alice_1", "candidate-password"))
                 .isInstanceOf(AuthenticationFailedException.class);
@@ -126,7 +126,7 @@ class AuthenticationServiceTest {
     @Test
     void theDummyVerifierIsGeneratedAtStartupWithTheProductionEncoder() {
         PasswordEncoder production = spy(new AuthCoreConfiguration().passwordEncoder());
-        lookups("missing", null, null, List.of());
+        lookups("missing", null, null, null);
 
         var realService = new AuthenticationService(users, production, new UserIdentifierNormalizer(), sessions, accessTokens);
         assertThatThrownBy(() -> realService.signIn("missing", "candidate-password"))
@@ -177,10 +177,10 @@ class AuthenticationServiceTest {
         verifyNoMoreInteractions(sessions);
     }
 
-    private void lookups(String identifier, User byUsername, User byMobile, List<User> byEmail) {
+    private void lookups(String identifier, User byUsername, User byMobile, User byEmail) {
         String normalized = identifier.trim().toLowerCase(java.util.Locale.ROOT);
         when(users.findByUsername(normalized)).thenReturn(Optional.ofNullable(byUsername));
         when(users.findByMobileAndMobileVerifiedTrue(identifier.trim())).thenReturn(Optional.ofNullable(byMobile));
-        when(users.findTop2ByEmailIgnoreCase(normalized)).thenReturn(byEmail);
+        when(users.findByEmailIgnoreCase(normalized)).thenReturn(Optional.ofNullable(byEmail));
     }
 }

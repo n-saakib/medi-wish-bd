@@ -192,9 +192,10 @@ reaches the API through `src/lib/api.ts`, which gives every request
 `no-store`, `redirect: 'error'`, a 10-second operation timeout and a bounded
 `ApiError` (code and status only). Sign-in, refresh and logout hold one
 same-origin exclusive Web Lock from the CSRF bootstrap until the response is
-read, so tabs apply refresh-cookie rotations in order; the supported Chrome and
-Edge always provide Web Locks. Epochs discard results that a sign-out or a
-dropped token made stale.
+read, so tabs apply refresh-cookie rotations in order. Web Locks exist only in
+a secure context; without them, as over plain HTTP at a LAN address, a
+module-level promise chain serializes the same operations within the tab only.
+Epochs discard results that a sign-out or a dropped token made stale.
 
 A refresh `204` means no refresh cookie (signed out) and a `401` means an
 expired or revoked one. `authenticatedFetch` refreshes first when no token is

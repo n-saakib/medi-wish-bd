@@ -4,10 +4,10 @@ Source: [`src/test/java/bd/mediwish/auth/RegistrationIT.java`](../../../../../..
 
 ## Purpose
 
-`POST /api/auth/register` on the shared context: the normalized User with an argon2id verifier and only the `CUSTOMER` role; caller-supplied roles are ignored, so registration cannot assign staff roles; registration without an email; invalid input, including a username without a letter (A3), a password of 5 or 31 characters and malformed JSON, is rejected without creating a User; a taken username or mobile is a duplicate; and racing registrations of one mobile or one normalized username create exactly one User.
+`POST /api/auth/register` on the shared context: the normalized User with an argon2id verifier and only the `CUSTOMER` role; caller-supplied roles are ignored, so registration cannot assign staff roles; two registrations without an email, each of which signs in; invalid input, including a username without a letter (A3), a password of 5 or 31 characters and malformed JSON, is rejected without creating a User; a taken username, mobile or email in another case is a `409` duplicate, and the owner still signs in by email; and racing registrations of one mobile, one normalized username or one email in different case create exactly one User.
 
 ## Verification
 
-15 tests; the captured logs are checked for tracked secrets after each.
+18 tests; the captured logs are checked for tracked secrets after each.
 
-Verified 2026-09-26 on `72634a6`: `./mvnw.cmd -o verify` passed 171 unit and 106 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 106 with no skip.
+Verified 2026-09-27 on `b26f0c9` plus the Ticket 03.03 changes: `./mvnw.cmd -o verify` passed 171 unit and 109 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 109 with no skip.

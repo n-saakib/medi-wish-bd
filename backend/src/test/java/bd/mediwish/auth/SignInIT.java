@@ -13,6 +13,7 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.net.http.HttpResponse;
+import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -22,6 +23,7 @@ import java.util.stream.Stream;
 import static bd.mediwish.testsupport.ApiAssertions.assertError;
 import static bd.mediwish.testsupport.ApiAssertions.json;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.junit.jupiter.params.provider.Arguments.arguments;
 
 @Tag("integration")
@@ -106,16 +108,14 @@ class SignInIT {
     }
 
     @Test
-    void anEmailSharedIgnoringCaseByTwoUsersSignsInNeither() throws Exception {
+    void theDatabaseRejectsASecondUserWithAnEmailDifferingOnlyInCase() throws Exception {
         User first = api.registered();
-        User other = api.newUser();
-        User second = api.register(new User(other.username(), other.mobile(), first.email(), other.password()));
-        // Registration lowercases email; an older row may still hold another case.
-        api.database().update("UPDATE users SET email = upper(email) WHERE mobile = ?", second.mobile());
+        User second = api.registered();
 
-        assertRejected(api.login(first.email(), first.password()));
-        assertRejected(api.login(first.email().toUpperCase(Locale.ROOT), second.password()));
-        assertThat(api.sessions(first) + api.sessions(second)).isZero();
+        assertThatThrownBy(() -> api.database().update("UPDATE users SET email = upper(?) WHERE mobile = ?",
+                first.email(), second.mobile()))
+                .isInstanceOfSatisfying(SQLException.class, error -> assertThat(error.getSQLState()).isEqualTo("23505"));
+        api.session(api.login(first.email().toUpperCase(Locale.ROOT), first.password()));
     }
 
     @ParameterizedTest(name = "{0}")

@@ -119,7 +119,7 @@ describe('RegistrationForm', () => {
     await fillAndSubmit(form);
     await settle();
 
-    expect(requiredElement(form, '[role="alert"]').textContent).toBe('The username or mobile number is already in use.');
+    expect(requiredElement(form, '[role="alert"]').textContent).toBe('The username, mobile number or email is already in use.');
     expect(requiredElement<HTMLButtonElement>(form, 'button[type="submit"]').disabled).toBe(false);
     expect(requiredElement<HTMLInputElement>(form, '#register-password').value).toBe('');
     expect(source.signIn).not.toHaveBeenCalled();

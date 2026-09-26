@@ -17,7 +17,7 @@ This Java message bundle contains the public English text for each `ApiError` co
 | `error.NOT_FOUND` | The requested resource is absent (`404`). |
 | `error.METHOD_NOT_ALLOWED` | The route exists but does not allow the HTTP method (`405`). |
 | `error.INTERNAL_ERROR` | A generic safe message for `5xx` failures (`500` for persistence and transaction errors). |
-| `error.DUPLICATE_USER` | The username or mobile number is already in use (`409`). |
+| `error.DUPLICATE_USER` | The username, mobile number or email is already in use (`409`). |
 
 There is exactly one key per `ApiError` constant; add both together. Do not put exception text, SQL details, credentials, OTPs, medicine searches or order contents in these messages.
 

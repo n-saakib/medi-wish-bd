@@ -25,7 +25,7 @@ erDiagram
         UUID id PK "Java-generated User identity"
         VARCHAR_50 username UK "trimmed, lowercase, immutable"
         VARCHAR_30 mobile UK "trimmed; OTP normalization deferred"
-        VARCHAR_320 email "nullable optional email"
+        VARCHAR_320 email "nullable; unique ignoring case"
         VARCHAR_255 password_hash "Argon2 verifier only"
         BOOLEAN mobile_verified "false until final OTP work"
         TIMESTAMPTZ created_at "Java-created Instant"
@@ -93,7 +93,7 @@ substitute.
 
 | Table | Ownership | Important columns and constraints | Meaning |
 | --- | --- | --- | --- |
-| `users` | `bd.mediwish.user.User` | `id` primary key; `username` unique and not null; `mobile` unique and not null; optional `email`; non-null `password_hash`; non-null `mobile_verified`; non-null `created_at` | Shared identity/profile and credential verifier for Customers and future staff roles. |
+| `users` | `bd.mediwish.user.User` | `id` primary key; `username` unique and not null; `mobile` unique and not null; optional `email`, unique ignoring case through `uk_users_email_upper` on `upper(email)`; non-null `password_hash`; non-null `mobile_verified`; non-null `created_at` | Shared identity/profile and credential verifier for Customers and future staff roles. |
 | `user_roles` | `User.roles` via `@ElementCollection` | Composite primary key `(user_id, role)`; `user_id` foreign key to `users.id` with `ON DELETE CASCADE`; non-null role | Role assignments used by Spring Security for current authorization. |
 | `user_sessions` | `bd.mediwish.auth.UserSession` | UUID primary key; cascading `user_id` FK; non-null lifecycle timestamps; nullable revocation fields; user/revocation and expiry indexes | Durable refresh-session family whose revocation is checked before bearer authorization. |
 | `user_session_refresh_tokens` | `bd.mediwish.auth.UserSessionRefreshToken` | UUID primary key; cascading session FK; unique token digest; unique `(session_id, generation)`; session/expiry index; nullable consumed timestamp | One row per refresh generation; consumed rows remain for replay detection. |
@@ -109,6 +109,9 @@ substitute.
   lookup and registration; JPA marks it non-updatable. The same seam trims
   mobile values and lowercases optional email values for Ticket 03 candidate
   resolution without adding E.164 or OTP policy.
+- `email` is unique ignoring case (Ticket 03.03 D1), and any number of Users may
+  have none, because PostgreSQL treats NULLs in a unique index as distinct. A
+  taken email makes registration return `409 DUPLICATE_USER`.
 - `mobile` is trimmed and length-bounded in Ticket 02. Country/E.164
   normalization, verification and account-linking semantics belong to Ticket
   61 and are not represented as implemented schema here.
@@ -143,6 +146,7 @@ substitute.
 | `006-user-email-lookup` | Historically adds a non-unique B-tree index on `users.email`. | The changeset remains in applied history; its unused exact-match index is removed by changeset 008. |
 | `007-user-email-case-insensitive-lookup` | Adds a non-unique B-tree expression index on `upper(users.email)`. | Supports the bounded case-insensitive candidate query without changing stored email values or making email unique. |
 | `008-drop-unused-exact-email-index` | Drops `idx_users_email`, introduced by 006. | Keeps only the index used by the current case-insensitive lookup while preserving append-only migration history. |
+| `009-unique-user-email` | Halts, changing nothing, when non-null emails repeat ignoring case; otherwise replaces `idx_users_email_upper` with the unique `uk_users_email_upper` on `upper(email)`. | One index enforces unique optional email and serves the case-insensitive sign-in lookup. The operator resolves duplicates by hand, as the halt message names no address. |
 
 When a later ticket changes persistence, add a new append-only changeset and
 update this page in the same change. Do not rewrite an applied changeset to

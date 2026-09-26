@@ -251,6 +251,62 @@ describe('cookie-mutation lock', () => {
   });
 });
 
+describe('without Web Locks', () => {
+  // An insecure context, such as plain HTTP at a LAN address, has no `navigator.locks`.
+  beforeEach(() => {
+    locks.restore();
+    Object.defineProperty(navigator, 'locks', { configurable: true, value: undefined });
+  });
+
+  it('serializes a sign-in and a restore within the tab', async () => {
+    const loginReleased = deferred();
+    const api = apiRoutes({
+      '/api/auth/login': async () => {
+        await loginReleased.promise;
+        return Response.json(sessionBody());
+      },
+      '/api/auth/refresh': () => Response.json(sessionBody()),
+    });
+
+    const signIn = createSessionClient({ fetch: api.fetch }).signIn('sana', 'password');
+    const restore = createSessionClient({ fetch: api.fetch }).restoreSession();
+    await flushTasks();
+    expect(api.paths()).toEqual(['/api/auth/login']);
+
+    loginReleased.resolve();
+    await signIn;
+    await expect(restore).resolves.toEqual(signedInUser);
+    expect(api.paths()).toEqual(['/api/auth/login', '/api/auth/csrf', '/api/auth/refresh']);
+  });
+
+  it('makes a sign-out wait for a refresh in flight', async () => {
+    const refreshReleased = deferred();
+    const api = apiRoutes({
+      '/api/auth/refresh': async () => {
+        await refreshReleased.promise;
+        return Response.json(sessionBody());
+      },
+      '/api/auth/logout': noContent,
+    });
+
+    const restore = createSessionClient({ fetch: api.fetch }).restoreSession();
+    const signOut = createSessionClient({ fetch: api.fetch }).signOut();
+    await flushTasks();
+    expect(api.paths()).toEqual(['/api/auth/csrf', '/api/auth/refresh']);
+
+    refreshReleased.resolve();
+    await expect(Promise.all([restore, signOut])).resolves.toEqual([signedInUser, undefined]);
+    expect(api.paths()).toEqual(['/api/auth/csrf', '/api/auth/refresh', '/api/auth/csrf', '/api/auth/logout']);
+  });
+
+  it('runs the next mutation after a failed one', async () => {
+    const api = apiRoutes({ '/api/auth/login': unauthorized, '/api/auth/refresh': noContent });
+
+    await expect(createSessionClient({ fetch: api.fetch }).signIn('sana', 'wrong')).rejects.toMatchObject(authenticationRequired);
+    await expect(createSessionClient({ fetch: api.fetch }).restoreSession()).resolves.toBeNull();
+  });
+});
+
 describe('authenticated requests', () => {
   it('sends the Bearer token to the API origin and returns what the reader returns', async () => {
     const { api, client } = await signedInClient({ '/api/user/me': () => Response.json(signedInUser) });

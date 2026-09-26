@@ -64,7 +64,10 @@ class AuthenticationService {
         Map<UUID, User> candidates = new LinkedHashMap<>();
         users.findByUsername(normalized.username()).ifPresent(user -> candidates.put(user.id(), user));
         users.findByMobileAndMobileVerifiedTrue(normalized.mobile()).ifPresent(user -> candidates.put(user.id(), user));
-        users.findTop2ByEmailIgnoreCase(normalized.email()).forEach(user -> candidates.put(user.id(), user));
+        // A null argument would become "email IS NULL" and match every User without an email.
+        if (normalized.email() != null) {
+            users.findByEmailIgnoreCase(normalized.email()).ifPresent(user -> candidates.put(user.id(), user));
+        }
         return candidates.size() == 1 ? Optional.of(candidates.values().iterator().next()) : Optional.empty();
     }
 

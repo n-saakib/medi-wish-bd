@@ -54,7 +54,7 @@
   "errors": {
     "genericError": "The request could not be completed.",
     "authenticationFailed": "Those details don’t match an account.",
-    "duplicateUser": "The username or mobile number is already in use.",
+    "duplicateUser": "The username, mobile number or email is already in use.",
     "invalidResponse": "The service returned an invalid response."
   }
 }

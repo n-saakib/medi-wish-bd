@@ -236,3 +236,22 @@ databaseChangeLog:
         - dropIndex:
             tableName: users
             indexName: idx_users_email
+  - changeSet:
+      id: 009-unique-user-email
+      author: medi-wish
+      preConditions:
+        - onFail: HALT
+        - onFailMessage: >-
+            Migration 009-unique-user-email stopped: some Users share an email ignoring case.
+            Resolve the duplicate emails by hand, then rerun the migration.
+        - sqlCheck:
+            expectedResult: 0
+            sql: >-
+              SELECT count(*) FROM (SELECT 1 FROM users WHERE email IS NOT NULL
+              GROUP BY upper(email) HAVING count(*) > 1) duplicate_emails
+      changes:
+        - dropIndex:
+            tableName: users
+            indexName: idx_users_email_upper
+        - sql:
+            sql: CREATE UNIQUE INDEX uk_users_email_upper ON users (upper(email))

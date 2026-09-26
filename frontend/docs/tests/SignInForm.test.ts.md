@@ -4,7 +4,7 @@ Source: [`tests/SignInForm.test.ts`](../../tests/SignInForm.test.ts)
 
 ## Purpose
 
-Mounted jsdom coverage for [`SignInForm`](../src/auth/SignInForm.tsx.md) through [`renderWithSession`](renderWithSession.ts.md). `next/navigation` is mocked (router plus a fixed `/sign-in` pathname) so redirects can be observed. [`installFakeLocks`](fakeApi.ts.md) supplies the Web Locks that jsdom lacks and the real session client requires.
+Mounted jsdom coverage for [`SignInForm`](../src/auth/SignInForm.tsx.md) through [`renderWithSession`](renderWithSession.ts.md). `next/navigation` is mocked (router plus a fixed `/sign-in` pathname) so redirects can be observed. [`installFakeLocks`](fakeApi.ts.md) gives the real session client the cross-tab lock of a secure context, which jsdom lacks.
 
 ## Verification
 
