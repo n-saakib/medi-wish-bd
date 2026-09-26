@@ -4,9 +4,13 @@ This directory mirrors the checked-in frontend source and build files. Each page
 
 ## Current frontend flow
 
-Next.js loads `src/app/layout.tsx` as the document shell and `src/app/page.tsx` as the initial storefront page. `src/i18n/request.ts` supplies the English `next-intl` messages used by both server components. `src/lib/health.ts` is the small API health boundary used by the unit tests, the real-backend integration test, and `tools/health-probe.ts`.
+Next.js loads `src/app/layout.tsx` as the document shell and `src/app/page.tsx` as the initial storefront page. `src/i18n/request.ts` supplies the English `next-intl` messages used by both server components. `src/lib/health.ts` is the small API health boundary used by the unit tests, the real-backend integration test, and `tools/health-probe.ts`; a controlled-fixture integration test exercises the CLI process and exit-code contract.
 
-The application renders a preparation message plus the User access panel. The panel keeps registration and sign-in busy and feedback state independent, clears submitted passwords and stale feedback on edit, and uses the Ticket 03 memory-only session seam for identifier login, restore and sign-out. Product, cart, order, staff, OTP, MFA, recovery and OAuth features remain intentionally absent from this slice.
+The application renders a preparation message plus the User access panel. The panel keeps registration, sign-in and sign-out busy/feedback state independent, clears submitted passwords and stale feedback on edit or successful sign-in, suppresses restore failures during login or after sign-in, reports restore failures or an expired in-memory session accessibly, ends the restore-busy state when a profile is established, survives React Strict Mode restore-effect replay, and uses POST form defaults so pre-hydration submission cannot put credentials in the URL. Sign-out moves focus to its success status or populated error alert. The session client accepts positive-integer access-token lifetimes without an arbitrary one-day ceiling, refuses off-origin Bearer requests before each fetch attempt, preserves request bodies across its single refresh retry, and serializes sign-in, refresh and logout cookie mutations across same-origin tabs with the browser Web Locks API when available; unsupported browsers retain only per-client serialization. Product, cart, order, staff, OTP, MFA, recovery and OAuth features remain intentionally absent from this slice.
+
+If an authenticated request still returns `401` after its one refresh retry, the session client clears the rejected in-memory access token and invalidates stale request results without canceling a newer queued sign-in.
+
+The session client unit suite proves that sign-in, refresh and logout operations share one exclusive same-origin Web Lock (including CSRF bootstrap and response completion), concurrent expired authenticated requests share one in-flight refresh, and each original protected request is retried at most once; this client-seam test does not complete the mounted browser/API retry journey. Shared auth/profile JSON parsing is streamed with a 16 KiB byte ceiling and cancels oversized bodies independently of `Content-Length`.
 
 ## Architecture maps
 
@@ -18,7 +22,7 @@ The application renders a preparation message plus the User access panel. The pa
 
 | Project file | Documentation |
 | --- | --- |
-| [`src/app/globals.css`](../src/app/globals.css) | [`src/app/globals.css.md`](src/app/globals.css.md) |
+| [`src/app/globals.css`](../src/app/globals.css) | [`src/app/globals.css.md`](src/app/globals.css.md) — responsive account-grid tracks are capped by the available width |
 | [`src/app/layout.tsx`](../src/app/layout.tsx) | [`src/app/layout.tsx.md`](src/app/layout.tsx.md) |
 | [`src/app/page.tsx`](../src/app/page.tsx) | [`src/app/page.tsx.md`](src/app/page.tsx.md) |
 | [`src/app/UserAccessPanel.tsx`](../src/app/UserAccessPanel.tsx) | [`src/app/UserAccessPanel.tsx.md`](src/app/UserAccessPanel.tsx.md) |
@@ -29,6 +33,7 @@ The application renders a preparation message plus the User access panel. The pa
 | [`messages/en.json`](../messages/en.json) | [`messages/en.json.md`](messages/en.json.md) |
 | [`tests/health.test.ts`](../tests/health.test.ts) | [`tests/health.test.ts.md`](tests/health.test.ts.md) |
 | [`tests/health.integration.test.ts`](../tests/health.integration.test.ts) | [`tests/health.integration.test.ts.md`](tests/health.integration.test.ts.md) |
+| [`tests/health-probe.integration.test.ts`](../tests/health-probe.integration.test.ts) | [`tests/health-probe.integration.test.ts.md`](tests/health-probe.integration.test.ts.md) |
 | [`tests/session.test.ts`](../tests/session.test.ts) | [`tests/session.test.ts.md`](tests/session.test.ts.md) |
 | [`tests/UserAccessPanel.test.ts`](../tests/UserAccessPanel.test.ts) | [`tests/UserAccessPanel.test.ts.md`](tests/UserAccessPanel.test.ts.md) |
 | [`tests/user.test.ts`](../tests/user.test.ts) | [`tests/user.test.ts.md`](tests/user.test.ts.md) |
@@ -45,9 +50,9 @@ The application renders a preparation message plus the User access panel. The pa
 
 ## Commands and environment
 
-The package requires Node.js `>=24.0.0 <25` and npm `11.19.0`. From `frontend/`, use `npm ci` to install the locked dependency graph. `npm run verify` runs linting, strict TypeScript checking, unit tests, and the production build. `npm run test:integration` and `npm run probe` require a running backend URL in `MEDI_WISH_API_URL`; the probe otherwise targets `http://127.0.0.1:8080`.
+The package requires Node.js `>=24.15.0 <25` and npm `11.19.0`, and pins Next.js `16.3.6`; the [manifest page](package.json.md) records the security-update rationale. From `frontend/`, use `npm ci` to install the locked dependency graph. `npm run verify` runs linting, strict TypeScript checking, unit tests, and the production build. The full `npm run test:integration` suite and `npm run probe` require a running backend URL in `MEDI_WISH_API_URL`; the focused CLI process test can run without the backend using `npx vitest run --project integration tests/health-probe.integration.test.ts`. The probe otherwise targets `http://127.0.0.1:8080`.
 
-Unit tests use injected fetch and cookie functions, so they do not require a server. They cover registration/profile boundaries, the memory-only session lifecycle, accessibility markup and translated fallback selection. The integration test deliberately calls the real backend and fails with a setup message when the URL is absent.
+Unit tests use injected fetch functions, so they do not require a server. They cover registration/profile boundaries, the memory-only session lifecycle including positive-integer lifetime validation, same-origin Bearer request/retry checks, serialized cookie mutations, rejection of stale protected responses after refresh failure, invalidated refresh/sign-in results, accessible panel markup including POST form defaults and focusable feedback targets, reducer state, and translated fallback selection. The integration suite includes a live-backend test that fails with a setup message when its URL is absent and the health-probe CLI test that uses its own controlled local fixture.
 
 ## Documentation maintenance
 

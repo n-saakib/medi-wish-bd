@@ -7,7 +7,7 @@ This guide applies to `frontend/`. Read [../AGENTS.md](../AGENTS.md) first for r
 - Confirm `git status --short --branch` and the latest commit before editing. Work on a descriptive ticket branch, never `main`; preserve unrelated changes and stage only task files.
 - Use a bounded sub-agent for non-trivial frontend work when available. Assign non-overlapping paths and review its result before integration.
 - Choose names deliberately: use clear domain, component and responsibility names; avoid generic buckets and ambiguous abbreviations. Keep the implementation minimal and be careful with over-engineering: follow the existing Next.js, React and TypeScript patterns, organize growing features by feature, and add a layer, abstraction or dependency only when the current story needs it.
-- Follow the versions and scripts in [`package.json`](package.json) and [`package-lock.json`](package-lock.json). The supported runtime is Node.js 24 with npm 11; install with `npm ci`.
+- Follow the versions and scripts in [`package.json`](package.json) and [`package-lock.json`](package-lock.json). The supported runtime is Node.js `>=24.15.0 <25` with npm 11; install with `npm ci`.
 - Keep English user-facing text in [`messages/`](messages/) through `next-intl`. Components should not add hard-coded translatable strings.
 - Native Windows is the normal workflow. Docker is optional and must not be required for frontend development.
 
@@ -45,3 +45,13 @@ For every changed tracked frontend code, test, tool, message, configuration, dep
 
    The backend must be running for the last two commands. Completing story N must leave stories 1 through N working together; run the cumulative suites and affected cross-story journeys.
 5. Review the combined diff, run `git diff --cached --check` before an authorized commit, and record actual commands, results, commit hashes, and any environment blocks. Use plain descriptive commit subjects without prefixes. Stop processes started for verification. For handoffs, save the current continuation state under `agent-docs/Handoff/` as required by the root guide.
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

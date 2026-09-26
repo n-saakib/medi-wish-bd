@@ -16,7 +16,7 @@ The namespace names are part of the call-site contract: `getTranslations('metada
 
 ## Current boundary
 
-Only English is configured today. The file contains no product data, prices, medical advice, user input, or backend responses; it is static presentation copy. The product name is a brand term, so spellcheck warnings for `Medi` do not indicate a source typo.
+Only English is configured today. The file contains no product data, prices, medical advice, user input, or backend responses; it is static presentation copy. Account messages include distinct restore, generic session-expired and sign-out states so the panel can describe session lifecycle outcomes without exposing backend diagnostics. The product name is a brand term, so spellcheck warnings for `Medi` do not indicate a source typo.
 
 ## Verification
 

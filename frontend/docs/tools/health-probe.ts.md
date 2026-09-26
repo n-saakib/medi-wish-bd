@@ -14,4 +14,4 @@ Keeping the output to the two normalized states makes the command safe to consum
 
 ## Use cases and verification
 
-Use `npm run probe` while the backend is running locally or in a deployment health step. The health unit tests verify the imported function; the integration test verifies the same function against a real backend. A shell-level probe check should confirm the exit code in environments that execute the tool.
+Use `npm run probe` while the backend is running locally or in a deployment health step. The health unit tests verify the imported function, and the live-backend integration test checks the endpoint boundary. `tests/health-probe.integration.test.ts` launches this actual script against a controlled local HTTP fixture and verifies normalized output plus exit codes for healthy and degraded readiness states without requiring a backend.

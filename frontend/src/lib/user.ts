@@ -4,6 +4,9 @@ import {
   createSessionClient,
   invalidResponse,
   requestFailure,
+  readJsonResponse,
+  projectUserIdentity,
+  projectSessionUser,
   UserApiError,
   type SessionClient,
   type SessionFetch,
@@ -45,12 +48,17 @@ function endpoint(path: string, baseUrl: string): URL {
   return new URL(path, baseUrl);
 }
 
-function isRegisteredUser(body: unknown): body is RegisteredUser {
-  return body !== null && typeof body === 'object'
-    && 'username' in body && typeof body.username === 'string' && body.username.length > 0 && body.username.length <= 128
-    && 'mobile' in body && typeof body.mobile === 'string' && body.mobile.length > 0 && body.mobile.length <= 32
-    && 'email' in body && (body.email === null || (typeof body.email === 'string' && body.email.length <= 320))
-    && 'mobileVerificationDeferred' in body && body.mobileVerificationDeferred === true;
+function registeredUserProjection(body: unknown): RegisteredUser | undefined {
+  if (body === null || typeof body !== 'object'
+      || !('mobileVerificationDeferred' in body) || body.mobileVerificationDeferred !== true) {
+    return undefined;
+  }
+  const identity = projectUserIdentity(body);
+  if (!identity) return undefined;
+  return {
+    ...identity,
+    mobileVerificationDeferred: true,
+  };
 }
 
 export async function registerUser(
@@ -71,43 +79,29 @@ export async function registerUser(
     throw requestFailure();
   }
   if (!response.ok) throw await boundedError(response);
-  let body: unknown;
-  try {
-    body = await response.json();
-  } catch {
-    throw invalidResponse(response.status);
-  }
-  if (!isRegisteredUser(body)) throw invalidResponse(response.status);
-  return body;
+  const body = await readJsonResponse(response);
+  const user = registeredUserProjection(body);
+  if (!user) throw invalidResponse(response.status);
+  return user;
 }
 
 export async function loadUserProfile(options: UserRequestOptions = {}): Promise<UserProfile> {
   const session = options.session ?? (options.fetch || options.baseUrl
     ? createSessionClient({ baseUrl: options.baseUrl, fetch: options.fetch })
     : undefined);
-  let response: Response;
   try {
-    response = await (session?.authenticatedFetch ?? defaultAuthenticatedFetch)(endpoint('/api/user/me', options.baseUrl ?? defaultBaseUrl), {
+    return await (session?.authenticatedFetch ?? defaultAuthenticatedFetch)('/api/user/me', {
       method: 'GET',
       cache: 'no-store',
       redirect: 'error',
+    }, async (response) => {
+      if (!response.ok) throw await boundedError(response);
+      const body = await readJsonResponse(response);
+      const user = projectSessionUser(body);
+      if (!user) throw invalidResponse(response.status);
+      return user;
     });
   } catch (reason) {
     throw reason instanceof UserApiError ? reason : requestFailure();
   }
-  if (!response.ok) throw await boundedError(response);
-  let body: unknown;
-  try {
-    body = await response.json();
-  } catch {
-    throw invalidResponse(response.status);
-  }
-  if (body === null || typeof body !== 'object'
-    || !('username' in body) || typeof body.username !== 'string' || body.username.length === 0 || body.username.length > 128
-    || !('mobile' in body) || typeof body.mobile !== 'string' || body.mobile.length === 0 || body.mobile.length > 32
-    || !('email' in body) || (body.email !== null && (typeof body.email !== 'string' || body.email.length > 320))
-    || !('mobileVerified' in body) || typeof body.mobileVerified !== 'boolean') {
-    throw invalidResponse(response.status);
-  }
-  return body as UserProfile;
 }

@@ -10,7 +10,7 @@ main { max-width: 60rem; margin: 10vh auto; padding: 1.5rem; }
 h1 { font-size: clamp(2rem, 6vw, 3rem); }
 p { line-height: 1.6; color: #344a43; }
 .account-panel { margin-top: 2.5rem; padding: 1.5rem; border: 1px solid #c9ded6; border-radius: 0.75rem; background: #fff; }
-.account-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); gap: 2rem; }
+.account-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr)); gap: 2rem; }
 form { display: grid; gap: 0.55rem; align-content: start; }
 h2, h3 { color: #163b33; }
 label { font-weight: 700; }

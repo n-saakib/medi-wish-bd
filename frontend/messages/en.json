@@ -23,6 +23,8 @@
     "signOutAction": "Sign out",
     "signingOut": "Signing out…",
     "restoreStatus": "Checking for an existing session…",
+    "sessionExpired": "Your session has expired. Please sign in again.",
+    "restoreError": "Your session could not be restored. Please sign in again.",
     "signedInAs": "Signed in as {username}",
     "signedOut": "You have been signed out.",
     "registrationSuccess": "Account created for {username}. Mobile verification will be added later.",

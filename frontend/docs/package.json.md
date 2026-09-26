@@ -9,11 +9,12 @@ This manifest defines the frontend package identity, supported runtime, dependen
 ## Runtime and dependencies
 
 - The private package is `medi-wish-frontend` at version `0.1.0`.
-- `engines` requires Node.js `>=24.0.0 <25`; `packageManager` records npm `11.19.0`.
-- Runtime dependencies are Next.js `16.3.5`, React/React DOM `19.3.0`, and `next-intl` `4.14.5`.
-- Development dependencies provide Next’s ESLint rules, TypeScript and React/Node types, ESLint `10.10.0`, and Vitest `5.0.1`.
+- `engines` requires Node.js `>=24.15.0 <25`, matching the locked DOM test environment; `packageManager` records npm `11.19.0`.
+- Runtime dependencies are Next.js `16.3.6`, React/React DOM `19.3.0`, and `next-intl` `4.14.5`.
+- Next.js `16.3.6` contains the vendor's September 22, 2026 security fix for the Node `ImageResponse` upstream issue; this app has no `next/og` use. [Vendor advisory](https://nextjs.org/blog/nextjs-security-update-september-22-2026).
+- Development dependencies provide Next’s ESLint rules `16.3.6`, TypeScript and React/Node types, ESLint `10.10.0`, Vitest `5.0.1`, and jsdom `30.1.1` as the DOM environment for mounted component tests only. The [jsdom v30.1.1 manifest](https://github.com/jsdom/jsdom/blob/v30.1.1/package.json) requires `^24.15.0` within Node 24; the package engine makes that toolchain floor explicit. jsdom includes the focus/blur fixes exercised by the interaction tests.
 
-The frontend uses the Next App Router with server components and request-scoped translations. No UI library, state library, payment client, or browser automation dependency is present in this foundation slice.
+The frontend uses the Next App Router with server components and request-scoped translations. No UI library, state library, payment client, browser automation dependency, or component-testing framework is present in this foundation slice.
 
 ## Scripts
 
