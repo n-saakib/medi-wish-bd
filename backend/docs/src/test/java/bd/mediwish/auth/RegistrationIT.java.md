@@ -10,4 +10,4 @@ Source: [`src/test/java/bd/mediwish/auth/RegistrationIT.java`](../../../../../..
 
 18 tests; the captured logs are checked for tracked secrets after each.
 
-Verified 2026-09-27 on `b26f0c9` plus the Ticket 03.03 changes: `./mvnw.cmd -o verify` passed 171 unit and 109 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 109 with no skip.
+Verified 2026-09-27 on `724b0c8`: `./mvnw.cmd -o verify` passed 171 unit and 109 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 109 with no skip.

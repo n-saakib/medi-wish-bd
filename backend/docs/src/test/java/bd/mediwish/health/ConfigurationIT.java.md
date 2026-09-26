@@ -22,4 +22,4 @@ The test deliberately asserts the root cause and privacy property rather than a 
 
 Run as part of the default Maven `verify` lifecycle with the real PostgreSQL test environment available for the other integration tests. The auth cases create and drop one guarded test schema; no development credentials are used.
 
-Verified 2026-09-27 on `b26f0c9` plus the Ticket 03.03 changes: `./mvnw.cmd -o verify` passed 171 unit and 109 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 109 with no skip. `ConfigurationIT` ran 3 tests.
+Verified 2026-09-27 on `724b0c8`: `./mvnw.cmd -o verify` passed 171 unit and 109 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 109 with no skip. `ConfigurationIT` ran 3 tests.
