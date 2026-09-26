@@ -12,7 +12,7 @@ This is the English message catalog consumed by `next-intl`. All user-visible co
 - `header` — brand text, the account navigation's accessible label (`Account`), the `Sign in` link and the auth header's `Back to home` link.
 - `home` — hero title and preparation copy (`Our online store is being prepared. Please check back soon.`), plus the sign-out result messages `signedOut` and `signOutError` and the `tryAgain` retry button shown by `SignOutNotice`.
 - `signIn` — page title, identifier label (`Mobile, email or username`), password label, submit/busy button text, the link to registration, and the notices `sessionExpired`, `restoreError` and `accountCreated`.
-- `register` — page title, field labels, the `(optional)` email marker, the `At least 12 characters` password hint, submit/busy text, the link to sign-in, and `invalid`, which explains the username rule (3–50 allowed characters with at least one letter) when the API rejects a request as `INVALID_REQUEST`.
+- `register` — page title, field labels, the `(optional)` email marker, the `6–30 characters` password hint, submit/busy text, the link to sign-in, and `invalid`, which explains the username rule (3–50 allowed characters with at least one letter) when the API rejects a request as `INVALID_REQUEST`.
 - `account` — account page title, the `Checking your session…` status shown while the session restores and the profile loads, profile labels and sign-out button/busy text.
 - `errors` — copy for API failures, chosen by `errorMessageKey` from the error code: `authenticationFailed` (sign-in details do not match), `duplicateUser`, `invalidResponse` and the fallback `genericError`. The API's own message text is never shown.
 

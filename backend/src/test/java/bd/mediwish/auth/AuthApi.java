@@ -105,7 +105,7 @@ final class AuthApi implements AutoCloseable {
     User newUser() {
         String suffix = random(6);
         return new User(track("user_" + suffix), track("017" + String.format("%08d", RANDOM.nextInt(100_000_000))),
-                track("user." + suffix + "@example.test"), track("synthetic-password-" + random(8)));
+                track("user." + suffix + "@example.test"), track("synthetic-pw-" + random(8)));
     }
 
     User newUserWithoutEmail() {

@@ -11,7 +11,7 @@ export function syntheticCustomer(): Customer {
     username: `journey.${suffix}`,
     mobile: `017${randomInt(10_000_000, 100_000_000)}`,
     email: `journey.${suffix}@example.test`,
-    password: `Synthetic-${randomBytes(12).toString('hex')}`,
+    password: `Synthetic-${randomBytes(8).toString('hex')}`,
   };
 }
 

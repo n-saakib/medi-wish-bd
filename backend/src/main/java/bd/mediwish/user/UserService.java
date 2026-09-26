@@ -10,8 +10,8 @@ import java.util.regex.Pattern;
 
 @Service
 public class UserService {
-    public static final int MAX_PASSWORD_LENGTH = 128;
-    private static final int MIN_PASSWORD_LENGTH = 12;
+    private static final int MIN_PASSWORD_LENGTH = 6;
+    private static final int MAX_PASSWORD_LENGTH = 30;
     private static final int MAX_MOBILE_LENGTH = 30;
     private static final int MAX_EMAIL_LENGTH = 320;
     // At least one letter, so a username can never equal a mobile number (Ticket 03.02 A3).

@@ -21,7 +21,7 @@ Renders the `Create an account` heading, an optional danger alert, a form with u
 
 ## Design deviations
 
-The `+880` mobile prefix, the Terms/Privacy consent line and the OTP verification step are omitted; mobile verification is on hold. The password hint reads `At least 12 characters` (the design shows 10) to match the API's 12-character minimum.
+The `+880` mobile prefix, the Terms/Privacy consent line and the OTP verification step are omitted; mobile verification is on hold. The password hint reads `6–30 characters` and the field enforces the same bounds, matching the API's registration rule.
 
 ## Verification
 

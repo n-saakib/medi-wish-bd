@@ -91,7 +91,7 @@ class RegistrationIT {
     static Stream<Arguments> invalidRegistrationIsRejectedWithoutCreatingAUser() {
         String valid = """
                 {"username":"%s","mobile":"01700000000","email":"%s","password":"%s"}""";
-        String password = "synthetic-registration-password";
+        String password = "synthetic-registration";
         return Stream.of(
                 arguments("username shorter than three characters", valid.formatted("ab", "a@example.test", password)),
                 arguments("username longer than 50 characters",
@@ -100,8 +100,10 @@ class RegistrationIT {
                         valid.formatted("bad name!", "a@example.test", password)),
                 arguments("username without a letter", valid.formatted("01712345678", "a@example.test", password)),
                 arguments("email without an at sign", valid.formatted("valid_name", "not-an-email", password)),
-                arguments("password shorter than 12 characters",
-                        valid.formatted("valid_name", "a@example.test", "short-pass1")),
+                arguments("password shorter than 6 characters",
+                        valid.formatted("valid_name", "a@example.test", "p".repeat(5))),
+                arguments("password longer than 30 characters",
+                        valid.formatted("valid_name", "a@example.test", "p".repeat(31))),
                 arguments("missing mobile", """
                         {"username":"valid_name","password":"%s"}""".formatted(password)),
                 arguments("malformed JSON", "{\"username\":"));

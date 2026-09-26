@@ -35,7 +35,7 @@
     "email": "Email",
     "optional": "(optional)",
     "password": "Password",
-    "passwordHint": "At least 12 characters",
+    "passwordHint": "6–30 characters",
     "submit": "Create account",
     "submitting": "Creating account…",
     "haveAccount": "Have an account?",

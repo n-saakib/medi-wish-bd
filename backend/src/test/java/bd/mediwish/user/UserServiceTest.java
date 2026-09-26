@@ -115,9 +115,9 @@ class UserServiceTest {
     void acceptsPasswordAtMinimumAndMaximumLengths() {
         stubSuccessfulRegistration();
 
-        assertThat(service.register("alice_1", "01700000000", null, "p".repeat(12)).passwordHash())
+        assertThat(service.register("alice_1", "01700000000", null, "p".repeat(6)).passwordHash())
                 .isEqualTo("encoded");
-        assertThat(service.register("alice_1", "01700000000", null, "p".repeat(128)).passwordHash())
+        assertThat(service.register("alice_1", "01700000000", null, "p".repeat(30)).passwordHash())
                 .isEqualTo("encoded");
     }
 
@@ -135,21 +135,21 @@ class UserServiceTest {
 
     @Test
     void rejectsPasswordBelowMinimumLengthByItself() {
-        assertThatThrownBy(() -> service.register("alice_1", "01700000000", null, "p".repeat(11)))
+        assertThatThrownBy(() -> service.register("alice_1", "01700000000", null, "p".repeat(5)))
                 .isInstanceOf(UserService.InvalidRegistrationException.class);
         verifyNoInteractions(users, passwords);
     }
 
     @Test
     void rejectsWhitespaceOnlyPasswordWithoutCheckingUniquenessOrEncoding() {
-        assertThatThrownBy(() -> service.register("alice_1", "01700000000", null, " ".repeat(12)))
+        assertThatThrownBy(() -> service.register("alice_1", "01700000000", null, " ".repeat(6)))
                 .isInstanceOf(UserService.InvalidRegistrationException.class);
         verifyNoInteractions(users, passwords);
     }
 
     @Test
     void rejectsPasswordAboveMaximumLengthByItself() {
-        assertThatThrownBy(() -> service.register("alice_1", "01700000000", null, "p".repeat(129)))
+        assertThatThrownBy(() -> service.register("alice_1", "01700000000", null, "p".repeat(31)))
                 .isInstanceOf(UserService.InvalidRegistrationException.class);
         verifyNoInteractions(users, passwords);
     }

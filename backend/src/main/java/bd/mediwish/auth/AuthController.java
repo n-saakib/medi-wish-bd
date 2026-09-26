@@ -26,6 +26,8 @@ import java.util.Optional;
 @RequestMapping("/api/auth")
 class AuthController {
     private static final int MAX_IDENTIFIER_LENGTH = 320;
+    // Wider than registration's 6–30 rule, so accounts with an older or legacy password can still sign in.
+    private static final int MAX_SIGN_IN_PASSWORD_LENGTH = 128;
 
     private final UserService users;
     private final AuthenticationService authentication;
@@ -57,7 +59,7 @@ class AuthController {
     @PostMapping("/login")
     SessionResponse login(@RequestBody LoginRequest request, HttpServletResponse response) {
         if (isBlankOrLongerThan(request.identifier(), MAX_IDENTIFIER_LENGTH)
-                || isBlankOrLongerThan(request.password(), UserService.MAX_PASSWORD_LENGTH)) {
+                || isBlankOrLongerThan(request.password(), MAX_SIGN_IN_PASSWORD_LENGTH)) {
             throw new InvalidRequestException();
         }
         return issue(authentication.signIn(request.identifier(), request.password()), response);

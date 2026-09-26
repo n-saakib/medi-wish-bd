@@ -8,7 +8,7 @@ Mounted jsdom coverage for [`RegistrationForm`](../src/auth/RegistrationForm.tsx
 
 ## Verification
 
-- The form uses `method="post"`, labels email as `Email (optional)`, requires 12 password characters with the `At least 12 characters` hint linked by `aria-describedby`, links to `/sign-in` and shows no alert initially.
+- The form uses `method="post"`, labels email as `Email (optional)`, bounds the password to 6–30 characters with the `6–30 characters` hint linked by `aria-describedby`, links to `/sign-in` and shows no alert initially.
 - A submission posts to `/api/auth/register` without a blank email, clears the password, disables the button with `Creating account…`, keeps it disabled while the follow-up sign-in is pending, then, after a `201` with an empty body, signs in with the same credentials and redirects to `/account`.
 - A filled-in email is sent.
 - When the automatic sign-in fails, the form redirects to `/sign-in` only, and no username, mobile or password appears in any router call.

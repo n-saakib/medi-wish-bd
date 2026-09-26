@@ -4,7 +4,7 @@ Source: [`src/test/java/bd/mediwish/auth/RegistrationIT.java`](../../../../../..
 
 ## Purpose
 
-`POST /api/auth/register` on the shared context: the normalized User with an argon2id verifier and only the `CUSTOMER` role; caller-supplied roles are ignored, so registration cannot assign staff roles; registration without an email; invalid input, including a username without a letter (A3) and malformed JSON, is rejected without creating a User; a taken username or mobile is a duplicate; and racing registrations of one mobile or one normalized username create exactly one User.
+`POST /api/auth/register` on the shared context: the normalized User with an argon2id verifier and only the `CUSTOMER` role; caller-supplied roles are ignored, so registration cannot assign staff roles; registration without an email; invalid input, including a username without a letter (A3), a password of 5 or 31 characters and malformed JSON, is rejected without creating a User; a taken username or mobile is a duplicate; and racing registrations of one mobile or one normalized username create exactly one User.
 
 ## Verification
 

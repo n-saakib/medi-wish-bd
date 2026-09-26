@@ -81,7 +81,7 @@ export function RegistrationForm() {
         <div className="field">
           <label htmlFor="register-password">{t('password')}</label>
           <input className="input" id="register-password" name="password" type="password" autoComplete="new-password"
-            required minLength={12} maxLength={128} aria-describedby="register-password-hint" value={registration.password}
+            required minLength={6} maxLength={30} aria-describedby="register-password-hint" value={registration.password}
             onChange={(event) => update('password', event.target.value)} />
           <span className="hint" id="register-password-hint">{t('passwordHint')}</span>
         </div>

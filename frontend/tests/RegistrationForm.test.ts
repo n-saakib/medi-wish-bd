@@ -46,14 +46,15 @@ async function fillAndSubmit(form: HTMLElement, email = ''): Promise<void> {
 }
 
 describe('RegistrationForm', () => {
-  it('shows the design fields, the 12-character hint and a sign-in link', async () => {
+  it('shows the design fields, the 6–30 character hint and a sign-in link', async () => {
     const form = await renderWithSession(createElement(RegistrationForm));
     const password = requiredElement<HTMLInputElement>(form, '#register-password');
 
     expect(requiredElement(form, 'form').getAttribute('method')).toBe('post');
     expect(requiredElement(form, 'label[for="register-email"]').textContent).toBe('Email (optional)');
-    expect(password.minLength).toBe(12);
-    expect(requiredElement(form, `#${password.getAttribute('aria-describedby')}`).textContent).toBe('At least 12 characters');
+    expect(password.minLength).toBe(6);
+    expect(password.maxLength).toBe(30);
+    expect(requiredElement(form, `#${password.getAttribute('aria-describedby')}`).textContent).toBe('6–30 characters');
     expect(requiredElement(form, 'a[href="/sign-in"]').textContent).toBe('Sign in');
     expect(form.querySelector('[role="alert"]')).toBeNull();
   });

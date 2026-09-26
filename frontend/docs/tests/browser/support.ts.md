@@ -10,7 +10,7 @@ These are the shared browser-spec helpers; this file is not a spec.
   - username `journey.<hex>`;
   - an 11-digit mobile starting `017`;
   - an `example.test` email;
-  - a random password of more than 12 characters.
+  - a random 26-character password, within the 6–30 rule.
 - `register(page, customer)` fills and submits `/register` and waits for `/account`; registration signs the Customer in.
 - `unauthorizedLine(path)` is the console line Chromium writes for a request the API answered with 401.
 - `watchPage(page)` records two things:

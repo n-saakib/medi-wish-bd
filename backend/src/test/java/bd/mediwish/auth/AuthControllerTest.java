@@ -89,7 +89,7 @@ class AuthControllerTest {
     @Test
     void loginAcceptsTheMaximumLengths() throws Exception {
         String identifier = "i".repeat(320);
-        String password = "p".repeat(UserService.MAX_PASSWORD_LENGTH);
+        String password = "p".repeat(128);
         when(authentication.signIn(identifier, password)).thenReturn(session(Duration.ofDays(30)));
 
         mvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(login(identifier, password)))
@@ -105,7 +105,7 @@ class AuthControllerTest {
                 new AuthController.LoginRequest(null, "a-very-long-password"),
                 new AuthController.LoginRequest("alice_1", null),
                 new AuthController.LoginRequest("i".repeat(321), "a-very-long-password"),
-                new AuthController.LoginRequest("alice_1", "p".repeat(UserService.MAX_PASSWORD_LENGTH + 1)))) {
+                new AuthController.LoginRequest("alice_1", "p".repeat(129)))) {
             assertThatThrownBy(() -> controller.login(request, response)).isInstanceOf(InvalidRequestException.class);
         }
         verifyNoInteractions(authentication);
