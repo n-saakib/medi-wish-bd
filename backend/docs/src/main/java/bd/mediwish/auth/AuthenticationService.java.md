@@ -1,3 +1,27 @@
-# AuthenticationService
+# `AuthenticationService.java`
 
-Deep application seam for password sign-in, refresh, logout and future revoke-all operations. It resolves normalized username, verified mobile and optional email candidates; email lookup is case-insensitive and capped at two rows, enough to reject ambiguity without materializing every duplicate. The non-unique `upper(email)` index supports this lookup without changing stored email values. The resolver returns exactly one user or runs the configured dummy verifier and throws the generic authentication failure for missing or ambiguous candidates. A unique candidate's persisted verifier is checked against `PasswordVerifierPolicy` before matching the password. Sign-in is deliberately not transactional, so password hashing never holds a pooled database connection; only session creation runs in its own transaction. An unusable verifier takes the dummy-verification path and returns the same generic authentication failure without creating a session. Successful sign-in returns a safe user profile, the adapter-only raw refresh value and the session family's absolute refresh expiry. Refresh carries forward that same family expiry after rotation; the controller passes it to the cookie adapter without exposing it in the JSON response. Refresh also requires a structurally usable persisted Argon2 verifier; when the rotated user state is missing or malformed, it revokes the rotated session family and returns the same bounded authentication-required outcome. Logout revokes each supplied refresh-token candidate through the session service within one transaction, so a failure cannot leave only some represented families revoked; an empty candidate list remains idempotent. Controllers do not call User or session repositories directly.
+Source: [`src/main/java/bd/mediwish/auth/AuthenticationService.java`](../../../../../../../src/main/java/bd/mediwish/auth/AuthenticationService.java)
+
+## Purpose
+
+Package-private application service for password sign-in, refresh and logout. `AuthController` is its only caller; it hides User lookup, password matching, session state and token issue behind three operations.
+
+## Operations
+
+| Member | Behavior |
+| --- | --- |
+| `signIn(identifier, password)` | Normalizes the identifier with `UserIdentifierNormalizer` and collects candidates by exact username, verified mobile and case-insensitive email (at most two email rows). Exactly one distinct candidate with a `PasswordVerifierPolicy`-usable verifier is matched against the password; no candidate, several candidates or an unusable verifier is matched against the dummy verifier instead, so every failure costs one Argon2 comparison. Any failure throws `AuthenticationFailedException`. Success creates a session and returns an `AuthenticatedSession`. |
+| `refresh(refreshToken)` | Rotates through `SessionService.rotate`, then reloads the User. A missing User or unusable verifier revokes the rotated session with `RevocationReason.USER_UNAVAILABLE` and throws `AuthenticationRequiredException`. |
+| `logout(refreshTokens)` | One transaction that revokes the session of each supplied value with `RevocationReason.LOGOUT`, in sorted order so concurrent logouts of the same duplicated cookies cannot deadlock. A failure rolls back every revocation; an empty list is a no-op. |
+
+`AuthenticatedSession` carries the access token, its lifetime in seconds, the raw refresh value, the session's absolute expiry and a `UserProfile`. The raw refresh value and expiry go only to `RefreshCookieAdapter`; the controller exposes the rest.
+
+## Boundaries
+
+- The dummy verifier is generated once in the constructor by encoding a random UUID with the production `PasswordEncoder`; there is no configuration property for it.
+- `signIn` is deliberately not transactional, so Argon2 hashing never holds a pooled connection; `SessionService.create` owns its own transaction.
+- The service logs nothing and never returns which identifier field matched or why sign-in failed.
+
+## Verification
+
+`AuthenticationServiceTest` covers unique-candidate sign-in, wrong password, unknown and ambiguous identifiers, unusable verifiers, the startup dummy verifier, refresh revocation for unavailable Users and sorted logout. `SignInIT`, `SessionIT`, `ConcurrentSessionIT` and `LegacyUserMigrationIT` cover the flows over PostgreSQL.

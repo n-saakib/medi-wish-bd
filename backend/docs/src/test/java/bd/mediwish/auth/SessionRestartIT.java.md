@@ -1,17 +1,13 @@
 # `SessionRestartIT.java`
 
-Source: [`src/test/java/bd/mediwish/auth/SessionRestartIT.java`](../../../../../../src/test/java/bd/mediwish/auth/SessionRestartIT.java)
+Source: [`src/test/java/bd/mediwish/auth/SessionRestartIT.java`](../../../../../../../src/test/java/bd/mediwish/auth/SessionRestartIT.java)
 
 ## Purpose
 
-Exercises session durability across a real application restart against an isolated PostgreSQL 18 schema. The test uses one synthetic User with two session families: it revokes one through logout before shutdown, then verifies after restart that the other family remains active while both access and refresh credentials from the revoked family remain rejected. It also verifies that replaying a consumed refresh token after restart revokes the still-active family and invalidates its rotated access token.
+Own context, restarted mid-test. Before the restart one session is rotated and another is logged out. After it, the rotated access token still works; the logged-out session's access and refresh tokens are rejected; and replaying the initial, consumed refresh token is a replay that revokes its family (`REFRESH_REPLAY`) together with the rotated access token.
 
-## Verification boundary
+## Verification
 
-After restart, the test verifies persisted pre-restart logout, consumes the active family's rotated refresh response, then replays the old consumed refresh value and confirms that replay revokes the family and invalidates the rotated access token. It verifies durable revocation and rotation/replay state across restart; it does not simulate a discarded response, database commit failure, or a network-level response drop.
+1 test.
 
-From `backend/`, run the focused integration-test class with the repository-local Maven cache:
-
-```text
-.\\mvnw.cmd -o "-Dmaven.repo.local=D:\\Web Dev\\medi-wish-bd\\backend\\.m2\\repository" "-Dit.test=SessionRestartIT" verify
-```
+Verified 2026-09-26 on `45cbc7e` plus the uncommitted T4 worktree: `./mvnw.cmd -o verify` passed 168 unit and 105 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 168 and 105 with no skip.

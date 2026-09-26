@@ -1,7 +1,7 @@
 package bd.mediwish.user;
 
-import bd.mediwish.MediWishApplication;
-import bd.mediwish.health.TestDatabase;
+import bd.mediwish.testsupport.TestApplication;
+import bd.mediwish.testsupport.TestDatabase;
 import liquibase.Contexts;
 import liquibase.LabelExpression;
 import liquibase.Liquibase;
@@ -10,9 +10,7 @@ import liquibase.database.jvm.JdbcConnection;
 import liquibase.resource.ClassLoaderResourceAccessor;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.SpringApplication;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.core.env.MapPropertySource;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -93,6 +91,10 @@ class LegacyUserMigrationIT {
                         MIXED_CASE_LEGACY_CREATED_AT);
                 assertThat(countUsersWithEmail(database, SHARED_LEGACY_EMAIL)).isEqualTo(2);
                 assertThat(countUsersWithEmail(database, MIXED_CASE_LEGACY_EMAIL)).isEqualTo(1);
+                assertThat(emailIndexDefinitions(database)).singleElement().satisfies(definition -> assertThat(definition)
+                        .as("shared emails need a non-unique case-insensitive lookup and no exact-email index")
+                        .startsWith("CREATE INDEX idx_users_email_upper ON")
+                        .endsWith("USING btree (upper((email)::text))"));
                 assertCustomerRoleWasBackfilled(database, LEGACY_ID);
                 assertCustomerRoleWasBackfilled(database, SECOND_LEGACY_ID);
                 assertCustomerRoleWasBackfilled(database, MIXED_CASE_LEGACY_ID);
@@ -143,10 +145,7 @@ class LegacyUserMigrationIT {
     private static ConfigurableApplicationContext startApplication(TestDatabase database) {
         Map<String, Object> properties = new HashMap<>(database.applicationProperties());
         properties.put("app.auth.access-token-lifetime", "PT5M");
-        var application = new SpringApplication(MediWishApplication.class);
-        application.addInitializers(context -> context.getEnvironment().getPropertySources()
-                .addFirst(new MapPropertySource("legacy-user-migration-it", properties)));
-        return application.run();
+        return TestApplication.launch(properties);
     }
 
     private static void assertLegacyUserWasPreserved(TestDatabase database, UUID id, String username,
@@ -181,6 +180,11 @@ class LegacyUserMigrationIT {
                 return rows.getLong(1);
             }
         }
+    }
+
+    private static List<String> emailIndexDefinitions(TestDatabase database) throws SQLException {
+        return database.query("SELECT indexdef FROM pg_indexes WHERE schemaname = ? AND tablename = 'users' "
+                + "AND indexdef LIKE '%email%' ORDER BY indexname", row -> row.getString(1), database.schema());
     }
 
     private static void assertCustomerRoleWasBackfilled(TestDatabase database, UUID userId) throws SQLException {

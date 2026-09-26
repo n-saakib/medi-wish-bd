@@ -1,15 +1,16 @@
 package bd.mediwish.health;
 
-import bd.mediwish.MediWishApplication;
+import bd.mediwish.testsupport.TestApplication;
+import bd.mediwish.testsupport.TestDatabase;
 import jakarta.persistence.EntityManagerFactory;
 import liquibase.integration.spring.SpringLiquibase;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.boot.SpringApplication;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.springframework.core.env.MapPropertySource;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.net.URI;
@@ -23,6 +24,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 
+import static bd.mediwish.testsupport.ApiAssertions.assertError;
 import static org.assertj.core.api.Assertions.*;
 
 @Tag("integration")
@@ -46,10 +48,7 @@ class HealthIT {
     }
 
     private void startApplication() {
-        var launcher = new SpringApplication(MediWishApplication.class);
-        launcher.addInitializers(context -> context.getEnvironment().getPropertySources().addFirst(
-                new MapPropertySource("isolated-integration-database", database.applicationProperties(proxy.port()))));
-        application = launcher.run();
+        application = TestApplication.launch(database.applicationProperties(proxy.port()));
         base = URI.create("http://127.0.0.1:" + application.getEnvironment().getRequiredProperty("local.server.port"));
     }
 
@@ -165,6 +164,36 @@ class HealthIT {
                 .isNotEqualTo(invalidId);
         assertThat(response.body()).doesNotContain(invalidId);
         assertThat(output.getAll()).doesNotContain(invalidId);
+    }
+
+    @ParameterizedTest
+    @Order(4)
+    @Tag("contract")
+    @ValueSource(strings = {"liveness", "readiness"})
+    void headHealthChecksAnswerWithoutABody(String group) throws Exception {
+        var response = client.send(HttpRequest.newBuilder(base.resolve("/actuator/health/" + group))
+                .timeout(Duration.ofSeconds(10)).method("HEAD", HttpRequest.BodyPublishers.noBody()).build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertThat(response.statusCode()).isEqualTo(200);
+        assertThat(response.body()).isEmpty();
+    }
+
+    /** CSRF is checked before authorization: with a valid token the anonymous POST is challenged, not denied. */
+    @Test
+    @Order(4)
+    @Tag("security")
+    void aHealthPostWithAValidCsrfTokenStillRequiresAuthentication() throws Exception {
+        var bootstrap = get("/api/auth/csrf", "csrf-bootstrap-01");
+        String token = String.valueOf(json.readValue(bootstrap.body(), Map.class).get("csrfToken"));
+
+        var response = client.send(HttpRequest.newBuilder(base.resolve("/actuator/health/liveness"))
+                .timeout(Duration.ofSeconds(10)).header("Cookie", "XSRF-TOKEN=" + token)
+                .header("X-XSRF-TOKEN", token).POST(HttpRequest.BodyPublishers.noBody()).build(),
+                HttpResponse.BodyHandlers.ofString());
+
+        assertError(response, 401, "AUTHENTICATION_REQUIRED");
+        assertThat(response.body()).doesNotContain(token);
     }
 
     @Test

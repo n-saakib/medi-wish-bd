@@ -1,6 +1,6 @@
 # `AuthControllerTest.java`
 
-Source: [`src/test/java/bd/mediwish/auth/AuthControllerTest.java`](../../../../../../src/test/java/bd/mediwish/auth/AuthControllerTest.java)
+Source: [`src/test/java/bd/mediwish/auth/AuthControllerTest.java`](../../../../../../../src/test/java/bd/mediwish/auth/AuthControllerTest.java)
 
 ## Purpose
 

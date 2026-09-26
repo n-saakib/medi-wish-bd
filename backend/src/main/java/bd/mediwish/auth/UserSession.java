@@ -5,7 +5,6 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
@@ -14,10 +13,7 @@ import java.time.Instant;
 import java.util.UUID;
 
 @Entity
-@Table(name = "user_sessions", indexes = {
-        @Index(name = "idx_user_sessions_user_revoked", columnList = "user_id, revoked_at"),
-        @Index(name = "idx_user_sessions_expires", columnList = "expires_at")
-})
+@Table(name = "user_sessions")
 public class UserSession {
     @Id
     private UUID id;
@@ -47,20 +43,17 @@ public class UserSession {
 
     public UUID id() { return id; }
     public User user() { return user; }
-    public Instant createdAt() { return createdAt; }
     public Instant expiresAt() { return expiresAt; }
-    public Instant lastUsedAt() { return lastUsedAt; }
-    public Instant revokedAt() { return revokedAt; }
     public String revokedReason() { return revokedReason; }
 
     public boolean revoked() { return revokedAt != null; }
 
     public void touch(Instant at) { this.lastUsedAt = at; }
 
-    public void revoke(Instant at, String reason) {
+    void revoke(Instant at, RevocationReason reason) {
         if (revokedAt == null) {
             revokedAt = at;
-            revokedReason = reason;
+            revokedReason = reason.code;
         }
     }
 }

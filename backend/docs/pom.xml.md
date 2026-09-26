@@ -4,7 +4,7 @@ Source: [`pom.xml`](../pom.xml)
 
 ## Purpose
 
-This Maven build describes the backend application, its runtime dependencies, the Java release, the executable jar and the optional compatibility check. Versions managed by the Spring Boot parent stay centralized; the two optional compatibility versions are properties so the profile has one update point.
+This Maven build describes the backend application, its runtime dependencies, the Java release, the executable jar and the optional compatibility check. Versions managed by the Spring Boot parent stay centralized. Every version the parent does not manage is a property (`bouncycastle.version`, `jjwt.version`, `jobrunr.version`, `springdoc.version`), so each library has one update point.
 
 ## Project metadata
 
@@ -24,9 +24,9 @@ This Maven build describes the backend application, its runtime dependencies, th
 | `spring-boot-starter-data-jpa` | JPA and Hibernate persistence support. |
 | `spring-boot-starter-liquibase` | Runs versioned database migrations at startup. |
 | `postgresql` (runtime) | PostgreSQL JDBC driver for the configured database. |
-| `jjwt-api` `0.13.0` | Compile-time JJWT API used by the fixed HS256 access-token codec. |
-| `jjwt-impl` `0.13.0` | Runtime JJWT implementation; kept out of compile scope. |
-| `jjwt-jackson` `0.13.0` | Runtime Jackson serializer/parser adapter for JJWT. |
+| `jjwt-api` `${jjwt.version}` (`0.13.0`) | Compile-time JJWT API used by the fixed HS256 access-token codec. |
+| `jjwt-impl` `${jjwt.version}` (runtime) | Runtime JJWT implementation; kept out of compile scope. |
+| `jjwt-jackson` `${jjwt.version}` (runtime) | Runtime Jackson serializer/parser adapter for JJWT. |
 | `spring-boot-starter-webmvc-test` (test) | MVC-focused test support; it brings the common Spring Boot test foundation transitively. |
 
 Keeping the application on Boot-managed versions avoids independent framework drift. The focused WebMVC test starter is sufficient for the current tests; a second generic test starter would duplicate its transitive dependencies.

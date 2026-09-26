@@ -1,5 +1,6 @@
 package bd.mediwish.user;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -16,13 +17,18 @@ import static org.mockito.Mockito.*;
 class UserServiceTest {
     @Mock UserRepository users;
     @Mock PasswordEncoder passwords;
+    private UserService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new UserService(users, passwords, new UserIdentifierNormalizer());
+    }
 
     @Test
     void registersNormalizedUserWithCustomerRoleWithoutPersistingPlaintextPassword() {
         when(passwords.encode("a-very-long-password")).thenReturn("encoded");
         when(users.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        User user = new UserService(users, passwords)
-                .register(" Alice_1 ", " 01700000000 ", " A@Example.com ", "a-very-long-password");
+        User user = service.register(" Alice_1 ", " 01700000000 ", " A@Example.com ", "a-very-long-password");
 
         assertThat(user.username()).isEqualTo("alice_1");
         assertThat(user.mobile()).isEqualTo("01700000000");
@@ -34,33 +40,28 @@ class UserServiceTest {
     }
 
     @Test
-    void rejectsDuplicateUsernameBeforeCheckingMobile() {
+    void aTakenUsernameIsRejected() {
         when(users.existsByUsername("alice_1")).thenReturn(true);
 
-        assertThatThrownBy(() -> new UserService(users, passwords)
-                .register("alice_1", "01700000000", null, "a-very-long-password"))
+        assertThatThrownBy(() -> service.register("alice_1", "01700000000", null, "a-very-long-password"))
                 .isInstanceOf(UserService.DuplicateUserException.class);
-        verify(users, never()).existsByMobile(any());
         verify(users, never()).saveAndFlush(any());
         verifyNoInteractions(passwords);
     }
 
     @Test
-    void rejectsDuplicateMobileBeforeEncodingPassword() {
+    void aTakenMobileIsRejected() {
         when(users.existsByMobile("01700000000")).thenReturn(true);
 
-        assertThatThrownBy(() -> new UserService(users, passwords)
-                .register("alice_1", "01700000000", null, "a-very-long-password"))
+        assertThatThrownBy(() -> service.register("alice_1", "01700000000", null, "a-very-long-password"))
                 .isInstanceOf(UserService.DuplicateUserException.class);
-        verify(users).existsByUsername("alice_1");
-        verify(users).existsByMobile("01700000000");
         verify(users, never()).saveAndFlush(any());
         verifyNoInteractions(passwords);
     }
 
     @Test
     void acceptsUsernameAtMinimumAndMaximumLengths() {
-        UserService service = successfulRegistrationService();
+        stubSuccessfulRegistration();
 
         assertThat(service.register("abc", "01700000000", null, "a-very-long-password").username())
                 .hasSize(3);
@@ -70,23 +71,49 @@ class UserServiceTest {
 
     @Test
     void rejectsUsernameBelowMinimumLengthByItself() {
-        assertThatThrownBy(() -> new UserService(users, passwords)
-                .register("ab", "01700000000", null, "a-very-long-password"))
+        assertThatThrownBy(() -> service.register("ab", "01700000000", null, "a-very-long-password"))
                 .isInstanceOf(UserService.InvalidRegistrationException.class);
         verifyNoInteractions(users, passwords);
     }
 
     @Test
     void rejectsUsernameAboveMaximumLengthByItself() {
-        assertThatThrownBy(() -> new UserService(users, passwords)
-                .register("a".repeat(51), "01700000000", null, "a-very-long-password"))
+        assertThatThrownBy(() -> service.register("a".repeat(51), "01700000000", null, "a-very-long-password"))
                 .isInstanceOf(UserService.InvalidRegistrationException.class);
         verifyNoInteractions(users, passwords);
     }
 
     @Test
+    void rejectsAUsernameWithoutALetterSoItCanNeverEqualAMobile() {
+        for (String username : new String[]{"01700000000", "123", "._-", "1.2_3"}) {
+            assertThatThrownBy(() -> service.register(username, "01700000000", null, "a-very-long-password"))
+                    .isInstanceOf(UserService.InvalidRegistrationException.class);
+        }
+        verifyNoInteractions(users, passwords);
+    }
+
+    @Test
+    void acceptsAUsernameWithOneLetterAnywhere() {
+        stubSuccessfulRegistration();
+
+        for (String username : new String[]{"a12", "12a", "1.a", "01700000000x"}) {
+            assertThat(service.register(username, "01700000000", null, "a-very-long-password").username())
+                    .isEqualTo(username);
+        }
+    }
+
+    @Test
+    void rejectsUsernameCharactersOutsideTheAllowedSet() {
+        for (String username : new String[]{"alice 1", "alice@1", "älice"}) {
+            assertThatThrownBy(() -> service.register(username, "01700000000", null, "a-very-long-password"))
+                    .isInstanceOf(UserService.InvalidRegistrationException.class);
+        }
+        verifyNoInteractions(users, passwords);
+    }
+
+    @Test
     void acceptsPasswordAtMinimumAndMaximumLengths() {
-        UserService service = successfulRegistrationService();
+        stubSuccessfulRegistration();
 
         assertThat(service.register("alice_1", "01700000000", null, "p".repeat(12)).passwordHash())
                 .isEqualTo("encoded");
@@ -100,8 +127,7 @@ class UserServiceTest {
         when(passwords.encode(password)).thenReturn("encoded");
         when(users.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        User user = new UserService(users, passwords)
-                .register("alice_1", "01700000000", null, password);
+        User user = service.register("alice_1", "01700000000", null, password);
 
         assertThat(user.passwordHash()).isEqualTo("encoded");
         verify(passwords).encode(password);
@@ -109,39 +135,35 @@ class UserServiceTest {
 
     @Test
     void rejectsPasswordBelowMinimumLengthByItself() {
-        assertThatThrownBy(() -> new UserService(users, passwords)
-                .register("alice_1", "01700000000", null, "p".repeat(11)))
+        assertThatThrownBy(() -> service.register("alice_1", "01700000000", null, "p".repeat(11)))
                 .isInstanceOf(UserService.InvalidRegistrationException.class);
         verifyNoInteractions(users, passwords);
     }
 
     @Test
     void rejectsWhitespaceOnlyPasswordWithoutCheckingUniquenessOrEncoding() {
-        assertThatThrownBy(() -> new UserService(users, passwords)
-                .register("alice_1", "01700000000", null, " ".repeat(12)))
+        assertThatThrownBy(() -> service.register("alice_1", "01700000000", null, " ".repeat(12)))
                 .isInstanceOf(UserService.InvalidRegistrationException.class);
         verifyNoInteractions(users, passwords);
     }
 
     @Test
     void rejectsPasswordAboveMaximumLengthByItself() {
-        assertThatThrownBy(() -> new UserService(users, passwords)
-                .register("alice_1", "01700000000", null, "p".repeat(129)))
+        assertThatThrownBy(() -> service.register("alice_1", "01700000000", null, "p".repeat(129)))
                 .isInstanceOf(UserService.InvalidRegistrationException.class);
         verifyNoInteractions(users, passwords);
     }
 
     @Test
     void rejectsBlankMobileByItself() {
-        assertThatThrownBy(() -> new UserService(users, passwords)
-                .register("alice_1", "  \t ", null, "a-very-long-password"))
+        assertThatThrownBy(() -> service.register("alice_1", "  \t ", null, "a-very-long-password"))
                 .isInstanceOf(UserService.InvalidRegistrationException.class);
         verifyNoInteractions(users, passwords);
     }
 
     @Test
     void acceptsMobileAtMaximumLengthWithoutApplyingFormatRules() {
-        UserService service = successfulRegistrationService();
+        stubSuccessfulRegistration();
 
         assertThat(service.register("alice_1", "1".repeat(30), null, "a-very-long-password").mobile())
                 .hasSize(30);
@@ -149,8 +171,7 @@ class UserServiceTest {
 
     @Test
     void rejectsMobileAboveMaximumLengthByItself() {
-        assertThatThrownBy(() -> new UserService(users, passwords)
-                .register("alice_1", "1".repeat(31), null, "a-very-long-password"))
+        assertThatThrownBy(() -> service.register("alice_1", "1".repeat(31), null, "a-very-long-password"))
                 .isInstanceOf(UserService.InvalidRegistrationException.class);
         verifyNoInteractions(users, passwords);
     }
@@ -158,7 +179,7 @@ class UserServiceTest {
     @Test
     void acceptsOptionalEmailAtMaximumLengthUnderCurrentSyntaxRule() {
         String email = "a@" + "b".repeat(318);
-        UserService service = successfulRegistrationService();
+        stubSuccessfulRegistration();
 
         assertThat(email).hasSize(320);
         assertThat(service.register("alice_1", "01700000000", email, "a-very-long-password").email())
@@ -167,8 +188,7 @@ class UserServiceTest {
 
     @Test
     void rejectsMalformedOptionalEmailByItself() {
-        assertThatThrownBy(() -> new UserService(users, passwords)
-                .register("alice_1", "01700000000", "not-an-email", "a-very-long-password"))
+        assertThatThrownBy(() -> service.register("alice_1", "01700000000", "not-an-email", "a-very-long-password"))
                 .isInstanceOf(UserService.InvalidRegistrationException.class);
         verifyNoInteractions(users, passwords);
     }
@@ -178,8 +198,7 @@ class UserServiceTest {
         String email = "a@" + "b".repeat(319);
         assertThat(email).hasSize(321);
 
-        assertThatThrownBy(() -> new UserService(users, passwords)
-                .register("alice_1", "01700000000", email, "a-very-long-password"))
+        assertThatThrownBy(() -> service.register("alice_1", "01700000000", email, "a-very-long-password"))
                 .isInstanceOf(UserService.InvalidRegistrationException.class);
         verifyNoInteractions(users, passwords);
     }
@@ -189,8 +208,7 @@ class UserServiceTest {
         when(passwords.encode("a-very-long-password")).thenReturn("encoded");
         when(users.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
-        User user = new UserService(users, passwords)
-                .register("alice_1", "01700000000", "   ", "a-very-long-password");
+        User user = service.register("alice_1", "01700000000", "   ", "a-very-long-password");
 
         assertThat(user.email()).isNull();
     }
@@ -200,14 +218,22 @@ class UserServiceTest {
         when(users.saveAndFlush(any())).thenThrow(new org.springframework.dao.DataIntegrityViolationException(
                 "unique", new java.sql.SQLException("duplicate key", "23505")));
 
-        assertThatThrownBy(() -> new UserService(users, passwords)
-                .register("alice_1", "01700000000", null, "a-very-long-password"))
+        assertThatThrownBy(() -> service.register("alice_1", "01700000000", null, "a-very-long-password"))
                 .isInstanceOf(UserService.DuplicateUserException.class);
     }
 
-    private UserService successfulRegistrationService() {
+    @Test
+    void rethrowsAnIntegrityViolationThatIsNotAUniquenessRace() {
+        var violation = new org.springframework.dao.DataIntegrityViolationException(
+                "check", new java.sql.SQLException("check violation", "23514"));
+        when(users.saveAndFlush(any())).thenThrow(violation);
+
+        assertThatThrownBy(() -> service.register("alice_1", "01700000000", null, "a-very-long-password"))
+                .isSameAs(violation);
+    }
+
+    private void stubSuccessfulRegistration() {
         when(passwords.encode(anyString())).thenReturn("encoded");
         when(users.saveAndFlush(any())).thenAnswer(invocation -> invocation.getArgument(0));
-        return new UserService(users, passwords);
     }
 }

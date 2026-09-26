@@ -2,20 +2,14 @@
 
 Source: [`src/main/java/bd/mediwish/web/ApiErrorController.java`](../../../../../../../src/main/java/bd/mediwish/web/ApiErrorController.java)
 
-## Purpose and reasoning
+## Purpose
 
-`ApiErrorController` adapts Spring Boot's servlet error dispatch to the application's small JSON error contract. It is package-private because it is an internal framework adapter, while `ApiErrors` owns the reusable response mapping and serialization behavior. Centralizing `/error` prevents framework-generated HTML or verbose diagnostics from leaking through unknown routes and failures.
+Package-private Spring Boot `ErrorController` for `/error`. Container and framework errors that no handler turned into a response (unknown routes, unsupported methods or media types, uncaught exceptions) are rendered as the bounded JSON envelope instead of HTML or diagnostic attributes.
 
-## Class and method
+## Behavior
 
-| Member | Behavior and use case |
-| --- | --- |
-| `ApiErrorController(ApiErrors errors)` | Receives the shared error component through constructor injection. |
-| `error(HttpServletRequest request)` | Handles `GET` and other error dispatches at `/error`. It reads `RequestDispatcher.ERROR_STATUS_CODE`, accepts only HTTP error statuses from 400 through 599, falls back to 500 for missing or invalid values, and returns `ApiErrors.body(status, request)`. |
-| `ApiErrorController` | Implements Spring Boot's `ErrorController` marker so the framework routes its error dispatch here. |
-
-The method delegates the request ID and English message selection to `ApiErrors`, keeping status fallback and response construction consistent with security failures.
+`error(request)` reads `RequestDispatcher.ERROR_STATUS_CODE`, keeps it when it is an integer from 400 to 599 and otherwise uses 500. It returns that status with `ApiErrors.body(ApiError.forStatus(status), request)`, so a 404 carries `NOT_FOUND`, an unmapped 4xx such as 415 carries `INVALID_REQUEST`, and any 5xx carries `INTERNAL_ERROR`. The request ID is the one `RequestCorrelationFilter` assigned to the original request.
 
 ## Verification
 
-`HealthIT` exercises unknown and restricted routes through the HTTP server and checks the bounded envelope. `ApiErrorsTest` verifies the shared body/write behavior used by this controller.
+`ApiErrorsTest` simulates `DispatcherType.ERROR` requests for mapped and fallback statuses. `HealthIT` exercises unknown and restricted routes over the real server.

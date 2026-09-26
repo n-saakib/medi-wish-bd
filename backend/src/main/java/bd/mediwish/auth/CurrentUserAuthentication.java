@@ -1,14 +1,14 @@
 package bd.mediwish.auth;
 
-import bd.mediwish.user.User;
+import bd.mediwish.user.UserProfile;
 import bd.mediwish.user.UserRepository;
 import bd.mediwish.user.UserRole;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.util.Set;
-import java.util.UUID;
 
+/** Resolves an access token to its current User: the session must be active and the roles are read now. */
 @Service
 public class CurrentUserAuthentication {
     private final AccessTokenCodec accessTokens;
@@ -16,8 +16,8 @@ public class CurrentUserAuthentication {
     private final UserRepository users;
     private final Clock clock;
 
-    public CurrentUserAuthentication(AccessTokenCodec accessTokens, SessionService sessions,
-                                     UserRepository users, Clock clock) {
+    CurrentUserAuthentication(AccessTokenCodec accessTokens, SessionService sessions,
+                              UserRepository users, Clock clock) {
         this.accessTokens = accessTokens;
         this.sessions = sessions;
         this.users = users;
@@ -25,20 +25,15 @@ public class CurrentUserAuthentication {
     }
 
     public CurrentUser authenticate(String accessToken) {
-        AccessTokenCodec.AccessTokenClaims claims = accessTokens.verify(accessToken);
-        return loadCurrent(claims.userId(), claims.sessionId());
-    }
-
-    public CurrentUser loadCurrent(UUID userId, UUID sessionId) {
-        sessions.requireActive(sessionId, userId, clock.instant());
-        User user = users.findById(userId)
-                .filter(candidate -> PasswordVerifierPolicy.isUsable(candidate.passwordHash()))
+        var claims = accessTokens.verify(accessToken);
+        sessions.requireActive(claims.sessionId(), claims.userId(), clock.instant());
+        return users.findById(claims.userId())
+                .filter(user -> PasswordVerifierPolicy.isUsable(user.passwordHash()))
+                .map(user -> new CurrentUser(UserProfile.from(user), user.roles()))
                 .orElseThrow(AuthenticationRequiredException::new);
-        return new CurrentUser(user.id(), user.username(), user.mobile(), user.email(), user.mobileVerified(), user.roles());
     }
 
-    public record CurrentUser(UUID id, String username, String mobile, String email,
-                              boolean mobileVerified, Set<UserRole> roles) {
+    public record CurrentUser(UserProfile profile, Set<UserRole> roles) {
         public CurrentUser {
             roles = Set.copyOf(roles);
         }

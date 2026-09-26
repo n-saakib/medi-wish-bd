@@ -4,6 +4,7 @@ spring:
   main:
     banner-mode: off
   datasource:
+    # socketTimeout applies to every statement, not only health checks: no query may run longer than 3 s.
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME}?connectTimeout=2&socketTimeout=3
     username: ${DB_USERNAME}
     password: ${DB_PASSWORD}
@@ -42,11 +43,6 @@ management:
           include: readinessState,db
 
 server:
-  error:
-    include-message: never
-    include-binding-errors: never
-    include-stacktrace: never
-    include-exception: false
   max-http-request-header-size: 16KB
 
 app:
@@ -60,7 +56,6 @@ app:
     issuer: medi-wish
     audience: medi-wish-api
     jwt-secret: ${APP_AUTH_JWT_SECRET:}
-    dummy-password-verifier: ${APP_AUTH_DUMMY_PASSWORD_VERIFIER:}
 
 logging:
   structured:

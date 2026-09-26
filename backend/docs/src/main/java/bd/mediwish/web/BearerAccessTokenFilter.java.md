@@ -4,16 +4,18 @@ Source: [`src/main/java/bd/mediwish/web/BearerAccessTokenFilter.java`](../../../
 
 ## Purpose
 
-The stateless HTTP adapter for access authentication. It runs only for the protected `GET /api/user/me` route, accepts exactly one bounded `Authorization: Bearer` value, delegates verification and current-session/User loading to `CurrentUserAuthentication`, then places the current User and persisted role authorities in Spring Security's context.
+Package-private stateless adapter that turns one verified `Authorization: Bearer` access token into the current persisted User principal. `SecurityConfiguration` constructs it with the shared `PROTECTED_ROUTES` matcher and registers it after `LogoutFilter`; it is not a Spring bean.
 
-Basic authentication, query parameters, cookies and username claims are not authentication sources. Invalid bearer values receive a bounded 401 with a Bearer challenge and no token details.
+## Behavior
 
-If current-session/User lookup fails with a persistence, data-access or transaction exception, the filter returns the generic no-store `500 INTERNAL_ERROR` envelope without propagating diagnostic details to the servlet container. This handling is limited to identity loading; exceptions from the downstream application chain are not swallowed.
+- Requests outside `PROTECTED_ROUTES` (currently only `GET /api/user/me`) skip the filter, so public routes never read the header.
+- No `Authorization` header, or a non-Bearer scheme such as Basic, continues unauthenticated; authorization then answers `401`.
+- More than one `Authorization` header is rejected before verification.
+- A Bearer value is passed to `CurrentUserAuthentication.authenticate`. `AuthenticationRequiredException` becomes `401 AUTHENTICATION_REQUIRED` with `WWW-Authenticate: Bearer`. `DataAccessException` or `TransactionException` becomes `500 INTERNAL_ERROR` without diagnostics; exceptions from the downstream chain are not caught.
+- On success the principal is the `UserProfile` of the `CurrentUser` and each persisted role becomes a `ROLE_<NAME>` authority.
 
-## Filter order
-
-`SecurityConfiguration` registers this filter after `LogoutFilter` and before authorization processing. Public login, registration, CSRF bootstrap, refresh, logout and health requests bypass bearer parsing, so an unrelated invalid header cannot block them. The filter does not parse JJWT or inspect refresh-token storage; `AccessTokenCodec` and T2 session services remain the only credential boundaries.
+Query parameters, cookies and role claims are never authentication sources. The filter does not parse JWTs or touch session storage.
 
 ## Verification
 
-`BearerAccessTokenFilterTest` covers current-user profile projection, invalid bearer rejection, bounded handling of persistence, data-access and transaction failures during identity loading, Basic non-authentication, refresh-cookie non-authentication and the public-route bypass for oversized bearer values. `AuthIT` exercises the database-failure envelope and diagnostic-log boundary over real HTTP and PostgreSQL.
+`BearerAccessTokenFilterTest` covers verified authentication with persisted roles, invalid Bearer rejection with a challenge, multiple header rejection, missing and non-Bearer headers, public-route bypass and the bounded persistence failure. `ProfileIT` and `RoleAuthorizationIT` cover it over real HTTP and PostgreSQL.

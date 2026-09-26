@@ -1,3 +1,5 @@
-# SessionReplayException
+# `SessionReplayException.java`
 
-Authentication-required subtype raised when a consumed refresh generation is presented again. `SessionService` revokes the entire family in the same transaction before the generic failure reaches the web adapter.
+Source: [`src/main/java/bd/mediwish/auth/SessionReplayException.java`](../../../../../../../src/main/java/bd/mediwish/auth/SessionReplayException.java)
+
+Package-private `AuthenticationRequiredException` subtype thrown by `SessionService.rotate` when a consumed refresh generation is presented again. `rotate` first revokes the family with `RevocationReason.REFRESH_REPLAY` and declares `noRollbackFor` this exception, so the revocation commits while the caller receives the generic `401 AUTHENTICATION_REQUIRED`. Covered by `SessionServiceTest`, `SessionIT` and `ConcurrentSessionIT`.

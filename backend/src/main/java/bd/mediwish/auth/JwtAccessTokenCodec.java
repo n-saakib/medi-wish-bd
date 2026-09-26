@@ -1,6 +1,8 @@
 package bd.mediwish.auth;
 
+import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
+import io.jsonwebtoken.JwtParser;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
@@ -10,31 +12,34 @@ import javax.crypto.SecretKey;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
-import java.util.Locale;
-import java.util.Set;
 import java.util.UUID;
 
 @Component
-public final class JwtAccessTokenCodec implements AccessTokenCodec {
+final class JwtAccessTokenCodec implements AccessTokenCodec {
     private static final String TYPE = "access+jwt";
-    private static final Set<String> FORBIDDEN_CLAIM_WORDS = Set.of(
-            "password", "mobile", "email", "role", "refresh", "otp");
 
     private final AuthProperties properties;
     private final Clock clock;
+    private final SecretKey key;
+    private final JwtParser parser;
 
-    public JwtAccessTokenCodec(AuthProperties properties, Clock clock) {
+    JwtAccessTokenCodec(AuthProperties properties, Clock clock) {
         this.properties = properties;
         this.clock = clock;
+        this.key = signingKey(properties.jwtSecret());
+        this.parser = Jwts.parser()
+                .verifyWith(key)
+                .sig().clear().add(Jwts.SIG.HS256).and()
+                .requireIssuer(properties.issuer())
+                .requireAudience(properties.audience())
+                .require("typ", TYPE)
+                .clock(() -> Date.from(clock.instant()))
+                .build();
     }
 
     @Override
     public IssuedAccessToken issue(UUID userId, UUID sessionId) {
         Instant issuedAt = clock.instant();
-        Instant expiresAt = issuedAt.plus(properties.accessTokenLifetime());
-        if (userId == null || sessionId == null || !expiresAt.isAfter(issuedAt)) {
-            throw new IllegalArgumentException("invalid access-token input");
-        }
         String token = Jwts.builder()
                 .issuer(properties.issuer())
                 .audience().add(properties.audience()).and()
@@ -43,73 +48,35 @@ public final class JwtAccessTokenCodec implements AccessTokenCodec {
                 .claim("sid", sessionId.toString())
                 .claim("typ", TYPE)
                 .issuedAt(Date.from(issuedAt))
-                .expiration(Date.from(expiresAt))
-                .signWith(signingKey(), Jwts.SIG.HS256)
+                .expiration(Date.from(issuedAt.plus(properties.accessTokenLifetime())))
+                .signWith(key, Jwts.SIG.HS256)
                 .compact();
-        return new IssuedAccessToken(token, properties.accessTokenLifetime().toSeconds(), expiresAt);
+        return new IssuedAccessToken(token, properties.accessTokenLifetime().toSeconds());
     }
 
     @Override
     public AccessTokenClaims verify(String token) {
-        if (token == null || token.isBlank()) throw new InvalidAccessTokenException();
         try {
-            var payload = Jwts.parser()
-                    .verifyWith(signingKey())
-                    .sig().clear().add(Jwts.SIG.HS256).and()
-                    .requireIssuer(properties.issuer())
-                    .requireAudience(properties.audience())
-                    .clock(() -> Date.from(clock.instant()))
-                    .build()
-                    .parseSignedClaims(token)
-                    .getPayload();
-            if (!TYPE.equals(payload.get("typ", String.class)) || hasForbiddenClaim(payload.keySet())) {
-                throw new InvalidAccessTokenException();
+            Claims claims = parser.parseSignedClaims(token).getPayload();
+            String sessionId = claims.get("sid", String.class);
+            Date issuedAt = claims.getIssuedAt();
+            // JJWT enforces a present exp without clock skew, but accepts a missing exp and a missing or future iat.
+            if (claims.getSubject() == null || sessionId == null || claims.getId() == null
+                    || claims.getExpiration() == null || issuedAt == null || issuedAt.toInstant().isAfter(clock.instant())) {
+                throw new AuthenticationRequiredException();
             }
-            Instant now = clock.instant();
-            Instant issuedAt = requiredInstant(payload.getIssuedAt());
-            Instant expiresAt = requiredInstant(payload.getExpiration());
-            if (issuedAt.isAfter(now) || !expiresAt.isAfter(now)) throw new InvalidAccessTokenException();
-            UUID userId = requiredUuid(payload.getSubject());
-            UUID sessionId = requiredUuid(payload.get("sid", String.class));
-            UUID tokenId = requiredUuid(payload.getId());
-            return new AccessTokenClaims(userId, sessionId, tokenId, issuedAt, expiresAt,
-                    payload.getIssuer(), properties.audience(), TYPE);
-        } catch (InvalidAccessTokenException exception) {
-            throw exception;
+            return new AccessTokenClaims(UUID.fromString(claims.getSubject()), UUID.fromString(sessionId));
         } catch (JwtException | IllegalArgumentException exception) {
-            throw new InvalidAccessTokenException();
+            throw new AuthenticationRequiredException();
         }
     }
 
-    private SecretKey signingKey() {
-        String encoded = properties.jwtSecret();
-        if (encoded == null || encoded.isBlank()) throw new IllegalStateException("auth JWT secret is not configured");
+    private static SecretKey signingKey(String secret) {
         try {
-            byte[] decoded = Decoders.BASE64.decode(encoded);
-            if (decoded.length < 32) throw new IllegalStateException("auth JWT secret is too short");
-            return Keys.hmacShaKeyFor(decoded);
-        } catch (IllegalArgumentException exception) {
-            throw new IllegalStateException("auth JWT secret is invalid");
-        }
-    }
-
-    private boolean hasForbiddenClaim(Set<String> claimNames) {
-        return claimNames.stream()
-                .map(name -> name.toLowerCase(Locale.ROOT))
-                .anyMatch(name -> FORBIDDEN_CLAIM_WORDS.stream().anyMatch(name::contains));
-    }
-
-    private Instant requiredInstant(Date value) {
-        if (value == null) throw new InvalidAccessTokenException();
-        return value.toInstant();
-    }
-
-    private UUID requiredUuid(String value) {
-        if (value == null || value.isBlank()) throw new InvalidAccessTokenException();
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException exception) {
-            throw new InvalidAccessTokenException();
+            return Keys.hmacShaKeyFor(Decoders.BASE64.decode(secret));
+        } catch (JwtException | IllegalArgumentException exception) {
+            // The cause is dropped because an invalid-character message would quote part of the secret.
+            throw new IllegalStateException("auth JWT secret must be Base64 of at least 32 bytes");
         }
     }
 }

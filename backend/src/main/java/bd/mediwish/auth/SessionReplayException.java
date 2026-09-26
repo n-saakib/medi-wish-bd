@@ -1,5 +1,4 @@
 package bd.mediwish.auth;
 
-public class SessionReplayException extends AuthenticationRequiredException {
-    public SessionReplayException() {}
-}
+/** A consumed refresh value was presented again; its session is revoked and the revocation is kept. */
+class SessionReplayException extends AuthenticationRequiredException {}

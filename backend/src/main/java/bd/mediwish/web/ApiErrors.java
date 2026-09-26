@@ -3,46 +3,34 @@ package bd.mediwish.web;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.MessageSource;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
 import java.util.Locale;
 
+/** Builds the bounded error envelope for controllers, filters and the error page. */
 @Component
-public class ApiErrors {
+class ApiErrors {
     private final MessageSource messages;
     private final ObjectMapper json;
 
-    public ApiErrors(MessageSource messages, ObjectMapper json) {
+    ApiErrors(MessageSource messages, ObjectMapper json) {
         this.messages = messages;
         this.json = json;
     }
 
-    public record Body(String code, String message, String requestId) {}
+    record Body(ApiError code, String message, String requestId) {}
 
-    public Body body(int status, HttpServletRequest request) {
-        String code = switch (status) {
-            case 400 -> "INVALID_REQUEST";
-            case 401 -> "AUTHENTICATION_REQUIRED";
-            case 403 -> "ACCESS_DENIED";
-            case 404 -> "NOT_FOUND";
-            case 405 -> "METHOD_NOT_ALLOWED";
-            case 413 -> "REQUEST_TOO_LARGE";
-            default -> "INTERNAL_ERROR";
-        };
-        return body(code, request);
-    }
-
-    public Body body(String code, HttpServletRequest request) {
-        return new Body(code, messages.getMessage("error." + code, null, Locale.ENGLISH),
+    Body body(ApiError error, HttpServletRequest request) {
+        return new Body(error, messages.getMessage(error.messageKey, null, Locale.ENGLISH),
                 (String) request.getAttribute("requestId"));
     }
 
-    public void write(int status, HttpServletRequest request, HttpServletResponse response) throws IOException {
-        response.setStatus(status);
-        response.setContentType("application/json");
-        response.setHeader("Cache-Control", "no-store");
-        json.writeValue(response.getOutputStream(), body(status, request));
+    void write(ApiError error, HttpServletRequest request, HttpServletResponse response) throws IOException {
+        response.setStatus(error.status);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        json.writeValue(response.getOutputStream(), body(error, request));
     }
 }

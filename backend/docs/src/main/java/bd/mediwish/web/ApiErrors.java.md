@@ -2,22 +2,20 @@
 
 Source: [`src/main/java/bd/mediwish/web/ApiErrors.java`](../../../../../../../src/main/java/bd/mediwish/web/ApiErrors.java)
 
-## Purpose and reasoning
+## Purpose
 
-`ApiErrors` is the single formatter for public HTTP failures. It deliberately exposes only a stable code, an English message and the current request ID. The implementation never copies exception text, URLs, query strings, request bodies or configuration values into the response. That gives clients a predictable contract while keeping internal details private.
+Package-private component that builds the bounded error envelope for `ApiExceptionHandler`, `ApiErrorController`, the security handlers and the web filters. The envelope is exactly `{ code, message, requestId }`; exception text, URLs, queries, headers, bodies and configuration values are never copied into it.
 
-## Class, record and methods
+## Members
 
-| Member | Behavior and use case |
+| Member | Behavior |
 | --- | --- |
-| `ApiErrors(MessageSource messages, ObjectMapper json)` | Constructor-injects the message bundle and Jackson mapper used by both the error controller and security handlers. |
-| `Body(String code, String message, String requestId)` | Immutable public error payload. The three fields are intentionally the complete response shape. |
-| `body(int status, HttpServletRequest request)` | Maps 400, 401, 403, 404, 405 and 413 to stable codes; every other status becomes `INTERNAL_ERROR`. It resolves `error.<code>` from `messages.properties` in `Locale.ENGLISH` and reads the request-scoped `requestId`. |
-| `body(String code, HttpServletRequest request)` | Resolves a deliberately selected application error code through the same English message bundle and request-correlation field without accepting exception or request data. Controllers use it for bounded domain errors. |
-| `write(int status, HttpServletRequest request, HttpServletResponse response)` | Writes the same body as JSON, sets the HTTP status and `Cache-Control: no-store`, then serializes with the injected mapper. It is used by authentication and authorization handlers, where a controller is not involved. |
+| `Body(ApiError code, String message, String requestId)` | The complete public error payload; `code` serializes as the enum name. |
+| `body(error, request)` | Resolves the error's `messageKey` from `messages.properties` in `Locale.ENGLISH` and reads the `requestId` request attribute set by `RequestCorrelationFilter`. |
+| `write(error, request, response)` | Sets the error's status and `application/json`, then serializes the body. Used where no controller is involved: filters and security handlers. |
 
-The status mapping is intentionally small. New public error semantics should add a deliberate code and message rather than exposing framework text.
+`ApiErrors` does not set `Cache-Control` or `X-Request-ID`; `RequestCorrelationFilter` writes both on every response before any handler runs.
 
 ## Verification
 
-`ApiErrorsTest` checks the exact 401 contract, no-store behavior, fallback mapping and the absence of private request data. `HealthIT` verifies the contract over real HTTP for restricted and unknown routes.
+`ApiErrorsTest` checks the exact envelope and absence of private request data, that every `ApiError` has a message, the status classification and the correlated error page. `HealthIT` verifies the envelope over real HTTP.

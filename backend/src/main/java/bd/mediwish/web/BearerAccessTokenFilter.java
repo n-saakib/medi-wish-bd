@@ -2,7 +2,6 @@ package bd.mediwish.web;
 
 import bd.mediwish.auth.AuthenticationRequiredException;
 import bd.mediwish.auth.CurrentUserAuthentication;
-import jakarta.persistence.PersistenceException;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -11,7 +10,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.stereotype.Component;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 import org.springframework.transaction.TransactionException;
 import org.springframework.web.filter.OncePerRequestFilter;
 
@@ -19,23 +18,21 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 
-/** Converts one verified bearer access token into the current persisted User principal. */
-@Component
-public final class BearerAccessTokenFilter extends OncePerRequestFilter {
-    private static final String USER_PROFILE_PATH = "/api/user/me";
-    private static final int MAX_TOKEN_LENGTH = 4096;
-
+/** On the protected routes, converts one verified Bearer access token into the current persisted User principal. */
+final class BearerAccessTokenFilter extends OncePerRequestFilter {
+    private final RequestMatcher protectedRoutes;
     private final CurrentUserAuthentication currentUsers;
     private final ApiErrors errors;
 
-    public BearerAccessTokenFilter(CurrentUserAuthentication currentUsers, ApiErrors errors) {
+    BearerAccessTokenFilter(RequestMatcher protectedRoutes, CurrentUserAuthentication currentUsers, ApiErrors errors) {
+        this.protectedRoutes = protectedRoutes;
         this.currentUsers = currentUsers;
         this.errors = errors;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !isProtectedUserAccess(request);
+        return !protectedRoutes.matches(request);
     }
 
     @Override
@@ -57,37 +54,27 @@ public final class BearerAccessTokenFilter extends OncePerRequestFilter {
             chain.doFilter(request, response);
             return;
         }
-        String token = header.substring(7).trim();
-        if (token.isEmpty() || token.length() > MAX_TOKEN_LENGTH) {
-            reject(request, response);
-            return;
-        }
-
         CurrentUserAuthentication.CurrentUser current;
         try {
-            current = currentUsers.authenticate(token);
+            current = currentUsers.authenticate(header.substring(7).trim());
         } catch (AuthenticationRequiredException exception) {
             reject(request, response);
             return;
-        } catch (DataAccessException | PersistenceException | TransactionException exception) {
-            errors.write(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, request, response);
+        } catch (DataAccessException | TransactionException exception) {
+            errors.write(ApiError.INTERNAL_ERROR, request, response);
             return;
         }
 
         var authorities = current.roles().stream()
                 .map(role -> new SimpleGrantedAuthority("ROLE_" + role.name()))
                 .toList();
-        var authentication = new UsernamePasswordAuthenticationToken(current, null, authorities);
+        var authentication = new UsernamePasswordAuthenticationToken(current.profile(), null, authorities);
         SecurityContextHolder.getContext().setAuthentication(authentication);
         chain.doFilter(request, response);
     }
 
     private void reject(HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setHeader("WWW-Authenticate", "Bearer");
-        errors.write(HttpServletResponse.SC_UNAUTHORIZED, request, response);
-    }
-
-    private boolean isProtectedUserAccess(HttpServletRequest request) {
-        return "GET".equals(request.getMethod()) && USER_PROFILE_PATH.equals(request.getRequestURI());
+        errors.write(ApiError.AUTHENTICATION_REQUIRED, request, response);
     }
 }

@@ -4,12 +4,12 @@ Source: [`src/main/java/bd/mediwish/web/BoundedCorsFilter.java`](../../../../../
 
 ## Purpose
 
-Small adapter around Spring's `CorsFilter` that preserves the single configured credentialed-origin policy while replacing a rejected framework response with the shared bounded API error envelope.
+Package-private `CorsFilter` that keeps Spring's CORS decisions from `SecurityConfiguration.corsConfigurationSource` while replacing Spring's rejection text with the bounded envelope. `SecurityConfiguration` constructs it before `SecurityContextHolderFilter`; it is not a Spring bean and defines no policy of its own.
 
 ## Behavior
 
-Accepted requests retain Spring's CORS headers and response body. Rejected requests return HTTP 403 through `ApiErrors`, including the request ID and `Cache-Control: no-store`, without exposing framework diagnostics, request headers or credentials. Origin parsing and allowed-origin decisions remain owned by `SecurityConfiguration`; this class does not define a second CORS policy.
+Its processor runs Spring's `DefaultCorsProcessor` against a buffered response. An accepted request keeps Spring's CORS headers and body; an allowed preflight is answered without reaching the application. A rejected request, if the response is not yet committed, has the buffer discarded and receives `403 ACCESS_DENIED` through `ApiErrors.write`, without framework text, request headers or credentials.
 
 ## Verification
 
-`Ticket03SecurityBoundaryTest` checks rejected-origin status, code, message, correlation header/body, no-store behavior and absence of Spring's raw CORS text. Full `AuthIT` coverage exercises the same boundary over the application context.
+`BoundedCorsFilterTest` covers the disallowed-origin envelope, credentialed CORS headers for an allowed origin and an allowed preflight. `SessionIT` covers the boundary with the full application context.

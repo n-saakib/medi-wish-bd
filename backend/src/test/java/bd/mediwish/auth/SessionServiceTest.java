@@ -1,135 +1,170 @@
 package bd.mediwish.auth;
 
 import bd.mediwish.user.User;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.security.SecureRandom;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.Optional;
+import java.util.Arrays;
+import java.util.Base64;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class SessionServiceTest {
     private static final Instant NOW = Instant.parse("2026-09-19T10:00:00Z");
+    private static final String PRESENTED = "presented-refresh";
+
     @Mock UserSessionRepository sessions;
     @Mock UserSessionRefreshTokenRepository refreshTokens;
+    private SessionService service;
+    private final User user = new User("alice_1", "01700000000", null, "encoded");
+
+    @BeforeEach
+    void setUp() {
+        var properties = new AuthProperties(Duration.ofMinutes(15), Duration.ofSeconds(1000), "medi-wish",
+                "medi-wish-api", "unused", new AuthProperties.Cookie(true));
+        var random = new SecureRandom() {
+            @Override
+            public void nextBytes(byte[] bytes) {
+                Arrays.fill(bytes, (byte) 7);
+            }
+        };
+        service = new SessionService(sessions, refreshTokens, properties, Clock.fixed(NOW, ZoneOffset.UTC), random);
+    }
 
     @Test
-    void createsGenerationZeroWithA32ByteOpaqueRefreshValue() {
-        var random = new FixedRandom();
-        var service = service(random);
-        var user = new User("alice_1", "01700000000", null, "encoded");
-
+    void createsGenerationZeroStoringOnlyTheHashOfA32ByteRefreshValue() {
         var result = service.create(user);
 
         assertThat(result.userId()).isEqualTo(user.id());
-        assertThat(result.refreshToken()).isNotBlank();
-        assertThat(java.util.Base64.getUrlDecoder().decode(result.refreshToken())).hasSize(32);
-        var savedToken = captureSavedToken();
-        assertThat(savedToken.generation()).isZero();
-        assertThat(savedToken.tokenHash()).isEqualTo(RefreshTokenHasher.hash(result.refreshToken()));
+        assertThat(result.expiresAt()).isEqualTo(NOW.plusSeconds(1000));
+        assertThat(Base64.getUrlDecoder().decode(result.refreshToken())).hasSize(32);
+        var saved = savedTokens().getFirst();
+        assertThat(saved.generation()).isZero();
+        assertThat(saved.tokenHash()).isEqualTo(RefreshTokenHasher.hash(result.refreshToken()));
     }
 
     @Test
-    void rotatesOnceAndConsumesThePreviousGeneration() {
-        var random = new FixedRandom();
-        var service = service(random);
-        var user = new User("alice_1", "01700000000", null, "encoded");
-        var session = new UserSession(UUID.randomUUID(), user, NOW, NOW.plusSeconds(1000));
-        String raw = "current-refresh";
-        var current = new UserSessionRefreshToken(UUID.randomUUID(), session, 0,
-                RefreshTokenHasher.hash(raw), NOW, session.expiresAt());
-        when(refreshTokens.findByTokenHashForUpdate(current.tokenHash())).thenReturn(Optional.of(current));
-        when(sessions.findByIdForUpdate(session.id())).thenReturn(Optional.of(session));
+    void rotationConsumesThePresentedGenerationAndIssuesTheNextForTheRemainingLifetime() {
+        var session = session(NOW.plusSeconds(500));
+        var current = presented(session);
 
-        var rotated = service.rotate(raw);
+        var rotated = service.rotate(PRESENTED);
 
         assertThat(rotated.sessionId()).isEqualTo(session.id());
-        assertThat(current.consumedAt()).isEqualTo(NOW);
-        var saved = captureSavedTokens();
-        assertThat(saved).anySatisfy(token -> assertThat(token.generation()).isEqualTo(1));
-        assertThat(saved).anySatisfy(token -> assertThat(token.generation()).isZero());
+        assertThat(rotated.expiresAt()).isEqualTo(session.expiresAt());
+        assertThat(current.consumed()).isTrue();
+        assertThat(savedTokens()).extracting(UserSessionRefreshToken::generation).containsExactly(0L, 1L);
+        assertThat(savedTokens().get(1).tokenHash()).isEqualTo(RefreshTokenHasher.hash(rotated.refreshToken()));
     }
 
     @Test
-    void replayRevokesTheWholeFamilyAndFailsGenerically() {
-        var service = service(new FixedRandom());
-        var user = new User("alice_1", "01700000000", null, "encoded");
-        var session = new UserSession(UUID.randomUUID(), user, NOW, NOW.plusSeconds(1000));
-        String raw = "already-used";
-        var current = new UserSessionRefreshToken(UUID.randomUUID(), session, 0,
-                RefreshTokenHasher.hash(raw), NOW, session.expiresAt());
-        current.consume(NOW.minusSeconds(1));
-        when(refreshTokens.findByTokenHashForUpdate(current.tokenHash())).thenReturn(Optional.of(current));
-        when(sessions.findByIdForUpdate(session.id())).thenReturn(Optional.of(session));
+    void replayingAConsumedGenerationRevokesTheFamily() {
+        var session = session(NOW.plusSeconds(500));
+        presented(session).consume(NOW.minusSeconds(1));
 
-        assertThatThrownBy(() -> service.rotate(raw)).isInstanceOf(SessionReplayException.class);
-        assertThat(session.revoked()).isTrue();
+        assertThatThrownBy(() -> service.rotate(PRESENTED)).isInstanceOf(SessionReplayException.class);
         assertThat(session.revokedReason()).isEqualTo("refresh-replay");
+        verify(sessions).save(session);
     }
 
     @Test
-    void revokesEveryActiveSessionFamilyForTheUser() {
-        var service = service(new FixedRandom());
-        var user = new User("alice_1", "01700000000", null, "encoded");
-        var first = new UserSession(UUID.randomUUID(), user, NOW, NOW.plusSeconds(1000));
-        var second = new UserSession(UUID.randomUUID(), user, NOW, NOW.plusSeconds(1000));
+    void anUnknownRevokedOrExpiredRefreshIsRejectedWithoutRotating() {
+        when(refreshTokens.findByTokenHashForUpdate(RefreshTokenHasher.hash("unknown"))).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.rotate("unknown")).isInstanceOf(AuthenticationRequiredException.class);
+
+        var revoked = session(NOW.plusSeconds(500));
+        revoked.revoke(NOW, RevocationReason.LOGOUT);
+        presented(revoked);
+        assertThatThrownBy(() -> service.rotate(PRESENTED)).isInstanceOf(AuthenticationRequiredException.class);
+
+        presented(session(NOW));
+        assertThatThrownBy(() -> service.rotate(PRESENTED)).isInstanceOf(AuthenticationRequiredException.class);
+
+        verify(refreshTokens, never()).save(any());
+    }
+
+    @Test
+    void revokingByRefreshRevokesItsSessionAndIgnoresAnUnknownValue() {
+        var session = session(NOW.plusSeconds(500));
+        presented(session);
+        when(refreshTokens.findByTokenHashForUpdate(RefreshTokenHasher.hash("unknown"))).thenReturn(Optional.empty());
+
+        service.revokeByRefreshToken(PRESENTED, RevocationReason.LOGOUT);
+        service.revokeByRefreshToken("unknown", RevocationReason.LOGOUT);
+
+        assertThat(session.revokedReason()).isEqualTo("logout");
+        verify(sessions, times(1)).save(session);
+    }
+
+    @Test
+    void revokesEveryActiveSessionOfTheUser() {
+        var first = session(NOW.plusSeconds(500));
+        var second = session(NOW.plusSeconds(500));
         when(sessions.findActiveByUserIdForUpdate(user.id())).thenReturn(List.of(first, second));
 
-        service.revokeAllForUser(user.id(), "password-reset");
+        service.revokeAllForUser(user.id(), RevocationReason.USER_UNAVAILABLE);
 
-        assertThat(first.revoked()).isTrue();
-        assertThat(first.revokedReason()).isEqualTo("password-reset");
-        assertThat(second.revoked()).isTrue();
-        assertThat(second.revokedReason()).isEqualTo("password-reset");
-        ArgumentCaptor<UserSession> captor = ArgumentCaptor.forClass(UserSession.class);
-        verify(sessions, times(2)).save(captor.capture());
-        assertThat(captor.getAllValues()).containsExactlyInAnyOrder(first, second);
+        assertThat(List.of(first, second)).allSatisfy(session ->
+                assertThat(session.revokedReason()).isEqualTo("user-unavailable"));
+        var saved = ArgumentCaptor.forClass(UserSession.class);
+        verify(sessions, times(2)).save(saved.capture());
+        assertThat(saved.getAllValues()).containsExactly(first, second);
     }
 
     @Test
-    void rejectsAnActiveSessionOwnedByAnotherUser() {
-        var service = service(new FixedRandom());
-        var sessionOwner = new User("session_owner", "01700000000", null, "encoded");
-        var tokenUser = new User("token_user", "01700000001", null, "encoded");
-        var session = new UserSession(UUID.randomUUID(), sessionOwner, NOW, NOW.plusSeconds(1000));
-        when(sessions.findById(session.id())).thenReturn(Optional.of(session));
-
-        assertThatThrownBy(() -> service.requireActive(session.id(), tokenUser.id(), NOW))
-                .isInstanceOf(AuthenticationRequiredException.class);
-    }
-
-    private SessionService service(FixedRandom random) {
-        var properties = new AuthProperties();
-        properties.setRefreshTokenLifetime(java.time.Duration.ofSeconds(1000));
-        return new SessionService(sessions, refreshTokens, properties,
-                Clock.fixed(NOW, ZoneOffset.UTC), random);
-    }
-
-    private UserSessionRefreshToken captureSavedToken() {
-        return captureSavedTokens().get(0);
-    }
-
-    private java.util.List<UserSessionRefreshToken> captureSavedTokens() {
-        ArgumentCaptor<UserSessionRefreshToken> captor = ArgumentCaptor.forClass(UserSessionRefreshToken.class);
-        verify(refreshTokens, atLeastOnce()).save(captor.capture());
-        return captor.getAllValues();
-    }
-
-    private static final class FixedRandom extends java.security.SecureRandom {
-        @Override
-        public void nextBytes(byte[] bytes) {
-            java.util.Arrays.fill(bytes, (byte) 7);
+    void anActiveSessionMustBelongToTheTokenUserAndBeUnrevokedAndUnexpired() {
+        var active = session(NOW.plusSeconds(1));
+        var revoked = session(NOW.plusSeconds(500));
+        revoked.revoke(NOW, RevocationReason.LOGOUT);
+        var expired = session(NOW);
+        for (var session : List.of(active, revoked, expired)) {
+            when(sessions.findById(session.id())).thenReturn(Optional.of(session));
         }
+
+        service.requireActive(active.id(), user.id(), NOW);
+        for (var rejected : List.of(
+                (Runnable) () -> service.requireActive(active.id(), UUID.randomUUID(), NOW),
+                () -> service.requireActive(revoked.id(), user.id(), NOW),
+                () -> service.requireActive(expired.id(), user.id(), NOW),
+                () -> service.requireActive(UUID.randomUUID(), user.id(), NOW))) {
+            assertThatThrownBy(rejected::run).isInstanceOf(AuthenticationRequiredException.class);
+        }
+    }
+
+    private UserSession session(Instant expiresAt) {
+        return new UserSession(UUID.randomUUID(), user, NOW.minusSeconds(100), expiresAt);
+    }
+
+    private UserSessionRefreshToken presented(UserSession session) {
+        var token = new UserSessionRefreshToken(UUID.randomUUID(), session, 0, RefreshTokenHasher.hash(PRESENTED),
+                NOW.minusSeconds(100), session.expiresAt());
+        when(refreshTokens.findByTokenHashForUpdate(token.tokenHash())).thenReturn(Optional.of(token));
+        when(sessions.findByIdForUpdate(session.id())).thenReturn(Optional.of(session));
+        return token;
+    }
+
+    private List<UserSessionRefreshToken> savedTokens() {
+        var saved = ArgumentCaptor.forClass(UserSessionRefreshToken.class);
+        verify(refreshTokens, org.mockito.Mockito.atLeastOnce()).save(saved.capture());
+        return saved.getAllValues();
     }
 }

@@ -1,7 +1,5 @@
 package bd.mediwish.auth;
 
-import org.springframework.security.crypto.password.PasswordEncoder;
-
 import java.util.Base64;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -10,13 +8,11 @@ import java.util.regex.Pattern;
  * Defines the bounded shape of the Argon2 password verifiers persisted by the application.
  *
  * <p>The Ticket 02 profile (16 MiB) remains valid for persisted hashes; new hashes use the
- * 19 MiB profile from ADR-0019. This policy deliberately parses the verifier instead of matching
- * a password. Current-user and refresh authentication must be able to reject corrupted credential
- * state without paying the password-hashing cost, and startup validation can reuse the encoder-aware
- * overload.</p>
+ * 19 MiB profile from ADR-0019. This policy parses the verifier instead of matching a password,
+ * so current-user and refresh authentication can reject corrupted credential state without
+ * paying the password-hashing cost.</p>
  */
-public final class PasswordVerifierPolicy {
-    private static final int MAX_VERIFIER_LENGTH = 255;
+final class PasswordVerifierPolicy {
     private static final int SALT_BYTES = 16;
     private static final int HASH_BYTES = 32;
     private static final Pattern ARGON2_VERIFIER = Pattern.compile(
@@ -25,14 +21,8 @@ public final class PasswordVerifierPolicy {
 
     private PasswordVerifierPolicy() {}
 
-    /**
-     * Returns whether a persisted verifier has the bounded Argon2 structure required by this app.
-     * This method performs no password hashing and does not expose the verifier value.
-     */
-    public static boolean isUsable(String verifier) {
-        if (verifier == null || verifier.isBlank() || verifier.length() > MAX_VERIFIER_LENGTH) {
-            return false;
-        }
+    /** Whether a persisted verifier has the bounded Argon2 structure this app writes; hashes nothing. */
+    static boolean isUsable(String verifier) {
         Matcher matcher = ARGON2_VERIFIER.matcher(verifier);
         if (!matcher.matches()) return false;
         try {
@@ -40,21 +30,6 @@ public final class PasswordVerifierPolicy {
             byte[] hash = Base64.getDecoder().decode(matcher.group(2));
             return salt.length == SALT_BYTES && hash.length == HASH_BYTES;
         } catch (IllegalArgumentException exception) {
-            return false;
-        }
-    }
-
-    /**
-     * Validates the structure and lets the configured encoder parse the verifier through its
-     * non-matching upgrade-policy hook. The hook is intentionally not {@code matches}; callers
-     * can use this at startup without performing a password-hash operation.
-     */
-    public static boolean isUsable(PasswordEncoder encoder, String verifier) {
-        if (encoder == null || !isUsable(verifier)) return false;
-        try {
-            encoder.upgradeEncoding(verifier);
-            return true;
-        } catch (RuntimeException exception) {
             return false;
         }
     }

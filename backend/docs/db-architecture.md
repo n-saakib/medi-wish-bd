@@ -4,12 +4,14 @@ This is the living database architecture map for the backend. It describes the
 schema that is currently created by Liquibase and mapped by JPA; it is not a
 design claim for tables that belong to later tickets.
 
-**Last reviewed:** 2026-09-25<br/>
+**Last reviewed:** 2026-09-26<br/>
 **Current scope:** Ticket 01 health baseline, Ticket 02 shared User
 registration/RBAC foundation and Ticket 03 durable password sessions.<br/>
 **Schema source of truth:** [`src/main/resources/db/changelog/db.changelog-master.yaml`](../src/main/resources/db/changelog/db.changelog-master.yaml)<br/>
 **Runtime rule:** Liquibase owns schema changes; Hibernate runs with
-`ddl-auto: validate` and must not create or alter tables.
+`ddl-auto: validate` and must not create or alter tables. Unique
+constraints, indexes and foreign keys are declared only in the changelog;
+JPA entities map tables and columns without repeating them.
 
 ## Current entity-relationship diagram
 
@@ -41,7 +43,7 @@ erDiagram
         TIMESTAMPTZ expires_at
         TIMESTAMPTZ last_used_at
         TIMESTAMPTZ revoked_at
-        VARCHAR_64 revoked_reason
+        VARCHAR_64 revoked_reason "logout, refresh-replay or user-unavailable"
     }
 
     SESSION_REFRESH_TOKENS {
@@ -119,6 +121,10 @@ substitute.
   lowercase SHA-256 hex digest is persisted. Rotation locks the generation and
   family in one transaction; raw values never appear in schema, JWT claims or
   ordinary responses.
+- Revocation is monotonic: the first `revoked_at`/`revoked_reason` pair is
+  kept. `revoked_reason` stores a `RevocationReason` code (`logout`,
+  `refresh-replay` or `user-unavailable`); later account operations will
+  add their own codes when they revoke through `SessionService.revokeAllForUser`.
 - Logout revokes all valid session families represented by duplicate refresh
   cookies in one transaction. A failure while revoking any family rolls back
   the entire operation rather than leaving a partial logout.

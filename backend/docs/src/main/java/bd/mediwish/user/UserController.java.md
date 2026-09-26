@@ -4,10 +4,12 @@ Source: [`src/main/java/bd/mediwish/user/UserController.java`](../../../../../..
 
 ## Purpose
 
-Exposes only `GET /api/user/me`. Registration and all password-session routes now belong to `AuthController`; this controller does not perform a second repository lookup or reconstruct authentication credentials.
+Package-private controller for `GET /api/user/me`. It returns the authenticated `UserProfile` principal set by `BearerAccessTokenFilter`: username, mobile, optional email and mobile-verification state. Passwords, verifiers and roles are never returned. Registration and session routes belong to `AuthController`.
 
-The bearer filter supplies `CurrentUserAuthentication.CurrentUser`, which already represents the verified active session, current User and current persisted roles. The controller returns only username, mobile, email and mobile-verification state.
+## Boundaries
+
+The route is in `SecurityConfiguration.PROTECTED_ROUTES`, so only a request whose Bearer token `BearerAccessTokenFilter` resolved reaches the controller; others receive `401 AUTHENTICATION_REQUIRED` from the security chain. The controller does no repository lookup of its own; the profile is the one loaded with the verified session.
 
 ## Verification
 
-`UserControllerTest` verifies the profile projection comes from the current principal, preserves bounded errors when no principal is present, and excludes password and role fields.
+`BearerAccessTokenFilterTest` covers the principal handoff and profile response. `ProfileIT`, `RoleAuthorizationIT` and `LegacyUserMigrationIT` call the route over real HTTP and PostgreSQL.

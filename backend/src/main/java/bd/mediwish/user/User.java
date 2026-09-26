@@ -22,9 +22,9 @@ import java.util.UUID;
 public class User {
     @Id
     private UUID id;
-    @Column(nullable = false, unique = true, length = 50, updatable = false)
+    @Column(nullable = false, length = 50, updatable = false)
     private String username;
-    @Column(nullable = false, unique = true, length = 30)
+    @Column(nullable = false, length = 30)
     private String mobile;
     @Column(length = 320)
     private String email;

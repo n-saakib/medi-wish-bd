@@ -1,11 +1,13 @@
 # `BearerAccessTokenFilterTest.java`
 
-Source: [`src/test/java/bd/mediwish/web/BearerAccessTokenFilterTest.java`](../../../../../../src/test/java/bd/mediwish/web/BearerAccessTokenFilterTest.java)
+Source: [`src/test/java/bd/mediwish/web/BearerAccessTokenFilterTest.java`](../../../../../../../src/test/java/bd/mediwish/web/BearerAccessTokenFilterTest.java)
 
 ## Purpose
 
-Tests the bearer adapter and current-user/session handoff without parsing JWTs in the test or constructing a database substitute.
+Unit test of the Bearer adapter over a mocked `CurrentUserAuthentication`: a verified Bearer authenticates the current `UserProfile` with its persisted roles; an invalid Bearer or several `Authorization` values get 401 with a Bearer challenge; missing or Basic authorization continues unauthenticated; a token in `Proxy-Authorization`, `X-Auth-Token`, an `access_token` cookie or `access_token`/`token` parameters is never read; public routes never read the Bearer; and a persistence or transaction failure is a bounded `INTERNAL_ERROR` without its detail.
 
 ## Verification
 
-The tests cover a verified current principal, bounded invalid-bearer rejection with a Bearer challenge and server-generated request ID, generic `500 INTERNAL_ERROR` handling for persistence, data-access and transaction failures during current-user loading, the fact that Basic headers and refresh cookies cannot authenticate `/api/user/me`, and that an `access_token` query parameter or unrelated `X-Access-Token` header cannot authenticate that profile route. An oversized bearer value on a public auth route is also ignored by this protected-route filter.
+7 tests.
+
+Verified 2026-09-26 on `45cbc7e` plus the uncommitted T4 worktree: `./mvnw.cmd -o verify` passed 168 unit and 105 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 168 and 105 with no skip.

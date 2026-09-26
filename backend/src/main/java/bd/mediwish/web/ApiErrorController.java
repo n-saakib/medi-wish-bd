@@ -17,6 +17,6 @@ class ApiErrorController implements ErrorController {
     ResponseEntity<ApiErrors.Body> error(HttpServletRequest request) {
         Object value = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
         int status = value instanceof Integer code && code >= 400 && code <= 599 ? code : 500;
-        return ResponseEntity.status(status).body(errors.body(status, request));
+        return ResponseEntity.status(status).body(errors.body(ApiError.forStatus(status), request));
     }
 }

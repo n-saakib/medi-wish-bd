@@ -3,18 +3,16 @@ package bd.mediwish.auth;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
 
-public final class RefreshTokenHasher {
+/** Refresh values are stored only as their SHA-256 hex digest. */
+final class RefreshTokenHasher {
     private RefreshTokenHasher() {}
 
-    public static String hash(String rawToken) {
-        if (rawToken == null || rawToken.isBlank()) throw new IllegalArgumentException("refresh token is blank");
+    static String hash(String rawToken) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(rawToken.getBytes(StandardCharsets.US_ASCII));
-            StringBuilder hex = new StringBuilder(64);
-            for (byte value : digest) hex.append(String.format("%02x", value));
-            return hex.toString();
+            byte[] digest = MessageDigest.getInstance("SHA-256").digest(rawToken.getBytes(StandardCharsets.US_ASCII));
+            return HexFormat.of().formatHex(digest);
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is unavailable", exception);
         }

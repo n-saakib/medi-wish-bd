@@ -17,7 +17,7 @@ import java.util.UUID;
 
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
-public class RequestCorrelationFilter extends OncePerRequestFilter {
+class RequestCorrelationFilter extends OncePerRequestFilter {
     private static final String REQUEST_ID_ATTRIBUTE = "requestId";
     private static final String STATUS_LOGGED_ATTRIBUTE = RequestCorrelationFilter.class.getName() + ".statusLogged";
     private static final Logger LOGGER = LoggerFactory.getLogger(RequestCorrelationFilter.class);

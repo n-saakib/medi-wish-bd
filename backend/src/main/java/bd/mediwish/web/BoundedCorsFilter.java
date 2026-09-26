@@ -37,7 +37,7 @@ final class BoundedCorsFilter extends CorsFilter {
             }
             if (!response.isCommitted()) {
                 buffered.resetBuffer();
-                errors.write(HttpServletResponse.SC_FORBIDDEN, request, response);
+                errors.write(ApiError.ACCESS_DENIED, request, response);
             }
             return false;
         }
