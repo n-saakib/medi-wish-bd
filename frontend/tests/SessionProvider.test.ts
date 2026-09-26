@@ -12,7 +12,7 @@ import {
 import { sessionRedirect } from '../src/auth/sessionRedirect';
 import { ApiError } from '../src/lib/api';
 import { createSessionClient } from '../src/lib/session';
-import { apiRoutes, signedInUser, installFakeLocks } from './fakeApi';
+import { apiRoutes, deferred, flushTasks, installFakeLocks, sessionBody, signedInUser } from './fakeApi';
 import { createSessionSource, renderWithSession, unmountAll } from './renderWithSession';
 
 // jsdom has no Web Locks, which the real session client requires.
@@ -136,6 +136,36 @@ describe('SessionProvider actions', () => {
     });
 
     expect(session.current()).toMatchObject({ profile: signedInUser, notice: null });
+  });
+
+  it.each([
+    ['keeps the sign-out result', false, { profile: null, notice: 'signedOut' }],
+    ['keeps a newer sign-in', true, { profile: signedInUser, notice: null }],
+  ])('%s when a request started before sign-out finishes afterwards', async (_, signInAgain, expected) => {
+    const heldProfile = deferred<Response>();
+    const client = createSessionClient({
+      fetch: apiRoutes({
+        '/api/auth/refresh': () => Response.json(sessionBody('access-old')),
+        '/api/user/me': () => heldProfile.promise,
+        '/api/auth/logout': () => new Response(null, { status: 204 }),
+        '/api/auth/login': () => Response.json(sessionBody('access-new')),
+      }).fetch,
+    });
+    const session = await mountProvider(client);
+    let olderRequest!: Promise<unknown>;
+    await act(async () => {
+      olderRequest = session.current().authenticatedFetch('/api/user/me', { method: 'GET' }, (response) => response.json());
+      await flushTasks();
+    });
+
+    await act(async () => session.current().signOut());
+    if (signInAgain) await act(async () => void await session.current().signIn('sana', 'synthetic-password'));
+    await act(async () => {
+      heldProfile.resolve(Response.json(signedInUser));
+      await expect(olderRequest).rejects.toMatchObject({ status: 401 });
+    });
+
+    expect(session.current()).toMatchObject(expected);
   });
 });
 

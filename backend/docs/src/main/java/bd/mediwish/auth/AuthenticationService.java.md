@@ -12,7 +12,7 @@ Package-private application service for password sign-in, refresh and logout. `A
 | --- | --- |
 | `signIn(identifier, password)` | Normalizes the identifier with `UserIdentifierNormalizer` and collects candidates by exact username, verified mobile and case-insensitive email (at most two email rows). Exactly one distinct candidate with a `PasswordVerifierPolicy`-usable verifier is matched against the password; no candidate, several candidates or an unusable verifier is matched against the dummy verifier instead, so every failure costs one Argon2 comparison. Any failure throws `AuthenticationFailedException`. Success creates a session and returns an `AuthenticatedSession`. |
 | `refresh(refreshToken)` | Rotates through `SessionService.rotate`, then reloads the User. A missing User or unusable verifier revokes the rotated session with `RevocationReason.USER_UNAVAILABLE` and throws `AuthenticationRequiredException`. |
-| `logout(refreshTokens)` | One transaction that revokes the session of each supplied value with `RevocationReason.LOGOUT`, in sorted order so concurrent logouts of the same duplicated cookies cannot deadlock. A failure rolls back every revocation; an empty list is a no-op. |
+| `logout(refreshTokens)` | Revokes the session of each supplied value with `RevocationReason.LOGOUT` through `SessionService.revokeByRefreshTokens`, in one transaction. A failure rolls back every revocation; an empty list is a no-op. |
 
 `AuthenticatedSession` carries the access token, its lifetime in seconds, the raw refresh value, the session's absolute expiry and a `UserProfile`. The raw refresh value and expiry go only to `RefreshCookieAdapter`; the controller exposes the rest.
 
@@ -24,4 +24,4 @@ Package-private application service for password sign-in, refresh and logout. `A
 
 ## Verification
 
-`AuthenticationServiceTest` covers unique-candidate sign-in, wrong password, unknown and ambiguous identifiers, unusable verifiers, the startup dummy verifier, refresh revocation for unavailable Users and sorted logout. `SignInIT`, `SessionIT`, `ConcurrentSessionIT` and `LegacyUserMigrationIT` cover the flows over PostgreSQL.
+`AuthenticationServiceTest` covers unique-candidate sign-in, wrong password, unknown and ambiguous identifiers, unusable verifiers, the startup dummy verifier, refresh revocation for unavailable Users and logout delegation. `SignInIT`, `SessionIT`, `ConcurrentSessionIT` and `LegacyUserMigrationIT` cover the flows over PostgreSQL.

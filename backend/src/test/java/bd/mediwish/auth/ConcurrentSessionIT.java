@@ -120,6 +120,35 @@ class ConcurrentSessionIT {
         assertError(api.profile(second.accessToken()), 401, "AUTHENTICATION_REQUIRED");
     }
 
+    /**
+     * A refresh locks its token before the session, so a logout presenting that token plus an older generation of
+     * the same family must not wait on the token: it locks only the session and ends while the refresh holds the token.
+     */
+    @Test
+    void logoutOfTwoGenerationsOfOneFamilyDoesNotWaitOnARefreshHoldingTheNewerToken() throws Exception {
+        User user = api.registered();
+        Session initial = api.signIn(user);
+        Session rotated = api.session(api.refresh(initial.refreshToken()));
+
+        HttpResponse<String> logout;
+        try (var executor = Executors.newVirtualThreadPerTaskExecutor();
+             var refreshInFlight = api.database().connect()) {
+            refreshInFlight.setAutoCommit(false);
+            try (var lock = refreshInFlight.prepareStatement(
+                    "SELECT id FROM user_session_refresh_tokens WHERE session_id = ? AND generation = 1 FOR UPDATE")) {
+                lock.setObject(1, api.sessionId(user));
+                lock.executeQuery().close();
+            }
+            logout = executor.submit(() -> api.logout(initial.refreshToken(), rotated.refreshToken()))
+                    .get(20, TimeUnit.SECONDS);
+            refreshInFlight.rollback();
+        }
+
+        assertThat(logout.statusCode()).isEqualTo(204);
+        assertThat(api.revoked(user, RevocationReason.LOGOUT)).isOne();
+        assertError(api.refresh(rotated.refreshToken()), 401, "AUTHENTICATION_REQUIRED");
+    }
+
     /** Polls pg_locks until the given number of this role's backends wait, ungranted, on a refresh-token query. */
     private void awaitBackendsWaitingOnTheRefreshTokenLock(int expected) throws SQLException, InterruptedException {
         long deadline = System.nanoTime() + Duration.ofSeconds(2).toNanos();

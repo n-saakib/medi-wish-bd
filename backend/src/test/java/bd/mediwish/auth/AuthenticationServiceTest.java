@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.verify;
@@ -171,12 +170,10 @@ class AuthenticationServiceTest {
     }
 
     @Test
-    void logoutRevokesDuplicatedCookiesInAFixedOrderSoConcurrentLogoutsCannotDeadlock() {
+    void logoutRevokesTheSessionsOfEveryPresentedCookie() {
         service.logout(List.of("refresh-z", "refresh-a"));
 
-        var revocations = inOrder(sessions);
-        revocations.verify(sessions).revokeByRefreshToken("refresh-a", RevocationReason.LOGOUT);
-        revocations.verify(sessions).revokeByRefreshToken("refresh-z", RevocationReason.LOGOUT);
+        verify(sessions).revokeByRefreshTokens(List.of("refresh-z", "refresh-a"), RevocationReason.LOGOUT);
         verifyNoMoreInteractions(sessions);
     }
 

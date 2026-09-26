@@ -145,8 +145,10 @@ body limit, before controller deserialization.
 
 Refresh without a cookie answers `204`: the browser is signed out. Every
 refresh `401` clears the cookie. Logout revokes all distinct refresh-cookie
-families within one transaction in a fixed order; if any revocation fails,
-the transaction rolls back as a unit and the cookie is not cleared.
+families within one transaction. It locks only the families, in ID order, and
+never the refresh-token rows that a refresh locks first, so logouts and
+refreshes cannot deadlock. If any revocation fails, the transaction rolls back
+as a unit and the cookie is not cleared.
 
 ### Authenticated profile
 

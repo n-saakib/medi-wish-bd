@@ -8,6 +8,7 @@ import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.Base64;
+import java.util.List;
 import java.util.UUID;
 
 @Service
@@ -65,10 +66,12 @@ class SessionService {
         return new SessionCredential(session.user().id(), session.id(), nextRawToken, session.expiresAt());
     }
 
+    /** Revokes the sessions of the presented refresh tokens; the lock query keeps it from deadlocking with a refresh. */
     @Transactional
-    void revokeByRefreshToken(String presentedToken, RevocationReason reason) {
-        refreshTokens.findByTokenHashForUpdate(RefreshTokenHasher.hash(presentedToken))
-                .ifPresent(current -> revoke(current.session().id(), reason));
+    void revokeByRefreshTokens(List<String> presentedTokens, RevocationReason reason) {
+        if (presentedTokens.isEmpty()) return;
+        revokeAll(sessions.findByRefreshTokenHashesForUpdate(
+                presentedTokens.stream().map(RefreshTokenHasher::hash).toList()), reason);
     }
 
     @Transactional
@@ -82,11 +85,7 @@ class SessionService {
     /** Revokes every active session of a User; for later password recovery, role changes and account closure. */
     @Transactional
     void revokeAllForUser(UUID userId, RevocationReason reason) {
-        Instant now = clock.instant();
-        sessions.findActiveByUserIdForUpdate(userId).forEach(session -> {
-            session.revoke(now, reason);
-            sessions.save(session);
-        });
+        revokeAll(sessions.findActiveByUserIdForUpdate(userId), reason);
     }
 
     @Transactional(readOnly = true)
@@ -95,6 +94,14 @@ class SessionService {
         if (!userId.equals(session.user().id()) || session.revoked() || !session.expiresAt().isAfter(at)) {
             throw new AuthenticationRequiredException();
         }
+    }
+
+    private void revokeAll(List<UserSession> lockedSessions, RevocationReason reason) {
+        Instant now = clock.instant();
+        lockedSessions.forEach(session -> {
+            session.revoke(now, reason);
+            sessions.save(session);
+        });
     }
 
     private String generateRefreshToken() {

@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef } from 'react';
 import { usePathname } from 'next/navigation';
 import { ApiError } from '../lib/api';
 import {
@@ -114,6 +114,8 @@ type SessionProviderProps = {
 export function SessionProvider({ children, source = defaultSource }: SessionProviderProps) {
   const [state, dispatch] = useReducer(sessionReducer, initialSessionState);
   const pathname = usePathname();
+  // Counts sign-ins and sign-outs, so a request started before one cannot expire the session that follows it.
+  const sessionChanges = useRef(0);
 
   useEffect(() => dispatch({ type: 'page-change', pathname }), [pathname]);
 
@@ -133,6 +135,7 @@ export function SessionProvider({ children, source = defaultSource }: SessionPro
   }, [source]);
 
   const signInWithPassword = useCallback(async (identifier: string, password: string) => {
+    sessionChanges.current += 1;
     dispatch({ type: 'signin-start' });
     try {
       const { user } = await source.signIn(identifier, password);
@@ -145,6 +148,7 @@ export function SessionProvider({ children, source = defaultSource }: SessionPro
   }, [source]);
 
   const signOutOfSession = useCallback(async () => {
+    sessionChanges.current += 1;
     dispatch({ type: 'signout-start' });
     try {
       await source.signOut();
@@ -155,13 +159,13 @@ export function SessionProvider({ children, source = defaultSource }: SessionPro
   }, [source]);
 
   // A protected request that is still unauthorized after its single refresh ends the session here too.
-  const authenticatedFetchOrExpire = useCallback<SessionClient['authenticatedFetch']>(
-    (path, init, readResponse) => source.authenticatedFetch(path, init, readResponse).catch((reason: unknown) => {
-      if (isSessionExpired(reason)) dispatch({ type: 'expire' });
+  const authenticatedFetchOrExpire = useCallback<SessionClient['authenticatedFetch']>((path, init, readResponse) => {
+    const changesAtStart = sessionChanges.current;
+    return source.authenticatedFetch(path, init, readResponse).catch((reason: unknown) => {
+      if (isSessionExpired(reason) && sessionChanges.current === changesAtStart) dispatch({ type: 'expire' });
       throw reason;
-    }),
-    [source],
-  );
+    });
+  }, [source]);
 
   const showNotice = useCallback((notice: SessionNotice) => dispatch({ type: 'show-notice', notice }), []);
 

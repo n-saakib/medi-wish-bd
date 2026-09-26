@@ -12,7 +12,7 @@ Package-private transactional owner of session-family and refresh-generation sta
 | --- | --- |
 | `create(user)` | Creates a family expiring after the refresh lifetime and generation zero with a random 32-byte, unpadded Base64URL refresh value; only its `RefreshTokenHasher` digest is stored. |
 | `rotate(presentedToken)` | Locks the presented generation and its family. A consumed generation revokes the family with `REFRESH_REPLAY` and throws `SessionReplayException`, committing the revocation. An unknown value or a revoked or expired family or generation throws `AuthenticationRequiredException`. Otherwise it consumes the generation, touches the family and issues the next generation with the family's unchanged absolute expiry. |
-| `revokeByRefreshToken(token, reason)` | Revokes the family of a known value; an unknown value is ignored so logout stays idempotent. |
+| `revokeByRefreshTokens(tokens, reason)` | In one transaction, locks the families of the known values in ID order and revokes each; unknown values are ignored, so logout stays idempotent, and an empty list queries nothing. It never locks a refresh-token row: `rotate` locks the token before the family, so a logout that also locked tokens could deadlock with it. |
 | `revoke(sessionId, reason)` | Locks and revokes one family if it exists. |
 | `revokeAllForUser(userId, reason)` | Locks and revokes every active family of a User. It is the internal interface for later password recovery, role changes and account closure; no current route calls it. |
 | `requireActive(sessionId, userId, at)` | Read-only check that the family exists, belongs to the User, is unrevoked and has not expired; otherwise throws `AuthenticationRequiredException`. |
@@ -21,4 +21,4 @@ Revocation reasons come from `RevocationReason`. Raw refresh values exist only i
 
 ## Verification
 
-`SessionServiceTest` covers creation, rotation, replay revocation, rejection of unknown, revoked and expired values, revocation by refresh value, revoke-all and active-session binding. `ConcurrentSessionIT`, `SessionRestartIT` and `SessionIT` cover locking, restart durability and revoke-all against PostgreSQL.
+`SessionServiceTest` covers creation, rotation, replay revocation, rejection of unknown, revoked and expired values, revocation by refresh values (and none for an empty list), revoke-all and active-session binding. `ConcurrentSessionIT`, `SessionRestartIT` and `SessionIT` cover locking, restart durability and revoke-all against PostgreSQL.

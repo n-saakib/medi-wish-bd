@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -103,16 +104,27 @@ class SessionServiceTest {
     }
 
     @Test
-    void revokingByRefreshRevokesItsSessionAndIgnoresAnUnknownValue() {
-        var session = session(NOW.plusSeconds(500));
-        presented(session);
-        when(refreshTokens.findByTokenHashForUpdate(RefreshTokenHasher.hash("unknown"))).thenReturn(Optional.empty());
+    void revokingByRefreshTokensLocksTheirSessionsByHashAndRevokesEach() {
+        var first = session(NOW.plusSeconds(500));
+        var second = session(NOW.plusSeconds(500));
+        when(sessions.findByRefreshTokenHashesForUpdate(
+                List.of(RefreshTokenHasher.hash(PRESENTED), RefreshTokenHasher.hash("unknown"))))
+                .thenReturn(List.of(first, second));
 
-        service.revokeByRefreshToken(PRESENTED, RevocationReason.LOGOUT);
-        service.revokeByRefreshToken("unknown", RevocationReason.LOGOUT);
+        service.revokeByRefreshTokens(List.of(PRESENTED, "unknown"), RevocationReason.LOGOUT);
 
-        assertThat(session.revokedReason()).isEqualTo("logout");
-        verify(sessions, times(1)).save(session);
+        assertThat(List.of(first, second)).allSatisfy(session ->
+                assertThat(session.revokedReason()).isEqualTo("logout"));
+        verify(sessions).save(first);
+        verify(sessions).save(second);
+        verifyNoInteractions(refreshTokens);
+    }
+
+    @Test
+    void revokingNoRefreshTokensQueriesNothing() {
+        service.revokeByRefreshTokens(List.of(), RevocationReason.LOGOUT);
+
+        verifyNoInteractions(sessions, refreshTokens);
     }
 
     @Test

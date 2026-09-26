@@ -6,7 +6,6 @@ import bd.mediwish.user.UserProfile;
 import bd.mediwish.user.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.LinkedHashMap;
@@ -55,12 +54,8 @@ class AuthenticationService {
         return issue(user, rotated);
     }
 
-    @Transactional
     void logout(List<String> refreshTokens) {
-        // A fixed order keeps concurrent logouts of the same duplicated cookies from deadlocking.
-        for (String refreshToken : refreshTokens.stream().sorted().toList()) {
-            sessions.revokeByRefreshToken(refreshToken, RevocationReason.LOGOUT);
-        }
+        sessions.revokeByRefreshTokens(refreshTokens, RevocationReason.LOGOUT);
     }
 
     /** The one User the identifier names as username, verified mobile or email; empty when none or several match. */

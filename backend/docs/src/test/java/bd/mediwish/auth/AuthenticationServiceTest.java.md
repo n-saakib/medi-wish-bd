@@ -1,3 +1,9 @@
 # AuthenticationServiceTest
 
-Unit coverage for case-insensitive email resolution, safe session projection, ambiguous email rejection, the configured dummy-verifier path, and sign-in rejection when a resolved User has an unusable stored verifier. The service consumes the repository's bounded two-row email candidate result and rejects ambiguity through the generic authentication failure without creating a session or access token. Successful sign-in and refresh also preserve the session family's absolute expiry for the HTTP cookie adapter. Refresh coverage verifies that a rotated session family is revoked before the bounded authentication-required outcome when persisted credential state is missing or malformed. Tests use synthetic users and mocked seams without printing passwords, verifiers or refresh values.
+Unit coverage, with mocked repositories, encoder and session service, for:
+- **Sign-in:** the one User an identifier names signs in and receives its profile; a wrong password fails without a session. An unknown identifier, an identifier naming two Users across fields (a legacy username equal to another User's verified mobile), an email shared by two Users and a User with an unusable stored verifier all fail generically after comparing the password against the dummy verifier, never the real one.
+- **Dummy verifier:** with the production encoder, the dummy is generated at startup as a usable Argon2id verifier with the production parameters.
+- **Refresh:** an access token is issued for the rotated session; when the User can no longer sign in (blank or unusable verifier), the rotated session is revoked with `USER_UNAVAILABLE` and authentication is required.
+- **Logout:** every presented cookie is passed to `SessionService.revokeByRefreshTokens` with `LOGOUT`.
+
+Tests use synthetic users and never print passwords, verifiers or refresh values.

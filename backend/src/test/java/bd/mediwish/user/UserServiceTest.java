@@ -84,7 +84,7 @@ class UserServiceTest {
     }
 
     @Test
-    void rejectsAUsernameWithoutALetterSoItCanNeverEqualAMobile() {
+    void rejectsAUsernameWithoutALetterSoItCannotEqualADigitsOnlyMobile() {
         for (String username : new String[]{"01700000000", "123", "._-", "1.2_3"}) {
             assertThatThrownBy(() -> service.register(username, "01700000000", null, "a-very-long-password"))
                     .isInstanceOf(UserService.InvalidRegistrationException.class);

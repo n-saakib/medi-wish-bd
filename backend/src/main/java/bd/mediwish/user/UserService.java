@@ -14,7 +14,7 @@ public class UserService {
     private static final int MAX_PASSWORD_LENGTH = 30;
     private static final int MAX_MOBILE_LENGTH = 30;
     private static final int MAX_EMAIL_LENGTH = 320;
-    // At least one letter, so a username can never equal a mobile number (Ticket 03.02 A3).
+    // At least one letter, so a username cannot equal a digits-only mobile number (Ticket 03.02 A3).
     private static final Pattern USERNAME = Pattern.compile("(?=.*[a-z])[a-z0-9._-]{3,50}");
     private static final Pattern EMAIL = Pattern.compile("[^\\s@]+@[^\\s@]+");
 

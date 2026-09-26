@@ -8,7 +8,7 @@ Registration service for the shared User. `register(username, mobile, email, pas
 
 ## Rules
 
-- **Username:** 3–50 characters from `a-z`, `0-9`, `.`, `_`, `-`, with at least one letter, so a username can never equal a mobile number (Ticket 03.02 A3).
+- **Username:** 3–50 characters from `a-z`, `0-9`, `.`, `_`, `-`, with at least one letter, so a username cannot equal a digits-only mobile number (Ticket 03.02 A3). Mobile format is not validated yet (Ticket 61), so a mobile containing a letter could still equal a username; sign-in then rejects the ambiguous identifier.
 - **Mobile:** non-blank after trimming, at most 30 characters; no format or country rule until Ticket 61.
 - **Email:** optional; blank means absent; otherwise at most 320 characters matching `local@domain` without whitespace.
 - **Password:** non-blank, 6 to 30 characters (the user's rule, 2026-09-26). Password text is never trimmed or transformed. Sign-in keeps its own wider bound in `AuthController`.
