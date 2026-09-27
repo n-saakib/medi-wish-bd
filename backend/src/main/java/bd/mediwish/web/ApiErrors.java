@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.context.MessageSource;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.StreamWriteFeature;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
@@ -31,6 +32,9 @@ class ApiErrors {
     void write(ApiError error, HttpServletRequest request, HttpServletResponse response) throws IOException {
         response.setStatus(error.status);
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        json.writeValue(response.getOutputStream(), body(error, request));
+        // Closing the stream would complete the response before the filters around this one finish, so the
+        // container completes it only after the whole chain, including the request's status log, has run.
+        json.writer().without(StreamWriteFeature.AUTO_CLOSE_TARGET)
+                .writeValue(response.getOutputStream(), body(error, request));
     }
 }
