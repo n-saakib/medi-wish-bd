@@ -8,6 +8,7 @@ This guide applies to the whole repository. For work under `backend/`, read [`ba
 
 Read only the references relevant to the task:
 
+- Issue tracker (how tickets are stored, read, updated and validated): `agent-docs/issue-tracker.md`
 - Story and subtasks: `.scratch/launch-reconciliation/ticket-drafts/`
 - Product specification: `.scratch/launch-reconciliation/spec.md`
 - Testing and completion: `TESTING.md` and `WORKFLOW.md` in that ticket-drafts directory
