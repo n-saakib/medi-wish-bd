@@ -7,6 +7,8 @@ import bd.mediwish.user.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -21,16 +23,23 @@ class AuthenticationService {
     private final UserIdentifierNormalizer identifiers;
     private final SessionService sessions;
     private final AccessTokenCodec accessTokens;
+    private final StaffMfaFactorRepository factors;
+    private final AuthProperties properties;
+    private final Clock clock;
     // Unknown, ambiguous and unusable accounts are compared against this, so they fail as slowly as a wrong password.
     private final String dummyVerifier;
 
     AuthenticationService(UserRepository users, PasswordEncoder passwords, UserIdentifierNormalizer identifiers,
-                          SessionService sessions, AccessTokenCodec accessTokens) {
+                          SessionService sessions, AccessTokenCodec accessTokens, StaffMfaFactorRepository factors,
+                          AuthProperties properties, Clock clock) {
         this.users = users;
         this.passwords = passwords;
         this.identifiers = identifiers;
         this.sessions = sessions;
         this.accessTokens = accessTokens;
+        this.factors = factors;
+        this.properties = properties;
+        this.clock = clock;
         this.dummyVerifier = passwords.encode(UUID.randomUUID().toString());
     }
 
@@ -40,7 +49,9 @@ class AuthenticationService {
                 .orElse(null);
         boolean matches = passwords.matches(password, user == null ? dummyVerifier : user.passwordHash());
         if (user == null || !matches) throw new AuthenticationFailedException();
-        return issue(user, sessions.create(user));
+        // A password alone gives staff only a short restricted session until the authenticator is verified.
+        return issue(user, sessions.create(user, user.hasStaffRole()
+                ? properties.mfa().restrictedSessionLifetime() : properties.refreshTokenLifetime()));
     }
 
     AuthenticatedSession refresh(String refreshToken) {
@@ -71,12 +82,18 @@ class AuthenticationService {
         return candidates.size() == 1 ? Optional.of(candidates.values().iterator().next()) : Optional.empty();
     }
 
-    private AuthenticatedSession issue(User user, SessionService.SessionCredential session) {
+    /** Issues an access token for the session with its current MFA status; also used after MFA verification. */
+    AuthenticatedSession issue(User user, SessionService.SessionCredential session) {
         var accessToken = accessTokens.issue(user.id(), session.sessionId());
-        return new AuthenticatedSession(accessToken.token(), accessToken.expiresInSeconds(),
-                session.refreshToken(), session.expiresAt(), UserProfile.from(user));
+        var access = StaffAccessPolicy.evaluate(user.roles(), factors.activeFactorIdOf(user),
+                session.mfa().factorId(), session.mfa().verifiedAt());
+        // A restricted session can end before its access token would expire; report the earlier of the two.
+        long expiresIn = Math.min(accessToken.expiresInSeconds(),
+                Math.max(0, Duration.between(clock.instant(), session.expiresAt()).toSeconds()));
+        return new AuthenticatedSession(accessToken.token(), expiresIn, session.refreshToken(), session.expiresAt(),
+                UserProfile.from(user), access.mfa());
     }
 
     record AuthenticatedSession(String accessToken, long expiresIn, String refreshToken,
-                                       Instant refreshExpiresAt, UserProfile user) {}
+                                Instant refreshExpiresAt, UserProfile user, MfaStatus mfa) {}
 }

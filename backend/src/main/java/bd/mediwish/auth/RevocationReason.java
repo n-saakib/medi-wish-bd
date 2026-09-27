@@ -4,7 +4,9 @@ package bd.mediwish.auth;
 enum RevocationReason {
     LOGOUT("logout"),
     REFRESH_REPLAY("refresh-replay"),
-    USER_UNAVAILABLE("user-unavailable");
+    USER_UNAVAILABLE("user-unavailable"),
+    MFA_VERIFIED("mfa-verified"),
+    STAFF_PROVISIONED("staff-provisioned");
 
     final String code;
 

@@ -1,5 +1,6 @@
 package bd.mediwish.auth;
 
+import bd.mediwish.testsupport.TestAuthSettings;
 import bd.mediwish.user.User;
 import bd.mediwish.user.UserProfile;
 import bd.mediwish.user.UserService;
@@ -50,7 +51,7 @@ class AuthControllerTest {
     @BeforeEach
     void setUp() {
         var properties = new AuthProperties(Duration.ofMinutes(15), Duration.ofDays(30), "medi-wish",
-                "medi-wish-api", "unused", new AuthProperties.Cookie(true));
+                "medi-wish-api", "unused", new AuthProperties.Cookie(true), TestAuthSettings.mfa());
         controller = new AuthController(users, authentication,
                 new RefreshCookieAdapter(properties, Clock.fixed(NOW, ZoneOffset.UTC)));
         mvc = MockMvcBuilders.standaloneSetup(controller).build();
@@ -79,7 +80,8 @@ class AuthControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(content().json("""
                         {"accessToken":"signed-access-token","tokenType":"Bearer","expiresIn":900,
-                         "user":{"username":"alice_1","mobile":"01700000000","email":null,"mobileVerified":true}}
+                         "user":{"username":"alice_1","mobile":"01700000000","email":null,"mobileVerified":true},
+                         "mfa":"NOT_REQUIRED"}
                         """, STRICT))
                 .andExpect(header().string("Set-Cookie", allOf(
                         startsWith("MW_REFRESH=rotated-refresh; Path=/api/auth; Max-Age=2592000;"),
@@ -189,7 +191,7 @@ class AuthControllerTest {
 
     private static AuthenticationService.AuthenticatedSession session(Duration remaining) {
         return new AuthenticationService.AuthenticatedSession("signed-access-token", 900, "rotated-refresh",
-                NOW.plus(remaining), PROFILE);
+                NOW.plus(remaining), PROFILE, MfaStatus.NOT_REQUIRED);
     }
 
     private static MockHttpServletRequest requestWith(Cookie... cookies) {

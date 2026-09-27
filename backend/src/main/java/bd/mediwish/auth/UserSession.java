@@ -30,6 +30,10 @@ public class UserSession {
     private Instant revokedAt;
     @Column(name = "revoked_reason", length = 64)
     private String revokedReason;
+    @Column(name = "mfa_factor_id", updatable = false)
+    private UUID mfaFactorId;
+    @Column(name = "mfa_verified_at", updatable = false)
+    private Instant mfaVerifiedAt;
 
     protected UserSession() {}
 
@@ -45,10 +49,18 @@ public class UserSession {
     public User user() { return user; }
     public Instant expiresAt() { return expiresAt; }
     public String revokedReason() { return revokedReason; }
+    UUID mfaFactorId() { return mfaFactorId; }
+    Instant mfaVerifiedAt() { return mfaVerifiedAt; }
 
     public boolean revoked() { return revokedAt != null; }
 
     public void touch(Instant at) { this.lastUsedAt = at; }
+
+    /** Only a new session gets MFA evidence, when it replaces a restricted one; evidence is never added later. */
+    void markMfaVerified(UUID factorId, Instant at) {
+        mfaFactorId = factorId;
+        mfaVerifiedAt = at;
+    }
 
     void revoke(Instant at, RevocationReason reason) {
         if (revokedAt == null) {

@@ -3,6 +3,7 @@ package bd.mediwish.web;
 import bd.mediwish.auth.AuthenticationRequiredException;
 import bd.mediwish.auth.CurrentUserAuthentication;
 import bd.mediwish.auth.CurrentUserAuthentication.CurrentUser;
+import bd.mediwish.auth.MfaStatus;
 import bd.mediwish.user.UserProfile;
 import bd.mediwish.user.UserRole;
 import org.junit.jupiter.api.AfterEach;
@@ -19,6 +20,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.transaction.TransactionSystemException;
 
 import java.util.Set;
+import java.util.UUID;
 
 import static bd.mediwish.web.WebTestFixtures.apiErrors;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -44,14 +46,16 @@ class BearerAccessTokenFilterTest {
     }
 
     @Test
-    void aVerifiedBearerAuthenticatesTheCurrentProfileWithItsPersistedRoles() throws Exception {
-        var current = new CurrentUser(new UserProfile("alice_1", "01700000000", null, true), Set.of(UserRole.CUSTOMER));
+    void aVerifiedBearerAuthenticatesTheCurrentUserWithTheAuthoritiesItWasGranted() throws Exception {
+        var current = new CurrentUser(UUID.randomUUID(), UUID.randomUUID(),
+                new UserProfile("alice_1", "01700000000", null, true), Set.of(UserRole.CUSTOMER), MfaStatus.NOT_REQUIRED,
+                Set.of("ROLE_CUSTOMER"));
         when(currentUsers.authenticate("access-token")).thenReturn(current);
 
         filter.doFilter(profileRequest("bearer access-token"), response, chain);
 
         var authentication = SecurityContextHolder.getContext().getAuthentication();
-        assertThat(authentication.getPrincipal()).isSameAs(current.profile());
+        assertThat(authentication.getPrincipal()).isSameAs(current);
         assertThat(authentication.getAuthorities()).extracting(Object::toString).containsExactly("ROLE_CUSTOMER");
         assertThat(chain.getRequest()).isNotNull();
     }

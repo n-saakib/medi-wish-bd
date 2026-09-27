@@ -8,14 +8,14 @@ Package-private stateless adapter that turns one verified `Authorization: Bearer
 
 ## Behavior
 
-- Requests outside `PROTECTED_ROUTES` (currently only `GET /api/user/me`) skip the filter, so public routes never read the header.
+- Requests outside `PROTECTED_ROUTES` (`GET /api/user/me`, `GET /api/staff/me` and the three `POST /api/auth/mfa/...` routes) skip the filter, so public routes never read the header.
 - No `Authorization` header, or a non-Bearer scheme such as Basic, continues unauthenticated; authorization then answers `401`.
 - More than one `Authorization` header is rejected before verification.
 - A Bearer value is passed to `CurrentUserAuthentication.authenticate`. `AuthenticationRequiredException` becomes `401 AUTHENTICATION_REQUIRED` with `WWW-Authenticate: Bearer`. `DataAccessException` or `TransactionException` becomes `500 INTERNAL_ERROR` without diagnostics; exceptions from the downstream chain are not caught.
-- On success the principal is the `UserProfile` of the `CurrentUser` and each persisted role becomes a `ROLE_<NAME>` authority.
+- On success the principal is the whole `CurrentUser` and the granted authorities are exactly its `authorities`, as `StaffAccessPolicy` decided them: `ROLE_<NAME>` for each persisted role, or only `MFA_ENROLLMENT` or `MFA_CHALLENGE` for a restricted staff session.
 
 Query parameters, cookies and role claims are never authentication sources. The filter does not parse JWTs or touch session storage.
 
 ## Verification
 
-`BearerAccessTokenFilterTest` covers verified authentication with persisted roles, invalid Bearer rejection with a challenge, multiple header rejection, missing and non-Bearer headers, public-route bypass and the bounded persistence failure. `ProfileIT` and `RoleAuthorizationIT` cover it over real HTTP and PostgreSQL.
+`BearerAccessTokenFilterTest` covers verified authentication with the `CurrentUser` principal and its granted authorities, invalid Bearer rejection with a challenge, multiple header rejection, missing and non-Bearer headers, public-route bypass and the bounded persistence failure. `ProfileIT`, `RoleAuthorizationIT` and `StaffMfaIT` cover it over real HTTP and PostgreSQL.

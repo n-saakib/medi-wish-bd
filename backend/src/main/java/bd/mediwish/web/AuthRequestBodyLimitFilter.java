@@ -20,7 +20,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
-/** Bounds the JSON bodies of the public credential routes, registration and sign-in. */
+/** Bounds the JSON bodies of the credential routes: registration, sign-in and the staff MFA routes. */
 final class AuthRequestBodyLimitFilter extends OncePerRequestFilter {
     static final int MAX_BODY_BYTES = 16 * 1024;
 

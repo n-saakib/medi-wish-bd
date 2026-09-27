@@ -18,6 +18,10 @@ This Java message bundle contains the public English text for each `ApiError` co
 | `error.METHOD_NOT_ALLOWED` | The route exists but does not allow the HTTP method (`405`). |
 | `error.INTERNAL_ERROR` | A generic safe message for `5xx` failures (`500` for persistence and transaction errors). |
 | `error.DUPLICATE_USER` | The username, mobile number or email is already in use (`409`). |
+| `error.MFA_REQUIRED` | A staff session must enroll or verify its authenticator before the route applies (`403`). |
+| `error.MFA_CODE_INVALID` | The authenticator code is wrong or already used (`400`). |
+| `error.MFA_ENROLLMENT_STALE` | The enrollment expired or was replaced; the client starts again (`409`). |
+| `error.TOO_MANY_ATTEMPTS` | MFA verification is locked after too many wrong codes (`429`). |
 
 There is exactly one key per `ApiError` constant; add both together. Do not put exception text, SQL details, credentials, OTPs, medicine searches or order contents in these messages.
 

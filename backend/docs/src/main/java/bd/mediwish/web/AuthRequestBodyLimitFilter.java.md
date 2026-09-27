@@ -4,7 +4,7 @@ Source: [`src/main/java/bd/mediwish/web/AuthRequestBodyLimitFilter.java`](../../
 
 ## Purpose
 
-Package-private filter that bounds the JSON bodies of the routes it is given, which `SecurityConfiguration` sets to `CREDENTIAL_ROUTES` (`POST /api/auth/login` and `POST /api/auth/register`), at `MAX_BODY_BYTES` (16 KiB) before MVC and Jackson read them. `SecurityConfiguration` constructs it and places it right after `BoundedCorsFilter`; it is not a Spring bean.
+Package-private filter that bounds the JSON bodies of the routes it is given, which `SecurityConfiguration` sets to `CREDENTIAL_ROUTES` (`POST /api/auth/login` and `POST /api/auth/register`) and `MFA_ROUTES` (the three `POST /api/auth/mfa/...` routes), at `MAX_BODY_BYTES` (16 KiB) before MVC and Jackson read them. `SecurityConfiguration` constructs it and places it right after `BoundedCorsFilter`; it is not a Spring bean.
 
 ## Behavior
 

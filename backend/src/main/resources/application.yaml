@@ -56,6 +56,17 @@ app:
     issuer: medi-wish
     audience: medi-wish-api
     jwt-secret: ${APP_AUTH_JWT_SECRET:}
+    mfa:
+      issuer: Medi Wish
+      secret-key: ${APP_AUTH_MFA_SECRET_KEY:}
+      restricted-session-lifetime: PT10M
+      enrollment-lifetime: PT10M
+      max-failed-attempts: 5
+      attempt-window: PT15M
+      lockout: PT15M
+  provisioning:
+    # Set only on the one-off operator command (web-application-type=none); never on a serving process.
+    first-admin-username:
 
 logging:
   structured:

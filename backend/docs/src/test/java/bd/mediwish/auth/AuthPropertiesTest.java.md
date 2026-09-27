@@ -4,10 +4,10 @@ Source: [`src/test/java/bd/mediwish/auth/AuthPropertiesTest.java`](../../../../.
 
 ## Purpose
 
-Unit test: a missing, zero, negative or sub-second access or refresh token lifetime fails with a named message; one second is accepted.
+Unit test of `AuthProperties`: a missing, zero, negative or sub-second access or refresh token lifetime fails with a named message and one second is accepted; a missing MFA block, a blank MFA issuer, any MFA duration below one second and `max-failed-attempts` below one each fail with a named message, and the minimum values are accepted.
 
 ## Verification
 
-1 test.
+2 tests.
 
-Verified 2026-09-27 on `ed1e006`: `./mvnw.cmd -o verify` passed 171 unit and 109 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 109 with no skip.
+Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` passed all 238 unit tests.

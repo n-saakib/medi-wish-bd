@@ -5,10 +5,14 @@ enum ApiError {
     INVALID_REQUEST(400),
     AUTHENTICATION_FAILED(401),
     AUTHENTICATION_REQUIRED(401),
+    MFA_CODE_INVALID(400),
     ACCESS_DENIED(403),
+    MFA_REQUIRED(403),
     NOT_FOUND(404),
     METHOD_NOT_ALLOWED(405),
     DUPLICATE_USER(409),
+    MFA_ENROLLMENT_STALE(409),
+    TOO_MANY_ATTEMPTS(429),
     INTERNAL_ERROR(500);
 
     final int status;
@@ -26,6 +30,7 @@ enum ApiError {
             case 403 -> ACCESS_DENIED;
             case 404 -> NOT_FOUND;
             case 405 -> METHOD_NOT_ALLOWED;
+            case 429 -> TOO_MANY_ATTEMPTS;
             default -> status < 500 ? INVALID_REQUEST : INTERNAL_ERROR;
         };
     }
