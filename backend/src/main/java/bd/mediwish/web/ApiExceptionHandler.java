@@ -3,6 +3,9 @@ package bd.mediwish.web;
 import bd.mediwish.auth.AuthenticationFailedException;
 import bd.mediwish.auth.AuthenticationRequiredException;
 import bd.mediwish.auth.InvalidRequestException;
+import bd.mediwish.auth.MfaCodeInvalidException;
+import bd.mediwish.auth.MfaEnrollmentStaleException;
+import bd.mediwish.auth.TooManyAttemptsException;
 import bd.mediwish.user.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.DataAccessException;
@@ -43,6 +46,21 @@ class ApiExceptionHandler {
     @ExceptionHandler(AuthenticationRequiredException.class)
     ResponseEntity<ApiErrors.Body> authenticationRequired(HttpServletRequest request) {
         return error(ApiError.AUTHENTICATION_REQUIRED, request);
+    }
+
+    @ExceptionHandler(MfaCodeInvalidException.class)
+    ResponseEntity<ApiErrors.Body> mfaCodeInvalid(HttpServletRequest request) {
+        return error(ApiError.MFA_CODE_INVALID, request);
+    }
+
+    @ExceptionHandler(MfaEnrollmentStaleException.class)
+    ResponseEntity<ApiErrors.Body> mfaEnrollmentStale(HttpServletRequest request) {
+        return error(ApiError.MFA_ENROLLMENT_STALE, request);
+    }
+
+    @ExceptionHandler(TooManyAttemptsException.class)
+    ResponseEntity<ApiErrors.Body> tooManyAttempts(HttpServletRequest request) {
+        return error(ApiError.TOO_MANY_ATTEMPTS, request);
     }
 
     @ExceptionHandler({DataAccessException.class, TransactionException.class})

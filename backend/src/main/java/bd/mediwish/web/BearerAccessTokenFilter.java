@@ -65,10 +65,9 @@ final class BearerAccessTokenFilter extends OncePerRequestFilter {
             return;
         }
 
-        var authorities = current.roles().stream()
-                .map(role -> new SimpleGrantedAuthority("ROLE_" + role.name()))
-                .toList();
-        var authentication = new UsernamePasswordAuthenticationToken(current.profile(), null, authorities);
+        // StaffAccessPolicy decided these: role authorities, or only an MFA authority for a restricted staff session.
+        var authorities = current.authorities().stream().map(SimpleGrantedAuthority::new).toList();
+        var authentication = new UsernamePasswordAuthenticationToken(current, null, authorities);
         SecurityContextHolder.getContext().setAuthentication(authentication);
         chain.doFilter(request, response);
     }

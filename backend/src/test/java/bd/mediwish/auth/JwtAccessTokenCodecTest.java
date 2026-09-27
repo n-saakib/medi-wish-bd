@@ -1,5 +1,6 @@
 package bd.mediwish.auth;
 
+import bd.mediwish.testsupport.TestAuthSettings;
 import io.jsonwebtoken.JwtBuilder;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.security.Keys;
@@ -104,7 +105,7 @@ class JwtAccessTokenCodecTest {
 
     private static JwtAccessTokenCodec codecAt(Instant now, String secret) {
         var properties = new AuthProperties(Duration.ofMinutes(15), Duration.ofDays(30), "medi-wish", "medi-wish-api",
-                secret, new AuthProperties.Cookie(true));
+                secret, new AuthProperties.Cookie(true), TestAuthSettings.mfa());
         return new JwtAccessTokenCodec(properties, Clock.fixed(now, ZoneOffset.UTC));
     }
 

@@ -261,3 +261,213 @@ databaseChangeLog:
               - column:
                   name: upper(email)
                   computed: true
+  - changeSet:
+      id: 010-staff-mfa
+      author: medi-wish
+      changes:
+        - createTable:
+            tableName: staff_mfa_factors
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_staff_mfa_factors_user
+                    references: users(id)
+                    deleteCascade: true
+              - column:
+                  name: status
+                  type: VARCHAR(16)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: secret_ciphertext
+                  type: BYTEA
+                  constraints:
+                    nullable: false
+              - column:
+                  name: secret_nonce
+                  type: BYTEA
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: pending_expires_at
+                  type: TIMESTAMP WITH TIME ZONE
+              - column:
+                  name: activated_at
+                  type: TIMESTAMP WITH TIME ZONE
+              - column:
+                  name: revoked_at
+                  type: TIMESTAMP WITH TIME ZONE
+              - column:
+                  name: last_used_step
+                  type: BIGINT
+                  defaultValueNumeric: -1
+                  constraints:
+                    nullable: false
+        - sql:
+            sql: >-
+              ALTER TABLE staff_mfa_factors ADD CONSTRAINT ck_staff_mfa_factors_status
+              CHECK (status IN ('PENDING', 'ACTIVE', 'REVOKED'))
+        - sql:
+            sql: CREATE UNIQUE INDEX uq_staff_mfa_active ON staff_mfa_factors (user_id) WHERE status = 'ACTIVE'
+        - sql:
+            sql: CREATE UNIQUE INDEX uq_staff_mfa_pending ON staff_mfa_factors (user_id) WHERE status = 'PENDING'
+        - createTable:
+            tableName: staff_mfa_backup_codes
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: factor_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_staff_mfa_backup_codes_factor
+                    references: staff_mfa_factors(id)
+                    deleteCascade: true
+              - column:
+                  name: code_verifier
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: consumed_at
+                  type: TIMESTAMP WITH TIME ZONE
+        - createIndex:
+            tableName: staff_mfa_backup_codes
+            indexName: idx_staff_mfa_backup_codes_factor
+            columns:
+              - column:
+                  name: factor_id
+        - createTable:
+            tableName: staff_mfa_throttle
+            columns:
+              - column:
+                  name: user_id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                    foreignKeyName: fk_staff_mfa_throttle_user
+                    references: users(id)
+                    deleteCascade: true
+              - column:
+                  name: failed_count
+                  type: INT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: window_started_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: locked_until
+                  type: TIMESTAMP WITH TIME ZONE
+        - createTable:
+            tableName: staff_bootstrap
+            columns:
+              - column:
+                  name: id
+                  type: SMALLINT
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: super_admin_user_id
+                  type: UUID
+              - column:
+                  name: provisioned_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+        - sql:
+            sql: ALTER TABLE staff_bootstrap ADD CONSTRAINT ck_staff_bootstrap_singleton CHECK (id = 1)
+        - addForeignKeyConstraint:
+            baseTableName: staff_bootstrap
+            baseColumnNames: super_admin_user_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_staff_bootstrap_super_admin
+            onDelete: SET NULL
+        - createTable:
+            tableName: security_audit_events
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: occurred_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: event_type
+                  type: VARCHAR(64)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: subject_user_id
+                  type: UUID
+              - column:
+                  name: session_id
+                  type: UUID
+              - column:
+                  name: request_id
+                  type: VARCHAR(64)
+        - addForeignKeyConstraint:
+            baseTableName: security_audit_events
+            baseColumnNames: subject_user_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_security_audit_events_subject
+            onDelete: SET NULL
+        - createIndex:
+            tableName: security_audit_events
+            indexName: idx_security_audit_events_subject
+            columns:
+              - column:
+                  name: subject_user_id
+              - column:
+                  name: occurred_at
+        - addColumn:
+            tableName: user_sessions
+            columns:
+              - column:
+                  name: mfa_factor_id
+                  type: UUID
+              - column:
+                  name: mfa_verified_at
+                  type: TIMESTAMP WITH TIME ZONE
+        - addForeignKeyConstraint:
+            baseTableName: user_sessions
+            baseColumnNames: mfa_factor_id
+            referencedTableName: staff_mfa_factors
+            referencedColumnNames: id
+            constraintName: fk_user_sessions_mfa_factor
+            onDelete: SET NULL

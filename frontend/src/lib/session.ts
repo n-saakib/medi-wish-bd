@@ -19,16 +19,47 @@ export type SessionUser = {
   mobileVerified: boolean;
 };
 
+/** How far a session is from staff access; only Admin and Moderator sessions need an authenticator. */
+export type MfaStatus = 'NOT_REQUIRED' | 'ENROLLMENT_REQUIRED' | 'VERIFICATION_REQUIRED' | 'VERIFIED';
+
+const mfaStatuses: readonly unknown[] = ['NOT_REQUIRED', 'ENROLLMENT_REQUIRED', 'VERIFICATION_REQUIRED', 'VERIFIED'];
+
 export type SessionResponse = {
   accessToken: string;
   user: SessionUser;
+  mfa: MfaStatus;
 };
+
+export type RestoredSession = {
+  user: SessionUser;
+  mfa: MfaStatus;
+};
+
+/** A pending authenticator setup. The secret is shown once and must stay in component memory only. */
+export type MfaEnrollment = {
+  enrollmentId: string;
+  secret: string;
+  otpauthUri: string;
+  expiresIn: number;
+};
+
+/** The MFA-verified session that replaces a restricted one, with the backup codes issued once at enrollment. */
+export type EnrolledSession = SessionResponse & { backupCodes: string[] };
 
 export type SessionClient = {
   signIn(identifier: string, password: string): Promise<SessionResponse>;
-  /** The profile when the refresh cookie is accepted, `null` when there is none; a rejected cookie throws a 401 `ApiError`. */
-  restoreSession(): Promise<SessionUser | null>;
+  /**
+   * The profile and MFA status when the refresh cookie is accepted, `null` when there is none; a rejected cookie
+   * throws a 401 `ApiError`.
+   */
+  restoreSession(): Promise<RestoredSession | null>;
   authenticatedFetch<T>(path: string, init: RequestInit, readResponse: ResponseReader<T>): Promise<T>;
+  /** Starts, or restarts, authenticator setup for a restricted staff session. */
+  startMfaEnrollment(): Promise<MfaEnrollment>;
+  /** Activates the pending authenticator and replaces the restricted session with an MFA-verified one. */
+  verifyMfaEnrollment(enrollmentId: string, code: string): Promise<EnrolledSession>;
+  /** Checks an authenticator code and replaces the restricted session with an MFA-verified one. */
+  verifyMfa(code: string): Promise<SessionResponse>;
   /** Ends the in-memory session at once, then asks the API to revoke the refresh cookie. */
   signOut(): Promise<void>;
 };
@@ -38,6 +69,12 @@ const maxCsrfTokenLength = 512;
 const maxUsernameLength = 50;
 const maxMobileLength = 30;
 const maxEmailLength = 320;
+const maxOtpauthUriLength = 512;
+const maxEnrollmentLifetimeSeconds = 24 * 60 * 60;
+const backupCodeCount = 10;
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const totpSecretPattern = /^[A-Z2-7]{32}$/;
+const backupCodePattern = /^[A-Z0-9]{4}-[A-Z0-9]{4}$/;
 const cookieMutationLockName = 'medi-wish:auth-cookie-mutation';
 
 let tabCookieMutations: Promise<unknown> = Promise.resolve();
@@ -65,17 +102,52 @@ export function projectSessionUser(body: unknown): SessionUser | undefined {
   return { username: body.username, mobile: body.mobile, email: body.email, mobileVerified: body.mobileVerified };
 }
 
+function isMfaStatus(value: unknown): value is MfaStatus {
+  return mfaStatuses.includes(value);
+}
+
 function projectSession(body: unknown): SessionResponse | undefined {
-  if (!isRecord(body) || !boundedText(body.accessToken, maxTokenLength)) return undefined;
+  if (!isRecord(body) || !boundedText(body.accessToken, maxTokenLength) || !isMfaStatus(body.mfa)) return undefined;
   const user = projectSessionUser(body.user);
-  return user && { accessToken: body.accessToken, user };
+  return user && { accessToken: body.accessToken, user, mfa: body.mfa };
+}
+
+function isBackupCode(value: unknown): value is string {
+  return typeof value === 'string' && backupCodePattern.test(value);
+}
+
+function projectEnrolledSession(body: unknown): EnrolledSession | undefined {
+  const session = projectSession(body);
+  if (!session || !isRecord(body) || !Array.isArray(body.backupCodes)) return undefined;
+  const backupCodes: unknown[] = body.backupCodes;
+  if (backupCodes.length !== backupCodeCount || !backupCodes.every(isBackupCode)) return undefined;
+  return { ...session, backupCodes: backupCodes.filter(isBackupCode) };
+}
+
+function isEnrollmentLifetime(value: unknown): value is number {
+  return Number.isInteger(value) && (value as number) > 0 && (value as number) <= maxEnrollmentLifetimeSeconds;
+}
+
+function projectMfaEnrollment(body: unknown): MfaEnrollment | undefined {
+  if (!isRecord(body)
+      || typeof body.enrollmentId !== 'string' || !uuidPattern.test(body.enrollmentId)
+      || typeof body.secret !== 'string' || !totpSecretPattern.test(body.secret)
+      || !boundedText(body.otpauthUri, maxOtpauthUriLength) || !body.otpauthUri.startsWith('otpauth://totp/')
+      || !isEnrollmentLifetime(body.expiresIn)) {
+    return undefined;
+  }
+  return { enrollmentId: body.enrollmentId, secret: body.secret, otpauthUri: body.otpauthUri, expiresIn: body.expiresIn };
 }
 
 async function parseSession(response: Response): Promise<SessionResponse> {
+  return parseProjected(response, projectSession);
+}
+
+async function parseProjected<T>(response: Response, project: (body: unknown) => T | undefined): Promise<T> {
   if (!response.ok) throw await boundedError(response);
-  const session = projectSession(await readJsonResponse(response));
-  if (!session) throw invalidResponse(response.status);
-  return session;
+  const projected = project(await readJsonResponse(response));
+  if (!projected) throw invalidResponse(response.status);
+  return projected;
 }
 
 function authenticationRequired(): ApiError {
@@ -161,8 +233,9 @@ export function createSessionClient(options: ApiClientOptions = {}): SessionClie
     });
   }
 
-  async function restoreSession(): Promise<SessionUser | null> {
-    return (await refreshSession())?.user ?? null;
+  async function restoreSession(): Promise<RestoredSession | null> {
+    const session = await refreshSession();
+    return session && { user: session.user, mfa: session.mfa };
   }
 
   /**
@@ -193,6 +266,63 @@ export function createSessionClient(options: ApiClientOptions = {}): SessionClie
     }
   }
 
+  /**
+   * Posts an authenticator code with the restricted session's Bearer token. On success the API revokes that session
+   * and sets a new refresh cookie, so the exchange holds the cookie-mutation lock, and the new access token makes the
+   * results of requests that used the old one stale, as a sign-in does.
+   */
+  async function replaceWithVerifiedSession<T extends SessionResponse>(
+    path: string,
+    body: Record<string, string>,
+    project: (body: unknown) => T | undefined,
+  ): Promise<T> {
+    if (accessToken === null) await refreshSession();
+    const mutationEpoch = cookieMutationEpoch;
+    const requestEpoch = sessionEpoch;
+    return withCookieMutationLock(async () => {
+      requireCurrentCookieMutation(mutationEpoch);
+      const token = accessToken;
+      if (token === null || sessionEpoch !== requestEpoch) throw authenticationRequired();
+      let session: T;
+      try {
+        session = await send(path, {
+          method: 'POST',
+          credentials: 'include',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify(body),
+        }, (response) => parseProjected(response, project));
+      } catch (reason) {
+        if (reason instanceof ApiError && reason.status === 401 && accessToken === token) dropAccessToken();
+        throw reason;
+      }
+      requireCurrentCookieMutation(mutationEpoch);
+      sessionEpoch += 1;
+      accessToken = session.accessToken;
+      return session;
+    });
+  }
+
+  function startMfaEnrollment(): Promise<MfaEnrollment> {
+    return authenticatedFetch('/api/auth/mfa/enrollment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    }, async (response) => {
+      if (response.status !== 201) throw await boundedError(response);
+      const enrollment = projectMfaEnrollment(await readJsonResponse(response));
+      if (!enrollment) throw invalidResponse(response.status);
+      return enrollment;
+    });
+  }
+
+  function verifyMfaEnrollment(enrollmentId: string, code: string): Promise<EnrolledSession> {
+    return replaceWithVerifiedSession('/api/auth/mfa/enrollment/verify', { enrollmentId, code }, projectEnrolledSession);
+  }
+
+  function verifyMfa(code: string): Promise<SessionResponse> {
+    return replaceWithVerifiedSession('/api/auth/mfa/verify', { code }, projectSession);
+  }
+
   async function signOut(): Promise<void> {
     // Results of pending requests, refreshes and sign-ins become stale, so none can revive the session.
     sessionEpoch += 1;
@@ -211,7 +341,15 @@ export function createSessionClient(options: ApiClientOptions = {}): SessionClie
     });
   }
 
-  return { signIn, restoreSession, authenticatedFetch, signOut };
+  return { signIn, restoreSession, authenticatedFetch, startMfaEnrollment, verifyMfaEnrollment, verifyMfa, signOut };
 }
 
-export const { signIn, restoreSession, authenticatedFetch, signOut } = createSessionClient();
+export const {
+  signIn,
+  restoreSession,
+  authenticatedFetch,
+  startMfaEnrollment,
+  verifyMfaEnrollment,
+  verifyMfa,
+  signOut,
+} = createSessionClient();

@@ -7,7 +7,8 @@
     "brand": "Medi Wish",
     "accountNav": "Account",
     "signIn": "Sign in",
-    "backHome": "Back to home"
+    "backHome": "Back to home",
+    "signOut": "Sign out"
   },
   "home": {
     "title": "Medi Wish",
@@ -51,10 +52,56 @@
     "signOut": "Sign out",
     "signingOut": "Signing out…"
   },
+  "staffMfa": {
+    "enrollTitle": "Set up your authenticator",
+    "enrollIntro": "Staff access needs a code from an authenticator app.",
+    "preparing": "Preparing your setup…",
+    "qrLabel": "QR code to scan with your authenticator app",
+    "cantScan": "Can’t scan?",
+    "manualKeyHint": "Enter this key in your authenticator app:",
+    "codeLabel": "Enter the 6-digit code",
+    "codeFormat": "Enter the 6 digits shown in your authenticator app.",
+    "verify": "Verify",
+    "verifying": "Verifying…",
+    "tryAgain": "Try again",
+    "enrollmentRestarted": "That setup expired, so a new one has started. Scan the new QR code or enter the new key.",
+    "challengeTitle": "Verify it’s you",
+    "challengeIntro": "Enter the code from your authenticator app.",
+    "challengeCodeLabel": "Authenticator code",
+    "checking": "Checking your session…",
+    "signOut": "Sign out",
+    "signingOut": "Signing out…",
+    "backupTitle": "Backup codes (shown once)",
+    "backupWarningStrong": "Save these now.",
+    "backupWarning": "Each works once if you lose your phone.",
+    "backupListLabel": "Backup codes",
+    "copyAll": "Copy all",
+    "copied": "Copied",
+    "copyFailed": "The codes could not be copied. Select them and copy them yourself.",
+    "saved": "I’ve saved them"
+  },
+  "staffHome": {
+    "pageTitle": "Staff",
+    "title": "Staff access verified",
+    "checking": "Checking your staff access…",
+    "username": "Username",
+    "roles": "Roles",
+    "superAdmin": "Super Admin",
+    "roleNames": {
+      "ADMIN": "Admin",
+      "MODERATOR": "Moderator",
+      "CUSTOMER": "Customer",
+      "DELIVERY_PERSON": "Delivery person"
+    }
+  },
   "errors": {
     "genericError": "The request could not be completed.",
     "authenticationFailed": "Those details don’t match an account.",
     "duplicateUser": "The username, mobile number or email is already in use.",
-    "invalidResponse": "The service returned an invalid response."
+    "invalidResponse": "The service returned an invalid response.",
+    "mfaRequired": "Authenticator verification is required.",
+    "mfaCodeInvalid": "The code is invalid or has already been used.",
+    "mfaEnrollmentStale": "This setup has expired. Start again.",
+    "tooManyAttempts": "Too many attempts. Try again later."
   }
 }

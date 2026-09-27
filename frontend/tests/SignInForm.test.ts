@@ -62,6 +62,21 @@ describe('SignInForm', () => {
     expect(router.replace).toHaveBeenCalledWith('/account');
   });
 
+  it.each([
+    ['ENROLLMENT_REQUIRED', '/staff/mfa/enroll'],
+    ['VERIFICATION_REQUIRED', '/staff/mfa'],
+    ['VERIFIED', '/staff'],
+  ] as const)('sends a staff sign-in with MFA status %s to %s instead of the account page', async (mfa, target) => {
+    const form = await renderWithSession(createElement(SignInForm), createSessionSource({
+      signIn: vi.fn().mockResolvedValue({ ...signedInResponse, mfa }),
+    }));
+
+    await fillAndSubmit(form);
+    await settle();
+
+    expect(router.replace.mock.calls).toEqual([[target]]);
+  });
+
   it('shows one bounded alert, clears the password and refocuses the identifier on failure', async () => {
     const form = await renderWithSession(createElement(SignInForm), createSessionSource({
       signIn: vi.fn().mockRejectedValue(new Error('private failure detail')),

@@ -4,9 +4,10 @@ This is the living database architecture map for the backend. It describes the
 schema that is currently created by Liquibase and mapped by JPA; it is not a
 design claim for tables that belong to later tickets.
 
-**Last reviewed:** 2026-09-26<br/>
+**Last reviewed:** 2026-09-27<br/>
 **Current scope:** Ticket 01 health baseline, Ticket 02 shared User
-registration/RBAC foundation and Ticket 03 durable password sessions.<br/>
+registration/RBAC foundation, Ticket 03 durable password sessions and Ticket 06
+staff MFA, first-Admin bootstrap and security audit events.<br/>
 **Schema source of truth:** [`src/main/resources/db/changelog/db.changelog-master.yaml`](../src/main/resources/db/changelog/db.changelog-master.yaml)<br/>
 **Runtime rule:** Liquibase owns schema changes; Hibernate runs with
 `ddl-auto: validate` and must not create or alter tables. Unique
@@ -20,6 +21,12 @@ erDiagram
     USERS ||--o{ USER_ROLES : "has persisted roles"
     USERS ||--o{ USER_SESSIONS : "owns session families"
     USER_SESSIONS ||--o{ SESSION_REFRESH_TOKENS : "rotates generations"
+    USERS ||--o{ STAFF_MFA_FACTORS : "enrolls authenticators"
+    STAFF_MFA_FACTORS ||--o{ STAFF_MFA_BACKUP_CODES : "issues backup codes"
+    STAFF_MFA_FACTORS |o--o{ USER_SESSIONS : "is MFA evidence for"
+    USERS ||--o| STAFF_MFA_THROTTLE : "counts failed codes"
+    USERS |o--o| STAFF_BOOTSTRAP : "is the Super Admin"
+    USERS |o--o{ SECURITY_AUDIT_EVENTS : "is the subject of"
 
     USERS {
         UUID id PK "Java-generated User identity"
@@ -43,7 +50,9 @@ erDiagram
         TIMESTAMPTZ expires_at
         TIMESTAMPTZ last_used_at
         TIMESTAMPTZ revoked_at
-        VARCHAR_64 revoked_reason "logout, refresh-replay or user-unavailable"
+        VARCHAR_64 revoked_reason "RevocationReason code"
+        UUID mfa_factor_id FK "nullable; set null when the factor is deleted"
+        TIMESTAMPTZ mfa_verified_at "nullable; with mfa_factor_id"
     }
 
     SESSION_REFRESH_TOKENS {
@@ -54,6 +63,49 @@ erDiagram
         TIMESTAMPTZ issued_at
         TIMESTAMPTZ expires_at
         TIMESTAMPTZ consumed_at
+    }
+
+    STAFF_MFA_FACTORS {
+        UUID id PK "also the AES-GCM associated data"
+        UUID user_id FK "cascade to User"
+        VARCHAR_16 status "PENDING, ACTIVE or REVOKED"
+        BYTEA secret_ciphertext "sealed TOTP seed"
+        BYTEA secret_nonce "12-byte GCM nonce"
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ pending_expires_at
+        TIMESTAMPTZ activated_at
+        TIMESTAMPTZ revoked_at
+        BIGINT last_used_step "default -1; replay guard"
+    }
+
+    STAFF_MFA_BACKUP_CODES {
+        UUID id PK
+        UUID factor_id FK "cascade to factor"
+        VARCHAR_255 code_verifier "Argon2 verifier only"
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ consumed_at
+    }
+
+    STAFF_MFA_THROTTLE {
+        UUID user_id PK, FK "cascade to User"
+        INT failed_count
+        TIMESTAMPTZ window_started_at
+        TIMESTAMPTZ locked_until
+    }
+
+    STAFF_BOOTSTRAP {
+        SMALLINT id PK "always 1"
+        UUID super_admin_user_id FK "set null when the User is deleted"
+        TIMESTAMPTZ provisioned_at
+    }
+
+    SECURITY_AUDIT_EVENTS {
+        UUID id PK
+        TIMESTAMPTZ occurred_at
+        VARCHAR_64 event_type "fixed event name"
+        UUID subject_user_id FK "set null when the User is deleted"
+        UUID session_id "no FK"
+        VARCHAR_64 request_id "X-Request-ID"
     }
 ```
 
@@ -95,8 +147,13 @@ substitute.
 | --- | --- | --- | --- |
 | `users` | `bd.mediwish.user.User` | `id` primary key; `username` unique and not null; `mobile` unique and not null; optional `email`, unique ignoring case through `uk_users_email_upper` on `upper(email)`; non-null `password_hash`; non-null `mobile_verified`; non-null `created_at` | Shared identity/profile and credential verifier for Customers and future staff roles. |
 | `user_roles` | `User.roles` via `@ElementCollection` | Composite primary key `(user_id, role)`; `user_id` foreign key to `users.id` with `ON DELETE CASCADE`; non-null role | Role assignments used by Spring Security for current authorization. |
-| `user_sessions` | `bd.mediwish.auth.UserSession` | UUID primary key; cascading `user_id` FK; non-null lifecycle timestamps; nullable revocation fields; user/revocation and expiry indexes | Durable refresh-session family whose revocation is checked before bearer authorization. |
+| `user_sessions` | `bd.mediwish.auth.UserSession` | UUID primary key; cascading `user_id` FK; non-null lifecycle timestamps; nullable revocation fields; nullable `mfa_factor_id` (`fk_user_sessions_mfa_factor`, `ON DELETE SET NULL`) and `mfa_verified_at`; user/revocation and expiry indexes | Durable refresh-session family whose revocation is checked before bearer authorization. The MFA columns are the session's assurance: staff roles apply only while they name the User's active factor. |
 | `user_session_refresh_tokens` | `bd.mediwish.auth.UserSessionRefreshToken` | UUID primary key; cascading session FK; unique token digest; unique `(session_id, generation)`; session/expiry index; nullable consumed timestamp | One row per refresh generation; consumed rows remain for replay detection. |
+| `staff_mfa_factors` | `bd.mediwish.auth.StaffMfaFactor` | UUID primary key; `fk_staff_mfa_factors_user` with `ON DELETE CASCADE`; `ck_staff_mfa_factors_status` limits `status` to `PENDING`, `ACTIVE`, `REVOKED`; partial unique indexes `uq_staff_mfa_active` and `uq_staff_mfa_pending` on `user_id`; non-null ciphertext, nonce and `last_used_step` (default `-1`) | A staff User's TOTP authenticator: at most one active and one pending. The seed is stored only sealed with AES-256-GCM. |
+| `staff_mfa_backup_codes` | `bd.mediwish.auth.StaffMfaBackupCode` | UUID primary key; `fk_staff_mfa_backup_codes_factor` with `ON DELETE CASCADE`; `idx_staff_mfa_backup_codes_factor`; non-null `code_verifier`; nullable `consumed_at` | Argon2 verifiers of the ten backup codes issued at enrollment. |
+| `staff_mfa_throttle` | `bd.mediwish.auth.StaffMfaThrottle` | `user_id` primary key and `fk_staff_mfa_throttle_user` with `ON DELETE CASCADE`; non-null `failed_count` and `window_started_at`; nullable `locked_until` | Failed-code count per User; five failures in 15 minutes lock verification for 15 minutes. |
+| `staff_bootstrap` | `bd.mediwish.auth.StaffBootstrap` | `SMALLINT` primary key with `ck_staff_bootstrap_singleton` (`id = 1`); nullable `super_admin_user_id` (`fk_staff_bootstrap_super_admin`, `ON DELETE SET NULL`); non-null `provisioned_at` | Permanent singleton claimed once by the first-Admin command; it names the Super Admin and is never reopened. |
+| `security_audit_events` | `bd.mediwish.auth.SecurityAuditEvent` | UUID primary key; non-null `occurred_at` and `event_type`; nullable `subject_user_id` (`fk_security_audit_events_subject`, `ON DELETE SET NULL`), `session_id` (no FK) and `request_id`; `idx_security_audit_events_subject` on `(subject_user_id, occurred_at)` | Append-only record of staff MFA and provisioning events. It has no free-text column. |
 | `DATABASECHANGELOG` | Liquibase | Tool-managed applied-change records | Migration history and checksum protection; not application domain data. |
 | `DATABASECHANGELOGLOCK` | Liquibase | Tool-managed migration lock | Prevents concurrent Liquibase updates; not application domain data. |
 
@@ -116,8 +173,8 @@ substitute.
   normalization, verification and account-linking semantics belong to Ticket
   61 and are not represented as implemented schema here.
 - Public registration cannot supply roles. The service constructs a User with
-  `CUSTOMER`; later staff enrollment/RBAC work may add controlled role
-  mutation paths.
+  `CUSTOMER`. The only application path that adds a role is the first-Admin
+  command, which adds `ADMIN` once.
 - `mobile_verified` is retained as persisted state but remains false for the
   reduced flow. Ticket 61 owns the final OTP transition.
 - Refresh values are generated with at least 32 random bytes and only their
@@ -125,12 +182,31 @@ substitute.
   family in one transaction; raw values never appear in schema, JWT claims or
   ordinary responses.
 - Revocation is monotonic: the first `revoked_at`/`revoked_reason` pair is
-  kept. `revoked_reason` stores a `RevocationReason` code (`logout`,
-  `refresh-replay` or `user-unavailable`); later account operations will
-  add their own codes when they revoke through `SessionService.revokeAllForUser`.
+  kept. `revoked_reason` stores a `RevocationReason` code: `logout`,
+  `refresh-replay`, `user-unavailable`, `mfa-verified` (a restricted staff
+  session replaced by its verified session) or `staff-provisioned` (every
+  session of the User the first-Admin command promotes).
 - Logout revokes all valid session families represented by duplicate refresh
   cookies in one transaction. A failure while revoking any family rolls back
   the entire operation rather than leaving a partial logout.
+- MFA seeds are stored only as AES-256-GCM ciphertext with a fresh 12-byte
+  nonce and the factor ID as associated data; the key comes from
+  `APP_AUTH_MFA_SECRET_KEY` and is never stored. Backup codes are stored only
+  as Argon2 verifiers of the dash-free code. `last_used_step` rejects a code
+  step at or before the last accepted one.
+- A staff session holds evidence only after verification: MFA verification
+  revokes the restricted session and creates a new session with
+  `mfa_factor_id` and `mfa_verified_at`; rotation keeps both and the absolute
+  expiry. Customer sessions keep both `NULL`.
+- Every MFA change first locks the `users` row (`SELECT ... FOR UPDATE`),
+  then the User's factor, throttle and session rows. Provisioning claims
+  `staff_bootstrap` first, so a concurrent run waits on that row, and then
+  locks the User. Failed-code counts commit even though the request fails.
+- `staff_bootstrap` is claimed with `INSERT ... ON CONFLICT DO NOTHING`; a
+  refused provisioning rolls its transaction back. Deleting the Super Admin
+  leaves the row with a `NULL` User, so bootstrap stays used.
+- Audit events store only fixed event names, User and session IDs and the
+  request ID, never codes, seeds or usernames.
 - The table rename from `customers` to `users` preserves the applied
   migration history; `customers` is not a current application table.
 
@@ -147,6 +223,7 @@ substitute.
 | `007-user-email-case-insensitive-lookup` | Adds a non-unique B-tree expression index on `upper(users.email)`. | Supports the bounded case-insensitive candidate query without changing stored email values or making email unique. |
 | `008-drop-unused-exact-email-index` | Drops `idx_users_email`, introduced by 006. | Keeps only the index used by the current case-insensitive lookup while preserving append-only migration history. |
 | `009-unique-user-email` | Halts, changing nothing, when non-null emails repeat ignoring case; otherwise replaces `idx_users_email_upper` with the unique `uk_users_email_upper` on `upper(email)`. | One index enforces unique optional email and serves the case-insensitive sign-in lookup. The operator resolves duplicates by hand, as the halt message names no address. |
+| `010-staff-mfa` | Creates `staff_mfa_factors`, `staff_mfa_backup_codes`, `staff_mfa_throttle`, `staff_bootstrap` and `security_audit_events` with their checks, partial unique indexes, foreign keys and indexes; adds nullable `mfa_factor_id` and `mfa_verified_at` to `user_sessions`. | Implements staff MFA, the one-time first-Admin bootstrap and the security audit trail. Existing sessions keep `NULL` evidence and continue to refresh. |
 
 When a later ticket changes persistence, add a new append-only changeset and
 update this page in the same change. Do not rewrite an applied changeset to

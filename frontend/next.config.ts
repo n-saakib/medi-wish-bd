@@ -5,6 +5,10 @@ const withNextIntl = createNextIntlPlugin();
 const nextConfig: NextConfig = {
   output: 'standalone',
   poweredByHeader: false,
+  // Staff pages can show an authenticator secret or backup codes, so neither the browser nor a proxy may keep them.
+  async headers() {
+    return [{ source: '/staff/:path*', headers: [{ key: 'Cache-Control', value: 'no-store' }] }];
+  },
 };
 
 export default withNextIntl(nextConfig);

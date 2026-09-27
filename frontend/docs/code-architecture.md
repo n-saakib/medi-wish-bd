@@ -5,12 +5,13 @@ remains authoritative; this page documents the route structure, the
 server/client boundary, the shared session state and the small API client
 seams.
 
-**Last reviewed:** 2026-09-26<br/>
+**Last reviewed:** 2026-09-27<br/>
 **Current scope:** application shell, English localization, health probe
 boundary, and the Ticket 03.01 designed storefront routes: home, sign-in,
-registration (Ticket 02) and account with sign-out (Ticket 03 browser session).
-Product catalog, search, cart, orders, staff UI, OTP, MFA, recovery and OAuth
-screens are not implemented in this slice.
+registration (Ticket 02), account with sign-out (Ticket 03 browser session),
+and the staff authenticator setup, code and placeholder staff pages (Ticket 06).
+Product catalog, search, cart, orders, the staff dashboard, OTP, backup-code
+sign-in, recovery and OAuth screens are not implemented in this slice.
 
 ## Application dependency diagram
 
@@ -27,6 +28,10 @@ flowchart TD
         AUTH["(auth)/layout.tsx<br/>auth group"]
         SIGNINPAGE["(auth)/sign-in/page.tsx<br/>/sign-in"]
         REGISTERPAGE["(auth)/register/page.tsx<br/>/register"]
+        ENROLLPAGE["(auth)/staff/mfa/enroll/page.tsx<br/>/staff/mfa/enroll"]
+        CHALLENGEPAGE["(auth)/staff/mfa/page.tsx<br/>/staff/mfa"]
+        STAFFGROUP["(staff)/layout.tsx<br/>staff group"]
+        STAFFPAGE["(staff)/staff/page.tsx<br/>/staff"]
     end
 
     subgraph AUTHF[src/auth - client]
@@ -35,27 +40,36 @@ flowchart TD
         SIGNIN[SignInForm.tsx]
         REGISTER[RegistrationForm.tsx]
         NOTICE[SignOutNotice.tsx]
+        ENROLL[MfaEnrollment.tsx<br/>QR, code, backup codes]
+        CHALLENGE[MfaChallenge.tsx]
     end
 
     subgraph ACCOUNTF[src/account - client]
         SUMMARY[AccountSummary.tsx]
     end
 
+    subgraph STAFFF[src/staff - client]
+        STAFFHOME[StaffHome.tsx]
+    end
+
     subgraph SHELL[src/shell]
         SITEHEADER[SiteHeader.tsx<br/>client]
         AUTHHEADER[AuthHeader.tsx]
+        STAFFHEADER[StaffHeader.tsx<br/>client]
         PARTS[Logo, Icon, Alert]
     end
 
     subgraph LIB[src/lib - client seams]
         SESSION[session.ts<br/>memory-only access session]
         USER[user.ts<br/>registration + profile client]
+        STAFF[staff.ts<br/>staff access client]
         APIMOD[api.ts<br/>request, timeout, bounded errors]
         HEALTH[health.ts<br/>health response probe]
     end
 
     I18N[src/i18n/request.ts + messages/en.json]
     API[Spring Boot API<br/>127.0.0.1:8080 by default]
+    QRCODE[qrcode package<br/>local SVG rendering]
     TESTS[tests + tools<br/>unit, integration and health probe]
 
     BROWSER --> LAYOUT
@@ -70,6 +84,23 @@ flowchart TD
     AUTH --> AUTHHEADER
     AUTH --> SIGNINPAGE
     AUTH --> REGISTERPAGE
+    AUTH --> ENROLLPAGE
+    AUTH --> CHALLENGEPAGE
+    LAYOUT --> STAFFGROUP
+    STAFFGROUP --> STAFFHEADER
+    STAFFGROUP --> STAFFPAGE
+    ENROLLPAGE --> ENROLL
+    CHALLENGEPAGE --> CHALLENGE
+    STAFFPAGE --> STAFFHOME
+    ENROLL --> QRCODE
+    ENROLL --> REDIRECT
+    CHALLENGE --> REDIRECT
+    STAFFHOME --> REDIRECT
+    ENROLL --> PROVIDER
+    CHALLENGE --> PROVIDER
+    STAFFHEADER --> PROVIDER
+    STAFFHOME -->|fetchStaffAccess via provider authenticatedFetch| STAFF
+    STAFF --> APIMOD
     HOME --> NOTICE
     ACCOUNTPAGE --> SUMMARY
     SIGNINPAGE --> SIGNIN
@@ -93,7 +124,7 @@ flowchart TD
     SIGNIN -->|errorMessageKey| APIMOD
     SESSION --> APIMOD
     USER --> APIMOD
-    SESSION -->|csrf/login/refresh/logout<br/>GET /api/user/me with Bearer| API
+    SESSION -->|csrf/login/refresh/logout, MFA enrollment and verify<br/>GET /api/user/me and /api/staff/me with Bearer| API
     USER -->|POST /api/auth/register| API
     HEALTH -->|GET /actuator/health/*| API
     TESTS --> PROVIDER
@@ -106,9 +137,11 @@ flowchart TD
 loading run on the server side of the Next.js boundary, and every route is
 statically generated. `AuthHeader` and `Logo` have no client directive and
 render on the server inside the auth layout. `SessionProvider`, the forms,
-`SignOutNotice`, `AccountSummary`, `SiteHeader` and `Alert` are client
-components because they own state, browser events, focus or navigation.
-`(store)` and `(auth)` are route groups, so they add no URL segment.
+`SignOutNotice`, `AccountSummary`, `SiteHeader`, `MfaEnrollment`,
+`MfaChallenge`, `StaffHome`, `StaffHeader` and `Alert` are client components
+because they own state, browser events, focus or navigation. `(store)`,
+`(auth)` and `(staff)` are route groups, so they add no URL segment. The
+`/staff/*` responses carry `Cache-Control: no-store` from `next.config.ts`.
 
 ## Session state and redirects
 
@@ -174,9 +207,15 @@ sequenceDiagram
 - the `account` guard sends signed-out visitors to `/sign-in`, sends them to `/`
   right after a sign-out (`signedOut` or `signOutError`), and stays put while
   sign-out is pending;
-- the `guest` guard (sign-in and registration) sends signed-in users to
-  `/account`. Sign-in success reaches `/account` this way, not by an explicit
-  navigation in the form.
+- a signed-in session has one home page chosen by its MFA status
+  (`NOT_REQUIRED` `/account`, `ENROLLMENT_REQUIRED` `/staff/mfa/enroll`,
+  `VERIFICATION_REQUIRED` `/staff/mfa`, `VERIFIED` `/staff`). The `guest` guard
+  (sign-in and registration) sends signed-in users there, so sign-in success
+  lands without an explicit navigation in the form;
+- the `mfa-enrollment`, `mfa-challenge` and `staff` guards admit only their own
+  status, send other sessions to their home page and signed-out visitors to
+  `/sign-in`; `account` admits `NOT_REQUIRED` and `VERIFIED`. Setup holds its
+  redirect while a code is verifying and while the backup codes are shown.
 
 Redirects use `router.replace` with fixed paths; no identifier, credential or
 token is placed in a URL. The store header renders no account link until the
@@ -210,29 +249,40 @@ The mounted UI calls `signIn`, `restoreSession`, `signOut` and
 codes into `messages/en.json` copy with `errorMessageKey`; the API's own
 message text is never shown.
 
+Staff MFA goes through the same seam. `startMfaEnrollment` uses
+`authenticatedFetch`; `verifyMfaEnrollment` and `verifyMfa` send the restricted
+Bearer token with the refresh cookie inside the cookie-mutation lock, then
+store the verified access token and advance the session epoch. The provider
+records only the new MFA status; the setup key, otpauth URI and backup codes
+are returned to the page component, which keeps them in state, clears them on
+`pagehide` and unmount, and draws the QR code locally with `qrcode`.
+
 ## Module responsibilities
 
 | Module | Responsibility | Boundary |
 | --- | --- | --- |
 | `src/app/layout.tsx` | Root HTML shell, metadata title template, `NextIntlClientProvider` and the single `SessionProvider`. | Server component boundary. |
 | `src/app/(store)/*` | Store layout with `SiteHeader`; home page (`/`) and account page (`/account`). | Server route files composing client components. |
-| `src/app/(auth)/*` | Auth layout with `AuthHeader` and centered card; sign-in (`/sign-in`) and registration (`/register`) pages. | Server route files composing client components. |
+| `src/app/(auth)/*` | Auth layout with `AuthHeader` and centered card; sign-in (`/sign-in`), registration (`/register`), authenticator setup (`/staff/mfa/enroll`) and code (`/staff/mfa`) pages. | Server route files composing client components. |
+| `src/app/(staff)/*` | Staff layout with `StaffHeader`; placeholder staff page (`/staff`). | Server route files composing client components. |
 | `src/app/globals.css` | Design tokens and component styles ported from `agent-docs/ui-design/assets/styles.css`, limited to the current pages. | Global stylesheet. |
-| `src/auth/` | Session provider and reducer, redirect rules, sign-in and registration forms, sign-out notice. | Client UI and state; network only through `src/lib`. |
+| `src/auth/` | Session provider and reducer, redirect rules, sign-in and registration forms, sign-out notice, authenticator setup, code entry, code field and backup-code panel. | Client UI and state; network only through `src/lib`. |
 | `src/account/` | Account summary: loads the current profile, shows loading, profile or generic error, and the sign-out button. | Client UI; the profile call goes through `user.ts` and the provider. |
-| `src/shell/` | Store and auth headers, logo, decorative icons and the alert component. | Presentation; `SiteHeader` reads session state. |
+| `src/staff/` | Staff landing: loads `GET /api/staff/me` for a verified session and shows the username, roles and Super Admin label. | Client UI; the call goes through `staff.ts` and the provider. |
+| `src/shell/` | Store, auth and staff headers, logo, decorative icons and the alert component. | Presentation; `SiteHeader` reads session state. |
 | `src/lib/api.ts` | Base URL, request defaults and 10-second timeout, 16 KiB JSON reading, `ApiError` and the error-code-to-copy key. | Shared HTTP boundary for the API clients. |
-| `src/lib/session.ts` | Login, CSRF bootstrap, memory-only access token, cross-tab cookie-mutation Web Lock, refresh single-flight, restore (`204` none, `401` expired), Bearer requests with one refresh and retry, epoch invalidation and logout. | Injectable browser session seam; refresh credentials remain cookie-backed. |
+| `src/lib/session.ts` | Login, CSRF bootstrap, MFA status, enrollment start and verification with token replacement, memory-only access token, cross-tab cookie-mutation Web Lock, refresh single-flight, restore (`204` none, `401` expired), Bearer requests with one refresh and retry, epoch invalidation and logout. | Injectable browser session seam; refresh credentials remain cookie-backed. |
 | `src/lib/user.ts` | Registration (any `201` succeeds) and the `GET /api/user/me` profile through `authenticatedFetch`, with field projection. | Network seam to the backend; no credential persistence. |
+| `src/lib/staff.ts` | `GET /api/staff/me` through `authenticatedFetch`, with bounded projection of username, roles and Super Admin flag. | Network seam to the backend. |
 | `src/lib/health.ts` | Parallel liveness/readiness probe with bounded result states and timeout. | Operational probe seam. |
 | `src/i18n/request.ts` | Selects the English locale and loads the message catalog. | Server localization boundary. |
-| `messages/en.json` | User-visible English strings by feature namespace (`metadata`, `header`, `home`, `signIn`, `register`, `account`, `errors`). | Externalized message source. |
+| `messages/en.json` | User-visible English strings by feature namespace (`metadata`, `header`, `home`, `signIn`, `register`, `account`, `staffMfa`, `staffHome`, `errors`). | Externalized message source. |
 | `tests/` and `tools/` | Exercise the API seams, provider and redirect rules, mounted pages' components (with real session clients over the shared `fakeApi` routes), health integration and the supported probe path. | Verification boundary; synthetic data only. |
 
 ## Frontend safety rules
 
-- Keep credentials, tokens, OTPs, personal data and order data out of browser
-  storage, URLs, logs and ordinary error text.
+- Keep credentials, tokens, OTPs, MFA keys, backup codes, personal data and
+  order data out of browser storage, URLs, logs and ordinary error text.
 - Keep backend errors bounded to a code and status, and show only the
   `messages/en.json` copy chosen for the code, never the API's message.
 - Keep `session.ts`, `user.ts` and `health.ts` injectable through their fetch or

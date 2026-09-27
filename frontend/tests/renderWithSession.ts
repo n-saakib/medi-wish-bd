@@ -8,7 +8,7 @@ import { ApiError } from '../src/lib/api';
 import type { SessionResponse } from '../src/lib/session';
 import { flushTasks, signedInUser } from './fakeApi';
 
-export const signedInResponse: SessionResponse = { accessToken: 'synthetic-access-token', user: signedInUser };
+export const signedInResponse: SessionResponse = { accessToken: 'synthetic-access-token', user: signedInUser, mfa: 'NOT_REQUIRED' };
 
 Object.defineProperty(globalThis, 'IS_REACT_ACT_ENVIRONMENT', { value: true, configurable: true });
 
@@ -21,6 +21,9 @@ export function createSessionSource(overrides: Partial<SessionSource> = {}): Ses
     restoreSession: vi.fn().mockResolvedValue(null),
     signOut: vi.fn().mockResolvedValue(undefined),
     authenticatedFetch: vi.fn().mockRejectedValue(new ApiError('AUTHENTICATION_REQUIRED', 401)),
+    startMfaEnrollment: vi.fn().mockRejectedValue(new ApiError('AUTHENTICATION_REQUIRED', 401)),
+    verifyMfaEnrollment: vi.fn().mockRejectedValue(new ApiError('AUTHENTICATION_REQUIRED', 401)),
+    verifyMfa: vi.fn().mockRejectedValue(new ApiError('AUTHENTICATION_REQUIRED', 401)),
     ...overrides,
   };
 }

@@ -10,7 +10,7 @@ The shared HTTP boundary for the API clients in [`session.ts`](session.ts.md) an
 
 - `ApiError` — a bounded failure: `code` (the API's error code, or a client code) and `status` (`0` when no response arrived). Its `message` is always empty, because the API's `message` text is never read or shown.
 - `ApiClientOptions` — `{ baseUrl?, fetch? }`, the options both clients accept; tests inject `fetch`.
-- `errorMessageKey(reason)` — the `errors` key in [`messages/en.json`](../../messages/en.json.md) for a failure: `authenticationFailed`, `duplicateUser`, `invalidResponse`, or `genericError` for every other code and for non-`ApiError` failures.
+- `errorMessageKey(reason)` — the `ErrorMessageKey` in [`messages/en.json`](../../messages/en.json.md) for a failure: `authenticationFailed`, `duplicateUser`, `mfaRequired` (`MFA_REQUIRED`), `mfaCodeInvalid` (`MFA_CODE_INVALID`), `mfaEnrollmentStale` (`MFA_ENROLLMENT_STALE`), `tooManyAttempts` (`TOO_MANY_ATTEMPTS`), `invalidResponse`, or `genericError` for every other code and for non-`ApiError` failures.
 - `apiRequest(fetcher, url, init, readResponse)` — sends one request with `cache: 'no-store'` and `redirect: 'error'`, and aborts it after 10 seconds, including the time `readResponse` spends reading the body. A transport failure or abort becomes `REQUEST_FAILED` with status `0`.
 - `endpoint(path, baseUrl?)` — resolves a path against `NEXT_PUBLIC_MEDI_WISH_API_URL`, defaulting to `http://127.0.0.1:8080`.
 - `readJsonResponse(response)` — reads at most 16 KiB of JSON whatever `Content-Length` claims, cancelling a larger body. Malformed or oversized JSON is `INVALID_RESPONSE`; a body-read failure is `REQUEST_FAILED`.
@@ -23,4 +23,4 @@ Client code calls `apiRequest` rather than `fetch`, so every API call gets the s
 
 ## Verification
 
-Covered through its callers: [`tests/session.test.ts`](../../tests/session.test.ts.md) covers the 16 KiB limit and the sign-in, refresh and logout timeouts, and [`tests/user.test.ts`](../../tests/user.test.ts.md) covers bounded error codes, oversized and unreadable error bodies, transport failures and the registration and profile timeouts. The form tests check the `errorMessageKey` copy.
+Covered through its callers: [`tests/session.test.ts`](../../tests/session.test.ts.md) covers the 16 KiB limit and the sign-in, refresh and logout timeouts, and [`tests/user.test.ts`](../../tests/user.test.ts.md) covers bounded error codes, oversized and unreadable error bodies, transport failures and the registration and profile timeouts. The form and MFA page tests check the `errorMessageKey` copy.

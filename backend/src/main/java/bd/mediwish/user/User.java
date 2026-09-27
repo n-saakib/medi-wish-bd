@@ -59,4 +59,9 @@ public class User {
     public String passwordHash() { return passwordHash; }
     public boolean mobileVerified() { return mobileVerified; }
     public Set<UserRole> roles() { return Collections.unmodifiableSet(roles); }
+
+    public boolean hasStaffRole() { return roles.stream().anyMatch(UserRole::isStaff); }
+
+    /** Adds a role, keeping the existing ones; only the first-Admin provisioning grants roles so far. */
+    public void grantRole(UserRole role) { roles.add(role); }
 }

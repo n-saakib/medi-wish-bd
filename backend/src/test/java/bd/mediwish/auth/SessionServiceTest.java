@@ -1,5 +1,6 @@
 package bd.mediwish.auth;
 
+import bd.mediwish.testsupport.TestAuthSettings;
 import bd.mediwish.user.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -41,7 +42,7 @@ class SessionServiceTest {
     @BeforeEach
     void setUp() {
         var properties = new AuthProperties(Duration.ofMinutes(15), Duration.ofSeconds(1000), "medi-wish",
-                "medi-wish-api", "unused", new AuthProperties.Cookie(true));
+                "medi-wish-api", "unused", new AuthProperties.Cookie(true), TestAuthSettings.mfa());
         var random = new SecureRandom() {
             @Override
             public void nextBytes(byte[] bytes) {
@@ -61,6 +62,42 @@ class SessionServiceTest {
         var saved = savedTokens().getFirst();
         assertThat(saved.generation()).isZero();
         assertThat(saved.tokenHash()).isEqualTo(RefreshTokenHasher.hash(result.refreshToken()));
+    }
+
+    @Test
+    void aStaffPasswordSessionCanBeGivenTheShortRestrictedLifetime() {
+        var result = service.create(user, Duration.ofMinutes(10));
+
+        assertThat(result.expiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(10)));
+        assertThat(result.mfa()).isEqualTo(new SessionService.MfaEvidence(null, null));
+    }
+
+    @Test
+    void mfaVerificationRevokesTheRestrictedSessionAndStartsAVerifiedOneWithTheFullLifetime() {
+        var restricted = session(NOW.plusSeconds(60));
+        when(sessions.findByIdForUpdate(restricted.id())).thenReturn(Optional.of(restricted));
+        UUID factorId = UUID.randomUUID();
+
+        var verified = service.upgradeToMfa(restricted.id(), factorId);
+
+        assertThat(restricted.revokedReason()).isEqualTo("mfa-verified");
+        assertThat(verified.sessionId()).isNotEqualTo(restricted.id());
+        assertThat(verified.expiresAt()).isEqualTo(NOW.plusSeconds(1000));
+        assertThat(verified.mfa()).isEqualTo(new SessionService.MfaEvidence(factorId, NOW));
+        assertThat(savedTokens().getFirst().tokenHash()).isEqualTo(RefreshTokenHasher.hash(verified.refreshToken()));
+    }
+
+    @Test
+    void aRevokedOrExpiredRestrictedSessionCannotBeUpgraded() {
+        var revoked = session(NOW.plusSeconds(60));
+        revoked.revoke(NOW, RevocationReason.LOGOUT);
+        var expired = session(NOW);
+        for (var session : List.of(revoked, expired)) {
+            when(sessions.findByIdForUpdate(session.id())).thenReturn(Optional.of(session));
+            assertThatThrownBy(() -> service.upgradeToMfa(session.id(), UUID.randomUUID()))
+                    .isInstanceOf(AuthenticationRequiredException.class);
+        }
+        verifyNoInteractions(refreshTokens);
     }
 
     @Test

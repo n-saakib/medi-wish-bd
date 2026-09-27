@@ -8,7 +8,9 @@ Shared fakes for the unit and mounted tests, so each suite describes only the AP
 
 ## Exports
 
-- `signedInUser` and `sessionBody(accessToken?)` — the synthetic user and the body the API returns for a sign-in or refresh.
+- `signedInUser` and `sessionBody(accessToken?, mfa = 'NOT_REQUIRED')` — the synthetic user and the body the API returns for a sign-in, refresh or MFA verification.
+- `restoredCustomer` and `restoredStaff(mfa)` — restore results for a Customer and for a staff member with the given MFA status.
+- `enrollmentBody(secret?, enrollmentId?)` and `syntheticBackupCodes` — a synthetic enrollment start body and ten synthetic backup codes; none is a real secret.
 - `apiRoutes(routes)` — a fake `fetch` that answers each API path from its route, builds a real `Request` for every call and records it (`requests`, and `paths()` for their pathnames). `GET /api/auth/csrf` answers `{ csrfToken: 'csrf' }` unless overridden; an unrouted path fails the request.
 - `stalledRoute` — a route that never answers and rejects once the request is aborted, for the operation-timeout tests.
 - `deferred()` — a promise with external `resolve`/`reject`, used to hold a request or response open mid-test.
@@ -17,8 +19,8 @@ Shared fakes for the unit and mounted tests, so each suite describes only the AP
 
 ## Use cases
 
-Used by `session.test.ts`, `user.test.ts`, `SessionProvider.test.ts`, `SignInForm.test.ts`, `RegistrationForm.test.ts`, `SiteHeader.test.ts`, `AccountSummary.test.ts` and [`renderWithSession`](renderWithSession.ts.md). Mounted tests pass `apiRoutes(...).fetch` to a real `createSessionClient`, so their sessions expire and restore through the same code as the browser.
+Used by `session.test.ts`, `user.test.ts`, `SessionProvider.test.ts`, `SignInForm.test.ts`, `RegistrationForm.test.ts`, `SiteHeader.test.ts`, `AccountSummary.test.ts`, `MfaEnrollment.test.ts`, `MfaChallenge.test.ts`, `BackupCodesPanel.test.ts`, `StaffHome.test.ts` and [`renderWithSession`](renderWithSession.ts.md). Mounted tests pass `apiRoutes(...).fetch` to a real `createSessionClient`, so their sessions expire and restore through the same code as the browser.
 
 ## Verification
 
-Exercised by those suites; on 2026-09-26 `npm run verify` passed over this file.
+Exercised by those suites; on 2026-09-27 `npm run verify` passed over this file.

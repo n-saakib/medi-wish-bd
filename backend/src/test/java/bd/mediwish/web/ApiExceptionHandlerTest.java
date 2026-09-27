@@ -3,6 +3,9 @@ package bd.mediwish.web;
 import bd.mediwish.auth.AuthenticationFailedException;
 import bd.mediwish.auth.AuthenticationRequiredException;
 import bd.mediwish.auth.InvalidRequestException;
+import bd.mediwish.auth.MfaCodeInvalidException;
+import bd.mediwish.auth.MfaEnrollmentStaleException;
+import bd.mediwish.auth.TooManyAttemptsException;
 import bd.mediwish.user.UserService;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
@@ -30,14 +33,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class ApiExceptionHandlerTest {
-    private static final Map<String, Supplier<RuntimeException>> FAILURES = Map.of(
-            "invalid-request", InvalidRequestException::new,
-            "invalid-registration", UserService.InvalidRegistrationException::new,
-            "duplicate-user", UserService.DuplicateUserException::new,
-            "authentication-failed", AuthenticationFailedException::new,
-            "authentication-required", AuthenticationRequiredException::new,
-            "data-access", () -> new DataAccessResourceFailureException("PRIVATE_ROW"),
-            "transaction", () -> new TransactionSystemException("PRIVATE_ROW"));
+    private static final Map<String, Supplier<RuntimeException>> FAILURES = Map.ofEntries(
+            Map.entry("mfa-code-invalid", MfaCodeInvalidException::new),
+            Map.entry("mfa-enrollment-stale", MfaEnrollmentStaleException::new),
+            Map.entry("too-many-attempts", TooManyAttemptsException::new),
+            Map.entry("invalid-request", InvalidRequestException::new),
+            Map.entry("invalid-registration", UserService.InvalidRegistrationException::new),
+            Map.entry("duplicate-user", UserService.DuplicateUserException::new),
+            Map.entry("authentication-failed", AuthenticationFailedException::new),
+            Map.entry("authentication-required", AuthenticationRequiredException::new),
+            Map.entry("data-access", () -> new DataAccessResourceFailureException("PRIVATE_ROW")),
+            Map.entry("transaction", () -> new TransactionSystemException("PRIVATE_ROW")));
 
     private final MockMvc mvc = MockMvcBuilders.standaloneSetup(new FailingController())
             .setControllerAdvice(new ApiExceptionHandler(apiErrors()))
@@ -48,7 +54,8 @@ class ApiExceptionHandlerTest {
     @CsvSource({"invalid-request,400,INVALID_REQUEST", "invalid-registration,400,INVALID_REQUEST",
             "duplicate-user,409,DUPLICATE_USER", "authentication-failed,401,AUTHENTICATION_FAILED",
             "authentication-required,401,AUTHENTICATION_REQUIRED", "data-access,500,INTERNAL_ERROR",
-            "transaction,500,INTERNAL_ERROR"})
+            "transaction,500,INTERNAL_ERROR", "mfa-code-invalid,400,MFA_CODE_INVALID",
+            "mfa-enrollment-stale,409,MFA_ENROLLMENT_STALE", "too-many-attempts,429,TOO_MANY_ATTEMPTS"})
     void mapsEachDomainFailureToItsBoundedError(String failure, int status, String code) throws Exception {
         mvc.perform(post("/fail/" + failure).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().is(status))
