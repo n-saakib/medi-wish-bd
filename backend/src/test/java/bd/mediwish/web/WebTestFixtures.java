@@ -1,5 +1,6 @@
 package bd.mediwish.web;
 
+import bd.mediwish.testsupport.TestAuthSettings;
 import bd.mediwish.auth.AuthProperties;
 import org.springframework.context.support.ResourceBundleMessageSource;
 import org.springframework.mock.env.MockEnvironment;
@@ -22,6 +23,6 @@ final class WebTestFixtures {
         var environment = new MockEnvironment();
         environment.setActiveProfiles(profiles.isEmpty() ? new String[0] : profiles.split(","));
         return new SecurityConfiguration(environment, new AuthProperties(Duration.ofMinutes(15), Duration.ofDays(30),
-                "medi-wish", "medi-wish-api", "unused", new AuthProperties.Cookie(secureCookies)));
+                "medi-wish", "medi-wish-api", "unused", new AuthProperties.Cookie(secureCookies), TestAuthSettings.mfa()));
     }
 }

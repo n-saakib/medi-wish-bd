@@ -1,9 +1,11 @@
 package bd.mediwish.auth;
 
+import bd.mediwish.testsupport.TestAuthSettings;
 import bd.mediwish.user.User;
 import bd.mediwish.user.UserIdentifierNormalizer;
 import bd.mediwish.user.UserProfile;
 import bd.mediwish.user.UserRepository;
+import bd.mediwish.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,7 +16,10 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -37,31 +42,59 @@ class AuthenticationServiceTest {
             "$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     private static final String DUMMY_VERIFIER = "dummy-verifier";
 
+    private static final Instant NOW = Instant.parse("2026-09-27T10:00:00Z");
+    private static final SessionService.MfaEvidence PASSWORD_ONLY = new SessionService.MfaEvidence(null, null);
+
     @Mock UserRepository users;
     @Mock PasswordEncoder passwords;
     @Mock SessionService sessions;
     @Mock AccessTokenCodec accessTokens;
+    @Mock StaffMfaFactorRepository factors;
     private AuthenticationService service;
 
     @BeforeEach
     void setUp() {
         when(passwords.encode(anyString())).thenReturn(DUMMY_VERIFIER);
-        service = new AuthenticationService(users, passwords, new UserIdentifierNormalizer(), sessions, accessTokens);
+        service = service(passwords);
+    }
+
+    private AuthenticationService service(PasswordEncoder encoder) {
+        return new AuthenticationService(users, encoder, new UserIdentifierNormalizer(), sessions, accessTokens, factors,
+                TestAuthSettings.properties(), Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
     void signsInTheOneUserAnIdentifierNamesAndReturnsItsProfile() {
         var user = new User("alice_1", "01700000000", "alice@example.com", VALID_VERIFIER);
-        var session = new SessionService.SessionCredential(user.id(), UUID.randomUUID(), "raw-refresh", Instant.MAX);
+        var session = new SessionService.SessionCredential(user.id(), UUID.randomUUID(), "raw-refresh", Instant.MAX,
+                PASSWORD_ONLY);
         lookups(" Alice@Example.COM ", null, null, user);
         when(passwords.matches("correct-password", VALID_VERIFIER)).thenReturn(true);
-        when(sessions.create(user)).thenReturn(session);
+        when(sessions.create(user, Duration.ofDays(30))).thenReturn(session);
         when(accessTokens.issue(user.id(), session.sessionId())).thenReturn(new AccessTokenCodec.IssuedAccessToken("access", 900));
 
         var result = service.signIn(" Alice@Example.COM ", "correct-password");
 
         assertThat(result).isEqualTo(new AuthenticationService.AuthenticatedSession("access", 900, "raw-refresh",
-                Instant.MAX, new UserProfile("alice_1", "01700000000", "alice@example.com", false)));
+                Instant.MAX, new UserProfile("alice_1", "01700000000", "alice@example.com", false), MfaStatus.NOT_REQUIRED));
+    }
+
+    @Test
+    void aStaffPasswordSignInGetsOnlyARestrictedSessionThatMustStillEnroll() {
+        var user = new User("owner_1", "01700000000", null, VALID_VERIFIER);
+        user.grantRole(UserRole.ADMIN);
+        var session = new SessionService.SessionCredential(user.id(), UUID.randomUUID(), "raw-refresh",
+                NOW.plus(Duration.ofMinutes(10)), PASSWORD_ONLY);
+        lookups("owner_1", user, null, null);
+        when(passwords.matches("correct-password", VALID_VERIFIER)).thenReturn(true);
+        when(sessions.create(user, Duration.ofMinutes(10))).thenReturn(session);
+        when(accessTokens.issue(user.id(), session.sessionId())).thenReturn(new AccessTokenCodec.IssuedAccessToken("access", 900));
+
+        var result = service.signIn("owner_1", "correct-password");
+
+        assertThat(result.mfa()).isEqualTo(MfaStatus.ENROLLMENT_REQUIRED);
+        assertThat(result.expiresIn()).as("the access token is usable only while the session lives").isEqualTo(600);
+        assertThat(result.refreshExpiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(10)));
     }
 
     @Test
@@ -128,7 +161,7 @@ class AuthenticationServiceTest {
         PasswordEncoder production = spy(new AuthCoreConfiguration().passwordEncoder());
         lookups("missing", null, null, null);
 
-        var realService = new AuthenticationService(users, production, new UserIdentifierNormalizer(), sessions, accessTokens);
+        var realService = service(production);
         assertThatThrownBy(() -> realService.signIn("missing", "candidate-password"))
                 .isInstanceOf(AuthenticationFailedException.class);
 
@@ -144,7 +177,8 @@ class AuthenticationServiceTest {
         UUID userId = UUID.randomUUID();
         UUID sessionId = UUID.randomUUID();
         when(sessions.rotate("presented-refresh"))
-                .thenReturn(new SessionService.SessionCredential(userId, sessionId, "next-refresh", Instant.MAX));
+                .thenReturn(new SessionService.SessionCredential(userId, sessionId, "next-refresh", Instant.MAX,
+                        PASSWORD_ONLY));
         when(users.findById(userId)).thenReturn(Optional.of(new User("alice_1", "01700000000", null, passwordHash)));
 
         assertThatThrownBy(() -> service.refresh("presented-refresh")).isInstanceOf(AuthenticationRequiredException.class);
@@ -158,7 +192,8 @@ class AuthenticationServiceTest {
         var user = new User("alice_1", "01700000000", null, VALID_VERIFIER);
         UUID sessionId = UUID.randomUUID();
         when(sessions.rotate("presented-refresh"))
-                .thenReturn(new SessionService.SessionCredential(user.id(), sessionId, "next-refresh", Instant.MAX));
+                .thenReturn(new SessionService.SessionCredential(user.id(), sessionId, "next-refresh", Instant.MAX,
+                        PASSWORD_ONLY));
         when(users.findById(user.id())).thenReturn(Optional.of(user));
         when(accessTokens.issue(user.id(), sessionId)).thenReturn(new AccessTokenCodec.IssuedAccessToken("access", 900));
 
@@ -166,6 +201,7 @@ class AuthenticationServiceTest {
 
         assertThat(result.accessToken()).isEqualTo("access");
         assertThat(result.refreshToken()).isEqualTo("next-refresh");
+        assertThat(result.mfa()).isEqualTo(MfaStatus.NOT_REQUIRED);
         verify(sessions, never()).revoke(any(), any());
     }
 

@@ -2,6 +2,7 @@ package bd.mediwish.testsupport;
 
 import bd.mediwish.MediWishApplication;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.WebApplicationType;
 import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.core.env.MapPropertySource;
 
@@ -57,6 +58,10 @@ public final class TestApplication implements AutoCloseable {
         System.arraycopy(testConfigurations, 0, all, 1, testConfigurations.length);
         var launcher = new SpringApplication(all);
         launcher.setAdditionalProfiles("test");
+        // The type is chosen before initializers run, so the operator command's non-web mode is set here.
+        if ("none".equals(properties.get("spring.main.web-application-type"))) {
+            launcher.setWebApplicationType(WebApplicationType.NONE);
+        }
         launcher.addInitializers(initialized -> initialized.getEnvironment().getPropertySources()
                 .addFirst(new MapPropertySource("integration-test", properties)));
         return launcher.run();

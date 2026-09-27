@@ -236,6 +236,7 @@ public final class TestDatabase implements AutoCloseable {
     public static Map<String, Object> syntheticAuthProperties() {
         return Map.of(
                 "app.auth.jwt-secret", SYNTHETIC_JWT_SECRET,
+                "app.auth.mfa.secret-key", TestAuthSettings.MFA_SECRET_KEY,
                 "app.auth.cookie.secure", "false");
     }
 

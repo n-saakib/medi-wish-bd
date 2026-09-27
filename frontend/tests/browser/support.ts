@@ -57,3 +57,28 @@ export function watchPage(page: Page) {
     },
   };
 }
+
+/** Signs in through the sign-in form; the caller checks where the session lands. */
+export async function signIn(page: Page, identifier: string, password: string): Promise<void> {
+  await page.goto('/sign-in');
+  await page.getByLabel('Mobile, email or username').fill(identifier);
+  await page.getByLabel('Password').fill(password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+}
+
+/** The setup page's manual key, read the way a person would: open `Can’t scan?` and copy the grouped key. */
+export async function readManualKey(page: Page): Promise<string> {
+  await page.getByText('Can’t scan?').click();
+  const key = (await page.locator('details code').innerText()).replace(/\s+/g, '');
+  expect(key).toMatch(/^[A-Z2-7]{32}$/);
+  return key;
+}
+
+/** The backup codes shown once after setup, in page order. */
+export async function readBackupCodes(page: Page): Promise<string[]> {
+  const items = page.getByRole('list', { name: 'Backup codes' }).getByRole('listitem');
+  await expect(items).toHaveCount(10);
+  const codes = (await items.allInnerTexts()).map((code) => code.trim());
+  for (const code of codes) expect(code).toMatch(/^[A-Z0-9]{4}-[A-Z0-9]{4}$/);
+  return codes;
+}

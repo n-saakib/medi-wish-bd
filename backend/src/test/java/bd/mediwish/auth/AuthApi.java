@@ -2,6 +2,7 @@ package bd.mediwish.auth;
 
 import bd.mediwish.testsupport.TestApplication;
 import bd.mediwish.testsupport.TestDatabase;
+import org.bouncycastle.util.encoders.Base32;
 import org.junit.jupiter.api.extension.ExtensionContext;
 import org.junit.jupiter.api.extension.ParameterContext;
 import org.junit.jupiter.api.extension.ParameterResolver;
@@ -12,6 +13,7 @@ import java.io.IOException;
 import java.net.http.HttpResponse;
 import java.security.SecureRandom;
 import java.sql.SQLException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HexFormat;
@@ -44,7 +46,8 @@ final class AuthApi implements AutoCloseable {
             "MW_REFRESH=; Path=/api/auth; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax";
     private static final Pattern REFRESH_COOKIE = Pattern.compile(
             "MW_REFRESH=([A-Za-z0-9_-]{43}); Path=/api/auth; Max-Age=(\\d+); Expires=[^;]+; HttpOnly; SameSite=Lax");
-    private static final long REFRESH_LIFETIME_SECONDS = 30L * 24 * 60 * 60;
+    static final long REFRESH_LIFETIME_SECONDS = 30L * 24 * 60 * 60;
+    private static final long RESTRICTED_LIFETIME_SECONDS = 10L * 60;
     private static final SecureRandom RANDOM = new SecureRandom();
     private static final JsonMapper JSON = JsonMapper.builder().build();
 
@@ -148,10 +151,31 @@ final class AuthApi implements AutoCloseable {
 
     /** The 200 session contract: a 15-minute Bearer token, the profile, and a 30-day HttpOnly refresh cookie. */
     Session session(HttpResponse<String> response) {
+        return session(response, "NOT_REQUIRED");
+    }
+
+    /**
+     * The session contract for the expected assurance. A staff password sign-in lasts 10 minutes, so its access
+     * token and refresh cookie end with it; every other new session has the 15-minute token and the 30-day cookie.
+     */
+    Session session(HttpResponse<String> response, String mfa) {
+        boolean restricted = mfa.equals("ENROLLMENT_REQUIRED") || mfa.equals("VERIFICATION_REQUIRED");
+        return session(response, mfa, restricted ? RESTRICTED_LIFETIME_SECONDS : REFRESH_LIFETIME_SECONDS);
+    }
+
+    /** The session contract for a session with about {@code lifetime} seconds left. */
+    Session session(HttpResponse<String> response, String mfa, long lifetime) {
         assertThat(response.statusCode()).isEqualTo(200);
         Map<String, Object> body = json(response);
-        assertThat(body).containsOnlyKeys("accessToken", "tokenType", "expiresIn", "user")
-                .containsEntry("tokenType", "Bearer").containsEntry("expiresIn", 900);
+        assertThat(body).containsOnlyKeys(mfa.equals("VERIFIED") && body.containsKey("backupCodes")
+                        ? new String[]{"accessToken", "tokenType", "expiresIn", "user", "mfa", "backupCodes"}
+                        : new String[]{"accessToken", "tokenType", "expiresIn", "user", "mfa"})
+                .containsEntry("tokenType", "Bearer").containsEntry("mfa", mfa);
+        if (lifetime < 900) {
+            assertThat(((Number) body.get("expiresIn")).longValue()).isBetween(lifetime - 60, lifetime);
+        } else {
+            assertThat(body).containsEntry("expiresIn", 900);
+        }
         @SuppressWarnings("unchecked") var user = (Map<String, Object>) body.get("user");
         assertThat(user).containsOnlyKeys("username", "mobile", "email", "mobileVerified");
         var cookies = response.headers().allValues("Set-Cookie").stream()
@@ -159,7 +183,7 @@ final class AuthApi implements AutoCloseable {
         assertThat(cookies).hasSize(1);
         var cookie = REFRESH_COOKIE.matcher(cookies.getFirst());
         assertThat(cookie.matches()).as("the refresh cookie value and attributes").isTrue();
-        assertThat(Long.parseLong(cookie.group(2))).isBetween(REFRESH_LIFETIME_SECONDS - 60, REFRESH_LIFETIME_SECONDS);
+        assertThat(Long.parseLong(cookie.group(2))).isBetween(lifetime - 60, lifetime);
         String refreshToken = track(cookie.group(1));
         assertOmits("session body", response.body(), List.of(refreshToken));
         return new Session(track((String) body.get("accessToken")), refreshToken, user);
@@ -201,6 +225,80 @@ final class AuthApi implements AutoCloseable {
 
     HttpResponse<String> profile(String accessToken) throws Exception {
         return send("GET", "/api/user/me", Map.of("Authorization", "Bearer " + accessToken), null);
+    }
+
+    HttpResponse<String> staffMe(String accessToken) throws Exception {
+        return send("GET", "/api/staff/me", bearer(accessToken), null);
+    }
+
+    /** Starts authenticator enrollment and returns its 201 body; the seed is tracked as a secret. */
+    Map<String, Object> startEnrollment(String accessToken) throws Exception {
+        var response = post("/api/auth/mfa/enrollment", bearer(accessToken), null);
+        assertThat(response.statusCode()).isEqualTo(201);
+        Map<String, Object> body = json(response);
+        assertThat(body).containsOnlyKeys("enrollmentId", "secret", "otpauthUri", "expiresIn")
+                .containsEntry("expiresIn", 600);
+        assertThat((String) body.get("enrollmentId")).matches(TestApplication.UUID_PATTERN);
+        assertThat((String) body.get("secret")).matches("[A-Z2-7]{32}");
+        track((String) body.get("secret"));
+        return body;
+    }
+
+    HttpResponse<String> verifyEnrollment(String accessToken, Object enrollmentId, String code) throws Exception {
+        var fields = new HashMap<String, Object>();
+        fields.put("enrollmentId", enrollmentId);
+        fields.put("code", code);
+        return post("/api/auth/mfa/enrollment/verify", bearerJson(accessToken), JSON.writeValueAsString(fields));
+    }
+
+    HttpResponse<String> verifyMfa(String accessToken, String code) throws Exception {
+        var fields = new HashMap<String, Object>();
+        fields.put("code", code);
+        return post("/api/auth/mfa/verify", bearerJson(accessToken), JSON.writeValueAsString(fields));
+    }
+
+    /**
+     * Signs a staff User in and enrolls their authenticator; returns the verified session, the Base32 seed and the
+     * backup codes, all tracked as secrets.
+     */
+    Enrolled enroll(User user) throws Exception {
+        String restricted = session(login(user.username(), user.password()), "ENROLLMENT_REQUIRED").accessToken();
+        var enrollment = startEnrollment(restricted);
+        String secret = (String) enrollment.get("secret");
+        var response = verifyEnrollment(restricted, enrollment.get("enrollmentId"), totp(secret, 0));
+        Session session = session(response, "VERIFIED");
+        @SuppressWarnings("unchecked") var codes = (List<String>) json(response).get("backupCodes");
+        assertThat(codes).hasSize(10).allMatch(code -> code.matches("[A-HJKMNP-TV-Z2-9]{4}-[A-HJKMNP-TV-Z2-9]{4}"));
+        codes.forEach(this::track);
+        return new Enrolled(session, secret, codes);
+    }
+
+    record Enrolled(Session session, String secret, List<String> backupCodes) {}
+
+    /** The authenticator code for the current 30-second step plus {@code stepOffset}. */
+    static String totp(String base32Secret, int stepOffset) {
+        return Totp.code(Base32.decode(base32Secret), Totp.step(Instant.now()) + stepOffset);
+    }
+
+    void grantRole(User user, String role) throws SQLException {
+        assertThat(database.update("INSERT INTO user_roles (user_id, role) VALUES (?, ?)", userId(user), role)).isOne();
+    }
+
+    void removeRole(User user, String role) throws SQLException {
+        assertThat(database.update("DELETE FROM user_roles WHERE user_id = ? AND role = ?", userId(user), role)).isOne();
+    }
+
+    /** Clears the User's wrong-code count and lock, as the lockout expiring would. */
+    void clearMfaThrottle(User user) throws SQLException {
+        database.update("DELETE FROM staff_mfa_throttle WHERE user_id = ?", userId(user));
+    }
+
+    private static Map<String, String> bearer(String accessToken) {
+        return Map.of("Authorization", "Bearer " + accessToken);
+    }
+
+    private static Map<String, String> bearerJson(String accessToken) {
+        return Map.of("Authorization", "Bearer " + accessToken, "Content-Type", "application/json");
     }
 
     HttpResponse<String> post(String path, Map<String, String> headers, String body) throws Exception {

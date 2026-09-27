@@ -5,6 +5,7 @@ const paths = {
   chevronLeft: <path d="m15 6-6 6 6 6" />,
   alert: <><path d="M12 3 2 20h20z" /><path d="M12 10v4M12 17h.01" /></>,
   check: <path d="m5 12 5 5 9-10" />,
+  logout: <path d="M15 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 17l5-5-5-5M15 12H3" />,
 };
 
 export type IconName = keyof typeof paths;

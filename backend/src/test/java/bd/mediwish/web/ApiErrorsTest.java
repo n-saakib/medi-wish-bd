@@ -82,6 +82,7 @@ class ApiErrorsTest {
     @ParameterizedTest
     @CsvSource({"400,INVALID_REQUEST", "401,AUTHENTICATION_REQUIRED", "403,ACCESS_DENIED", "404,NOT_FOUND",
             "405,METHOD_NOT_ALLOWED", "406,INVALID_REQUEST", "413,INVALID_REQUEST", "415,INVALID_REQUEST",
+            "429,TOO_MANY_ATTEMPTS",
             "499,INVALID_REQUEST", "500,INTERNAL_ERROR", "503,INTERNAL_ERROR", "599,INTERNAL_ERROR"})
     void classifiesFrameworkStatuses(int status, ApiError expected) {
         assertThat(ApiError.forStatus(status)).isEqualTo(expected);

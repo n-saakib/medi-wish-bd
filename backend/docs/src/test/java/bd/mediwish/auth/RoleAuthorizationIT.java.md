@@ -4,10 +4,10 @@ Source: [`src/test/java/bd/mediwish/auth/RoleAuthorizationIT.java`](../../../../
 
 ## Purpose
 
-Own context with `AdminOnlyProfileTestConfiguration`, which requires `ADMIN` on the profile route. An issued access token follows the User's current roles: 403 as `CUSTOMER`, 200 once promoted to `ADMIN`, 403 again once demoted. The 401 challenge for an anonymous request or invalid token is covered by `ProfileIT` on the production chain.
+Runs on the shared context (`AuthApi.Shared`); it no longer needs a test-only security rule, because `GET /api/staff/me` is a production role route. An issued access token follows the User's current roles: as `CUSTOMER` the staff route is `403 ACCESS_DENIED`; once `ADMIN` is granted, with no authenticator, both the staff route and the profile are `403 MFA_REQUIRED`; once `ADMIN` is removed the profile is `200` again and the staff route `403 ACCESS_DENIED`. The 401 challenge for an anonymous request or invalid token is covered by `ProfileIT`.
 
 ## Verification
 
-1 test; no production role route is added.
+1 test.
 
-Verified 2026-09-27 on `ed1e006`: `./mvnw.cmd -o verify` passed 171 unit and 109 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 109 with no skip.
+Verified 2026-09-27 on the working tree over `bef3b76`: the targeted integration run passed.

@@ -12,11 +12,11 @@ Owns one disposable schema `mw_it_<32 hex>` in `medi_wish_test`, never a databas
 | `connect()` | JDBC connection whose unqualified names resolve in the schema (`currentSchema`), with 2 s connect and 3 s socket limits. |
 | `update`, `query`, `single`, `Row` | Parameterized statements in the schema for test setup and assertions; `update` and `query` bind positional parameters through one private `bind`. |
 | `applicationProperties()` / `(int port)` | Random server port; datasource, Liquibase and Hibernate schema settings; the JobRunr table prefix, used only when the compatibility profile adds JobRunr, so each application keeps JobRunr's tables in its own schema; and synthetic auth settings. A proxy port switches the host to loopback. The `test` profile is activated by `TestApplication.launch`, not by a property. |
-| `syntheticAuthProperties()` | Test-only Base64 HMAC key, a generated Argon2 dummy verifier and non-secure cookies for local HTTP. |
+| `syntheticAuthProperties()` | Test-only Base64 HMAC key, the synthetic 32-byte MFA key from `TestAuthSettings` (`app.auth.mfa.secret-key`) and non-secure cookies for local HTTP. |
 | `schema()`, `host()`, `port()` | The generated schema and upstream address for proxies. |
 
 ## Verification
 
 `TestDatabaseGuardTest` covers the guards without a database; every `*IT` exercises creation, properties and cleanup.
 
-Verified 2026-09-27 on `ed1e006`: `./mvnw.cmd -o verify` passed 171 unit and 109 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 109 with no skip.
+Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` passed all 238 unit tests. The integration tests that use it passed in the targeted run.

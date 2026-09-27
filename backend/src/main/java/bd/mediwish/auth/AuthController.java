@@ -45,7 +45,11 @@ class AuthController {
 
     record LoginRequest(String identifier, String password) {}
 
-    record SessionResponse(String accessToken, String tokenType, long expiresIn, UserProfile user) {}
+    record SessionResponse(String accessToken, String tokenType, long expiresIn, UserProfile user, MfaStatus mfa) {
+        static SessionResponse from(AuthenticationService.AuthenticatedSession session) {
+            return new SessionResponse(session.accessToken(), "Bearer", session.expiresIn(), session.user(), session.mfa());
+        }
+    }
 
     record CsrfBootstrapResponse(String csrfToken) {}
 
@@ -94,7 +98,7 @@ class AuthController {
 
     private SessionResponse issue(AuthenticationService.AuthenticatedSession session, HttpServletResponse response) {
         refreshCookies.set(response, session.refreshToken(), session.refreshExpiresAt());
-        return new SessionResponse(session.accessToken(), "Bearer", session.expiresIn(), session.user());
+        return SessionResponse.from(session);
     }
 
     private static boolean isBlankOrLongerThan(String value, int maxLength) {
