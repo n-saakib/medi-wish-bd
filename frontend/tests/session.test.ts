@@ -1,6 +1,17 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createSessionClient, type SessionClient } from '../src/lib/session.ts';
-import { apiRoutes, deferred, flushTasks, installFakeLocks, sessionBody, signedInUser, stalledRoute } from './fakeApi.ts';
+import {
+  apiRoutes,
+  deferred,
+  enrollmentBody,
+  flushTasks,
+  installFakeLocks,
+  restoredCustomer,
+  sessionBody,
+  signedInUser,
+  stalledRoute,
+  syntheticBackupCodes,
+} from './fakeApi.ts';
 
 const lockName = 'medi-wish:auth-cookie-mutation';
 const authenticationRequired = { code: 'AUTHENTICATION_REQUIRED', status: 401 };
@@ -53,7 +64,7 @@ describe('sign-in', () => {
     const api = apiRoutes({ '/api/auth/login': () => Response.json(sessionBody()) });
     const client = createSessionClient({ baseUrl: 'https://api.example.test', fetch: api.fetch });
 
-    await expect(client.signIn('sana', 'password')).resolves.toEqual({ accessToken: 'synthetic-access-token', user: signedInUser });
+    await expect(client.signIn('sana', 'password')).resolves.toEqual({ accessToken: 'synthetic-access-token', user: signedInUser, mfa: 'NOT_REQUIRED' });
     const [request] = api.requests;
     expect(request.url).toBe('https://api.example.test/api/auth/login');
     expect(request.method).toBe('POST');
@@ -130,7 +141,7 @@ describe('restore', () => {
       '/api/auth/refresh': () => Response.json(sessionBody()),
     });
 
-    await expect(createSessionClient({ fetch: api.fetch }).restoreSession()).resolves.toEqual(signedInUser);
+    await expect(createSessionClient({ fetch: api.fetch }).restoreSession()).resolves.toEqual({ user: signedInUser, mfa: 'NOT_REQUIRED' });
     const [csrf, refresh] = api.requests;
     expect(api.paths()).toEqual(['/api/auth/csrf', '/api/auth/refresh']);
     expect(csrf.credentials).toBe('include');
@@ -176,7 +187,7 @@ describe('restore', () => {
     const restores = Promise.all([client.restoreSession(), client.restoreSession()]);
     await flushTasks();
     refreshReleased.resolve();
-    await expect(restores).resolves.toEqual([signedInUser, signedInUser]);
+    await expect(restores).resolves.toEqual([restoredCustomer, restoredCustomer]);
     expect(api.paths()).toEqual(['/api/auth/csrf', '/api/auth/refresh']);
   });
 });
@@ -226,7 +237,7 @@ describe('cookie-mutation lock', () => {
 
     bodyReleased.resolve();
     await first;
-    await expect(restore).resolves.toEqual(signedInUser);
+    await expect(restore).resolves.toEqual(restoredCustomer);
     expect(api.paths()).toEqual([...pathsBeforeRelease, '/api/auth/csrf', '/api/auth/refresh']);
   });
 
@@ -275,7 +286,7 @@ describe('without Web Locks', () => {
 
     loginReleased.resolve();
     await signIn;
-    await expect(restore).resolves.toEqual(signedInUser);
+    await expect(restore).resolves.toEqual(restoredCustomer);
     expect(api.paths()).toEqual(['/api/auth/login', '/api/auth/csrf', '/api/auth/refresh']);
   });
 
@@ -295,7 +306,7 @@ describe('without Web Locks', () => {
     expect(api.paths()).toEqual(['/api/auth/csrf', '/api/auth/refresh']);
 
     refreshReleased.resolve();
-    await expect(Promise.all([restore, signOut])).resolves.toEqual([signedInUser, undefined]);
+    await expect(Promise.all([restore, signOut])).resolves.toEqual([restoredCustomer, undefined]);
     expect(api.paths()).toEqual(['/api/auth/csrf', '/api/auth/refresh', '/api/auth/csrf', '/api/auth/logout']);
   });
 
@@ -644,4 +655,205 @@ it('keeps the access token out of browser storage', async () => {
     if (sessionStorageDescriptor) Object.defineProperty(globalThis, 'sessionStorage', sessionStorageDescriptor);
     else Reflect.deleteProperty(globalThis, 'sessionStorage');
   }
+});
+
+describe('staff MFA status', () => {
+  it.each(['NOT_REQUIRED', 'ENROLLMENT_REQUIRED', 'VERIFICATION_REQUIRED', 'VERIFIED'] as const)(
+    'keeps the %s status from sign-in and refresh',
+    async (mfa) => {
+      const api = apiRoutes({
+        '/api/auth/login': () => Response.json(sessionBody('access-old', mfa)),
+        '/api/auth/refresh': () => Response.json(sessionBody('access-new', mfa)),
+      });
+
+      await expect(createSessionClient({ fetch: api.fetch }).signIn('sana', 'password')).resolves.toMatchObject({ mfa });
+      await expect(createSessionClient({ fetch: api.fetch }).restoreSession()).resolves.toEqual({ user: signedInUser, mfa });
+    },
+  );
+
+  it.each([
+    ['an unknown status', { ...sessionBody(), mfa: 'SKIPPED' }],
+    ['a lower-case status', { ...sessionBody(), mfa: 'verified' }],
+    ['no status', { accessToken: 'synthetic-access-token', user: signedInUser }],
+  ])('rejects a session response with %s', async (_, body) => {
+    const api = apiRoutes({ '/api/auth/login': () => Response.json(body), '/api/auth/refresh': () => Response.json(body) });
+
+    await expect(createSessionClient({ fetch: api.fetch }).signIn('sana', 'password'))
+      .rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 200 });
+    await expect(createSessionClient({ fetch: api.fetch }).restoreSession())
+      .rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 200 });
+  });
+});
+
+describe('MFA enrollment start', () => {
+  const secret = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+
+  it('posts an empty JSON body with the Bearer token and keeps only the enrollment fields', async () => {
+    const { api, client } = await signedInClient({
+      '/api/auth/mfa/enrollment': () => Response.json({ ...enrollmentBody(secret), extra: 'ignored' }, { status: 201 }),
+    });
+
+    await expect(client.startMfaEnrollment()).resolves.toEqual(enrollmentBody(secret));
+    const request = api.requests.at(-1);
+    expect(request?.method).toBe('POST');
+    expect(request?.headers.get('Authorization')).toBe('Bearer access-old');
+    expect(request?.headers.get('Content-Type')).toBe('application/json');
+    expect(request?.headers.get('X-XSRF-TOKEN')).toBeNull();
+    expect(await request?.json()).toEqual({});
+  });
+
+  it.each([
+    ['a malformed enrollment id', { ...enrollmentBody(secret), enrollmentId: 'not-a-uuid' }],
+    ['a short secret', { ...enrollmentBody(secret), secret: secret.slice(1) }],
+    ['a lower-case secret', { ...enrollmentBody(secret), secret: secret.toLowerCase() }],
+    ['a secret outside Base32', { ...enrollmentBody(secret), secret: `${secret.slice(0, 31)}1` }],
+    ['an https URI', { ...enrollmentBody(secret), otpauthUri: `https://qr.example/?secret=${secret}` }],
+    ['an oversized URI', { ...enrollmentBody(secret), otpauthUri: `otpauth://totp/${'x'.repeat(512)}` }],
+    ['a zero lifetime', { ...enrollmentBody(secret), expiresIn: 0 }],
+    ['a fractional lifetime', { ...enrollmentBody(secret), expiresIn: 1.5 }],
+  ])('rejects an enrollment with %s without exposing the secret', async (_, body) => {
+    const { client } = await signedInClient({ '/api/auth/mfa/enrollment': () => Response.json(body, { status: 201 }) });
+
+    const failure: unknown = await client.startMfaEnrollment().catch((reason: unknown) => reason);
+    expect(failure).toMatchObject({ code: 'INVALID_RESPONSE', status: 201, message: '' });
+    expect(`${JSON.stringify(failure)} ${String(failure)}`).not.toContain(secret);
+  });
+
+  it('keeps only the code and status of a refused start', async () => {
+    const { client } = await signedInClient({
+      '/api/auth/mfa/enrollment': () => Response.json({ code: 'ACCESS_DENIED', message: 'server text' }, { status: 403 }),
+    });
+
+    await expect(client.startMfaEnrollment()).rejects.toMatchObject({ code: 'ACCESS_DENIED', status: 403, message: '' });
+  });
+});
+
+describe('MFA verification', () => {
+  const enrollmentId = '5f0c9e1a-2b3c-4d5e-8f90-a1b2c3d4e5f6';
+  const enrolledBody = () => ({ ...sessionBody('access-verified', 'VERIFIED'), backupCodes: syntheticBackupCodes });
+
+  it('verifies enrollment in the cookie lock with the restricted token, then uses the verified token', async () => {
+    let lockHeld = false;
+    const { api, client } = await signedInClient({
+      '/api/auth/mfa/enrollment/verify': () => {
+        lockHeld = locks.held();
+        return Response.json(enrolledBody());
+      },
+      '/api/user/me': () => Response.json(signedInUser),
+    });
+
+    await expect(client.verifyMfaEnrollment(enrollmentId, '287082')).resolves.toEqual({
+      accessToken: 'access-verified',
+      user: signedInUser,
+      mfa: 'VERIFIED',
+      backupCodes: syntheticBackupCodes,
+    });
+    const verify = api.requests.at(-1);
+    expect(lockHeld).toBe(true);
+    expect(verify?.credentials).toBe('include');
+    expect(verify?.headers.get('Authorization')).toBe('Bearer access-old');
+    expect(verify?.headers.get('X-XSRF-TOKEN')).toBeNull();
+    expect(await verify?.json()).toEqual({ enrollmentId, code: '287082' });
+
+    await loadProfile(client);
+    expect(profileAuthorizations(api)).toEqual(['Bearer access-verified']);
+  });
+
+  it('verifies a challenge code, stores the new token and makes older requests stale', async () => {
+    const heldProfile = deferred<Response>();
+    const { api, client } = await signedInClient({
+      '/api/auth/mfa/verify': () => Response.json(sessionBody('access-verified', 'VERIFIED')),
+      '/api/user/me': (request) => request.headers.get('Authorization') === 'Bearer access-old'
+        ? heldProfile.promise
+        : Response.json(signedInUser),
+    });
+    const olderRequest = loadProfile(client);
+    await flushTasks();
+
+    await expect(client.verifyMfa('287082')).resolves.toEqual({ accessToken: 'access-verified', user: signedInUser, mfa: 'VERIFIED' });
+    const verify = api.requests.find((request) => new URL(request.url).pathname === '/api/auth/mfa/verify');
+    expect(await verify?.json()).toEqual({ code: '287082' });
+    heldProfile.resolve(Response.json(signedInUser));
+    await expect(olderRequest).rejects.toMatchObject(authenticationRequired);
+    await expect(loadProfile(client)).resolves.toEqual(signedInUser);
+    expect(profileAuthorizations(api)).toEqual(['Bearer access-old', 'Bearer access-verified']);
+  });
+
+  it('refreshes first when no access token is in memory', async () => {
+    const api = apiRoutes({
+      '/api/auth/refresh': () => Response.json(sessionBody('access-restricted', 'VERIFICATION_REQUIRED')),
+      '/api/auth/mfa/verify': () => Response.json(sessionBody('access-verified', 'VERIFIED')),
+    });
+
+    await expect(createSessionClient({ fetch: api.fetch }).verifyMfa('287082')).resolves.toMatchObject({ mfa: 'VERIFIED' });
+    expect(api.paths()).toEqual(['/api/auth/csrf', '/api/auth/refresh', '/api/auth/mfa/verify']);
+    expect(api.requests.at(-1)?.headers.get('Authorization')).toBe('Bearer access-restricted');
+  });
+
+  it.each([
+    ['nine codes', syntheticBackupCodes.slice(1)],
+    ['eleven codes', [...syntheticBackupCodes, 'AAAA-BBBB']],
+    ['an oversized code', [...syntheticBackupCodes.slice(1), 'AAAA-BBBBB']],
+    ['a code without the separator', [...syntheticBackupCodes.slice(1), 'AAAABBBB']],
+    ['a lower-case code', [...syntheticBackupCodes.slice(1), 'aaaa-bbbb']],
+    ['a non-string code', [...syntheticBackupCodes.slice(1), 12345678]],
+    ['no codes', undefined],
+  ])('rejects an enrollment result with %s', async (_, backupCodes) => {
+    const { client } = await signedInClient({
+      '/api/auth/mfa/enrollment/verify': () => Response.json({ ...enrolledBody(), backupCodes }),
+    });
+
+    const failure: unknown = await client.verifyMfaEnrollment(enrollmentId, '287082').catch((reason: unknown) => reason);
+    expect(failure).toMatchObject({ code: 'INVALID_RESPONSE', status: 200, message: '' });
+    expect(JSON.stringify(failure)).not.toContain(syntheticBackupCodes[1]);
+  });
+
+  it('ignores backup codes on a challenge result', async () => {
+    const { client } = await signedInClient({ '/api/auth/mfa/verify': () => Response.json(enrolledBody()) });
+
+    expect(await client.verifyMfa('287082')).not.toHaveProperty('backupCodes');
+  });
+
+  it.each([
+    ['MFA_CODE_INVALID', 400],
+    ['MFA_ENROLLMENT_STALE', 409],
+    ['TOO_MANY_ATTEMPTS', 429],
+  ])('keeps only the code and status of %s and the current token', async (code, status) => {
+    const { api, client } = await signedInClient({
+      '/api/auth/mfa/enrollment/verify': () => Response.json({ code, message: 'server text' }, { status }),
+      '/api/user/me': () => Response.json(signedInUser),
+    });
+
+    await expect(client.verifyMfaEnrollment(enrollmentId, '000000')).rejects.toMatchObject({ code, status, message: '' });
+    await loadProfile(client);
+    expect(profileAuthorizations(api)).toEqual(['Bearer access-old']);
+  });
+
+  it('forgets the token when the restricted session is no longer accepted', async () => {
+    const { api, client } = await signedInClient({ '/api/auth/mfa/verify': unauthorized, '/api/auth/refresh': noContent });
+
+    await expect(client.verifyMfa('287082')).rejects.toMatchObject(authenticationRequired);
+    await expect(loadProfile(client)).rejects.toMatchObject(authenticationRequired);
+    expect(api.paths().slice(-2)).toEqual(['/api/auth/csrf', '/api/auth/refresh']);
+  });
+
+  it('does not send a verification still queued when sign-out starts', async () => {
+    const refreshAnswered = deferred<Response>();
+    const { api, client } = await signedInClient({
+      '/api/auth/refresh': () => refreshAnswered.promise,
+      '/api/auth/logout': noContent,
+      '/api/auth/mfa/verify': () => Response.json(sessionBody('access-verified', 'VERIFIED')),
+    });
+
+    // Another tab's refresh holds the cookie-mutation lock, so the verification waits behind it.
+    const otherTab = createSessionClient({ fetch: api.fetch }).restoreSession();
+    await flushTasks();
+    const verify = client.verifyMfa('287082');
+    const signOut = client.signOut();
+    refreshAnswered.resolve(Response.json(sessionBody('access-other')));
+    await otherTab;
+    await signOut;
+    await expect(verify).rejects.toMatchObject(authenticationRequired);
+    expect(api.paths()).not.toContain('/api/auth/mfa/verify');
+  });
 });

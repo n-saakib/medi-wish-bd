@@ -8,7 +8,10 @@ import { Alert } from '../shell/Alert';
 import { type SessionNotice, useSession } from './SessionProvider';
 import { useSessionRedirect } from './sessionRedirect';
 
-/** Identifier-and-password sign-in. Success lands on /account through the guest redirect. */
+/**
+ * Identifier-and-password sign-in. The guest redirect then decides where the session belongs: /account for a
+ * Customer, or the staff authenticator setup, code entry or staff page for an Admin or Moderator.
+ */
 export function SignInForm() {
   const t = useTranslations('signIn');
   const tErrors = useTranslations('errors');

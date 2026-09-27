@@ -4,7 +4,7 @@ Source: [`src/shell/Icon.tsx`](../../../src/shell/Icon.tsx)
 
 ## Purpose
 
-Inline SVG icons taken from `agent-docs/ui-design/assets/layout.js`. Only the icons the current pages use are kept: `plus` (logo mark), `user` (header account link), `chevronLeft` (auth header back link), and `alert` and `check` (alert tones).
+Inline SVG icons taken from `agent-docs/ui-design/assets/layout.js`. Only the icons the current pages use are kept: `plus` (logo mark), `user` (header account link), `chevronLeft` (auth header back link), `logout` (staff header sign-out button), and `alert` and `check` (alert tones).
 
 ## Exports
 
@@ -17,4 +17,4 @@ Inlining avoids an icon font or extra requests. Add an icon here only when a pag
 
 ## Verification
 
-Checked by `npm run typecheck` and exercised indirectly by the header and form tests; on 2026-09-26 both passed.
+Checked by `npm run typecheck` and exercised indirectly by the header and form tests; on 2026-09-26 both passed, and again on 2026-09-27 with `logout`, which the staff header test exercises.

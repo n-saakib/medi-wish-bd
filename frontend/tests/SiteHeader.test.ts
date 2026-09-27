@@ -3,7 +3,7 @@
 import { createElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SiteHeader } from '../src/shell/SiteHeader';
-import { deferred, signedInUser } from './fakeApi';
+import { deferred, restoredCustomer } from './fakeApi';
 import { createSessionSource, renderWithSession, unmountAll } from './renderWithSession';
 
 afterEach(unmountAll);
@@ -20,7 +20,7 @@ describe('SiteHeader', () => {
 
   it('shows the signed-in username linking to the account page', async () => {
     const header = await renderWithSession(createElement(SiteHeader), createSessionSource({
-      restoreSession: vi.fn().mockResolvedValue(signedInUser),
+      restoreSession: vi.fn().mockResolvedValue(restoredCustomer),
     }));
     const link = header.querySelector('nav a');
 

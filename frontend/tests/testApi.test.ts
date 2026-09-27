@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { createServer } from 'node:net';
 import { execFileSync, spawn } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import startTestApi, { apiEnvironment, apiUrl } from './browser/testApi';
+import startTestApi, { apiEnvironment, apiUrl, grantRole, testSchemaVariable } from './browser/testApi';
 
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn(), spawn: vi.fn() }));
 vi.mock('node:fs', () => ({ openSync: vi.fn(() => 99), closeSync: vi.fn() }));
@@ -82,10 +82,29 @@ describe('startTestApi', () => {
     const role = env?.DB_USERNAME;
     expect(role).toMatch(/^mw_browser_[0-9a-f]{12}$/);
     expect(env).toMatchObject({ DB_NAME: 'medi_wish_test', SPRING_PROFILES_ACTIVE: 'test' });
+    expect(Buffer.from(String(env?.APP_AUTH_MFA_SECRET_KEY), 'base64')).toHaveLength(32);
+    expect(env?.APP_AUTH_MFA_SECRET_KEY).not.toBe(env?.APP_AUTH_JWT_SECRET);
+    expect(env?.[testSchemaVariable]).toBeUndefined();
+    expect(process.env[testSchemaVariable]).toBe(role);
     expect(sqlSent().at(-1)).toBe(`SELECT to_regclass('${role}.databasechangelog') IS NOT NULL`);
 
     await stop();
     expect(sqlSent().at(-1)).toContain(`DROP ROLE ${role};`);
+    expect(process.env[testSchemaVariable]).toBeUndefined();
+  });
+
+  it('replaces an inherited MFA key with its own', async () => {
+    databaseAnswers('t');
+    fakeApiProcess(false);
+    vi.stubEnv('APP_AUTH_MFA_SECRET_KEY', 'inherited');
+
+    const stop = await startTestApi();
+    const key = vi.mocked(spawn).mock.calls[0]?.[2]?.env?.APP_AUTH_MFA_SECRET_KEY;
+    await stop();
+    vi.unstubAllEnvs();
+
+    expect(key).not.toBe('inherited');
+    expect(Buffer.from(String(key), 'base64')).toHaveLength(32);
   });
 
   it.each([
@@ -98,5 +117,39 @@ describe('startTestApi', () => {
 
     await expect(startTestApi()).rejects.toThrow(message);
     expect(sqlSent().at(-1)).toMatch(/DROP OWNED BY mw_browser_[0-9a-f]{12} CASCADE; .* DROP ROLE mw_browser_[0-9a-f]{12};/);
+  });
+});
+
+describe('grantRole', () => {
+  const schema = 'mw_browser_0123456789ab';
+
+  afterEach(() => { vi.unstubAllEnvs(); });
+
+  it("inserts the role for the named User in the run's schema", () => {
+    vi.stubEnv(testSchemaVariable, schema);
+    psql.mockReturnValue('ADMIN');
+
+    grantRole('journey.cafe01', 'ADMIN');
+
+    expect(sqlSent()).toEqual([`INSERT INTO ${schema}.user_roles (user_id, role) SELECT id, 'ADMIN' FROM ${schema}.users`
+      + " WHERE username = 'journey.cafe01' RETURNING role;"]);
+  });
+
+  it('fails when no User has that username', () => {
+    vi.stubEnv(testSchemaVariable, schema);
+    psql.mockReturnValue('');
+
+    expect(() => grantRole('journey.cafe01', 'ADMIN')).toThrow('No User journey.cafe01');
+  });
+
+  it.each([
+    ['without the run schema', undefined, 'journey.cafe01', 'needs the schema'],
+    ['with a schema that is not a run schema', 'public', 'journey.cafe01', 'needs the schema'],
+    ['with a username that could change the SQL', schema, "x'; DROP TABLE users; --", 'only synthetic usernames'],
+  ])('refuses to run %s', (_, value, username, message) => {
+    vi.stubEnv(testSchemaVariable, value);
+
+    expect(() => grantRole(username, 'ADMIN')).toThrow(message);
+    expect(psql).not.toHaveBeenCalled();
   });
 });

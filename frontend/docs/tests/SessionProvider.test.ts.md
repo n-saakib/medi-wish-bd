@@ -13,5 +13,7 @@ Unit coverage for [`SessionProvider`](../src/auth/SessionProvider.tsx.md), its r
 - **Reducer guards:** a restore error arriving during a pending sign-in, or after a successful one, does not produce a stale notice.
 - **Notice lifetime:** a notice survives arrival on its own page (`signedOut` on `/`, `accountCreated` on `/sign-in`) and is dropped on any other page; after that, `/account` sends a signed-out visitor to sign-in rather than home.
 - **Redirect rules:** no redirect while restoring; the account guard sends signed-out visitors to `/sign-in`, stays while signed in or signing out, and goes to `/` after either sign-out result; the guest guard sends signed-in users to `/account`.
+- **Staff MFA routing table:** one table checks all 25 combinations of the five guards with the four MFA statuses and a signed-out visitor, and every guard stays while restoring; a staff page sends a visitor to `/sign-in`, not home, after sign-out.
+- **Staff MFA provider:** the MFA status is shared from the restore and from sign-in; enrollment verification marks the session verified and returns the backup codes without storing them; a challenge code marks it verified; a rejected code keeps the restricted session; an unauthorized enrollment start, enrollment verification or challenge verification ends the session; sign-out clears the status.
 
-On 2026-09-26 this suite passed as part of `npm run test:unit`.
+On 2026-09-27 this suite passed as part of `npm run test:unit`.

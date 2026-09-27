@@ -26,13 +26,24 @@ const operationTimeoutMs = 10_000;
 const maxJsonResponseBytes = 16 * 1024;
 const maxErrorCodeLength = 64;
 
+export type ErrorMessageKey = 'authenticationFailed' | 'duplicateUser' | 'mfaRequired' | 'mfaCodeInvalid'
+  | 'mfaEnrollmentStale' | 'tooManyAttempts' | 'invalidResponse' | 'genericError';
+
 /** The `errors` message key for a failure. Codes the UI does not tell apart share the generic message. */
-export function errorMessageKey(reason: unknown): 'authenticationFailed' | 'duplicateUser' | 'invalidResponse' | 'genericError' {
+export function errorMessageKey(reason: unknown): ErrorMessageKey {
   switch (reason instanceof ApiError ? reason.code : undefined) {
     case 'AUTHENTICATION_FAILED':
       return 'authenticationFailed';
     case 'DUPLICATE_USER':
       return 'duplicateUser';
+    case 'MFA_REQUIRED':
+      return 'mfaRequired';
+    case 'MFA_CODE_INVALID':
+      return 'mfaCodeInvalid';
+    case 'MFA_ENROLLMENT_STALE':
+      return 'mfaEnrollmentStale';
+    case 'TOO_MANY_ATTEMPTS':
+      return 'tooManyAttempts';
     case 'INVALID_RESPONSE':
       return 'invalidResponse';
     default:

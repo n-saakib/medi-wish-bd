@@ -4,22 +4,24 @@ Source: [`src/app/globals.css`](../../../src/app/globals.css)
 
 ## Purpose
 
-This is the global stylesheet loaded once by the root layout. It holds the design tokens and component styles ported from `agent-docs/ui-design/assets/styles.css`, limited to what the current home, account, sign-in and registration pages use. There is no CSS framework or CSS-in-JS layer; components apply these class names directly.
+This is the global stylesheet loaded once by the root layout. It holds the design tokens and component styles ported from `agent-docs/ui-design/assets/styles.css`, limited to what the current home, account, sign-in, registration, staff MFA and staff landing pages use. There is no CSS framework or CSS-in-JS layer; components apply these class names directly.
 
 ## Rules
 
-- **Tokens.** `:root` defines the brand greens, amber accent, ink/muted text, line, background and surface colors, tinted alert backgrounds, radii, a light shadow, the `--font` stack and the `1240px` content width, and sets `color-scheme: light`. The font stack names Inter and Hind Siliguri first but no webfont is downloaded; browsers fall back to installed or system fonts.
-- **Base.** Border-box sizing, text-size-adjust, body font/color/background, link color, heading sizes, paragraph spacing and the helpers `.small`, `.muted`, `.center`, `.mt-16`, `.mt-24`. `:focus-visible` draws a 3 px amber outline on every focusable element.
+- **Tokens.** `:root` defines the brand greens, amber accent, ink/muted text, line, background and surface colors, tinted alert backgrounds, radii, a light shadow, the `--font` stack and the `1240px` content width, and sets `color-scheme: light`. `--brand-100` and `--accent-50` are the light brand border and amber tint used by the chip and backup-code panel. The font stack names Inter and Hind Siliguri first but no webfont is downloaded; browsers fall back to installed or system fonts.
+- **Base.** Border-box sizing, text-size-adjust, body font/color/background, link color, heading sizes, paragraph spacing and the helpers `.small`, `.muted`, `.center`, `.mt-8`, `.mt-16`, `.mt-24`, `.mb-0` and `.mono` (monospace stack). `:focus-visible` draws a 3 px amber outline on every focusable element.
 - **Layout.** `.container` centers content with 16 px gutters, `.page` adds vertical page padding, `.stack` spaces children, `.card`/`.card-pad` form the account surface, and `.dl` lays out label/value pairs with wrapping values.
-- **Buttons and icons.** `.btn` with `-primary`, `-secondary`, `-ghost` and `-block` variants; every button is at least 44 × 44 px. Disabled buttons are dimmed with a not-allowed cursor. The design's smaller `btn-sm` is deliberately not ported, so all targets stay at least 44 px. `.icon` (20 px) and `.icon-s` (16 px) size inline SVGs.
+- **Buttons and icons.** `.btn` with `-primary`, `-secondary`, `-ghost` and `-block` variants; every button is at least 44 × 44 px. Disabled buttons are dimmed with a not-allowed cursor. The design's smaller `btn-sm` is deliberately not ported, so all targets stay at least 44 px. `.icon` (20 px) and `.icon-s` (16 px) size inline SVGs. `.icon-btn` is a 44 × 44 px icon-only button (the staff header's sign-out). `.chip`/`.chip-brand` form the `Super Admin` label, which always carries text.
 - **Forms.** `.field`, `.hint` and `.input` give labelled 44 px inputs; focused inputs get the amber outline.
 - **Alerts.** `.alert` plus `-success`, `-warn` and `-danger` tones. The [`Alert`](../shell/Alert.tsx.md) component always pairs a tone with an icon and text, so status is not conveyed by color alone.
 - **Store header.** `.site-header` is sticky; `.logo`, `.logo-mark`, `.header-actions` and `.header-link` style the logo and account link, with the username truncated at 24 characters. At 860 px and below the link label is visually hidden with the `sr-only` technique rather than `display: none`, so the icon-only link keeps its accessible name.
 - **Home hero.** `.hero-main` is the green gradient panel for the home heading and preparation copy, with reduced padding at 860 px and below.
-- **Auth pages.** `.auth-header` is the 72 px sign-in/register header; at 480 px and below its button padding shrinks and the "Back to home" label is visually hidden in the same accessible way. `.auth-wrap` centers the form card below the header and `.auth-card` caps it at 440 px; the account page reuses `.auth-card` for its width.
+- **Auth pages.** `.auth-header` is the 72 px sign-in/register header; at 480 px and below its button padding shrinks and the "Back to home" label is visually hidden in the same accessible way. `.auth-wrap` centers the form card below the header and `.auth-card` caps it at 440 px; the account and staff pages reuse `.auth-card` for its width.
+- **Staff MFA.** `.steps-mini` is the two-step progress bar; `.qr` frames the 176 px QR SVG on white for scanning contrast; `.disclosure` styles the `Can’t scan?` summary as a 44 px target and wraps the grouped key; `.code-input` enlarges and spaces the code field; `.secret` is the dashed amber backup-code panel and `.code-grid` its two-column code list.
+- **Staff header.** `.staff-top` is the 64 px white header with the logo and sign-out button.
 
 Search, cart, category navigation, footer, product and order styles from the design system are not included because those features are not implemented.
 
 ## Use and verification
 
-[`src/app/layout.tsx`](layout.tsx.md) imports this file once. On 2026-09-26 `npm run lint` and `npm run build` passed with this stylesheet. Responsive and focus appearance is a browser concern; its verification is recorded in the Ticket 03.01 evidence.
+[`src/app/layout.tsx`](layout.tsx.md) imports this file once. On 2026-09-26 `npm run lint` and `npm run build` passed with this stylesheet, and again on 2026-09-27 with the staff MFA additions. Responsive and focus appearance is a browser concern; its verification is recorded in the Ticket 03.01 evidence.
