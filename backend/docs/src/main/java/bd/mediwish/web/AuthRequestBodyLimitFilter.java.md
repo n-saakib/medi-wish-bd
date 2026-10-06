@@ -17,3 +17,5 @@ The filter never logs request bodies and does not buffer any other request.
 ## Verification
 
 `AuthRequestBodyLimitFilterTest` covers a body exactly at the limit reaching the controller intact, oversized JSON rejection whatever `Content-Length` declares, and pass-through of other methods, paths and content types.
+
+Profile PUT and mobile POST/DELETE are included through BEARER_COMMAND_ROUTES. JSON commands are capped at 16 KiB; a bodyless DELETE without Content-Type passes unchanged. ProfileBodyLimitTest checks the exact byte boundary for both JSON commands and bodyless cancellation.

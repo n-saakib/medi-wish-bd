@@ -4,11 +4,11 @@ This is the living code map for the current Spring Boot backend. Source files
 remain authoritative; this page records package ownership, dependency
 direction and the observable request boundaries.
 
-**Last reviewed:** 2026-09-27
+**Last reviewed:** 2026-10-05
 **Current scope:** health baseline, shared User profile/roles, Ticket 03
 password sessions with Bearer, CSRF, CORS and refresh-cookie adapters, and
 Ticket 06 first-Admin provisioning, staff TOTP MFA, security audit events and
-the staff route.
+the staff route, and Ticket 11 profile editing with staged mobile changes.
 **Later boundaries:** OTP, password recovery, staff management beyond the
 first Admin, and deployment.
 
@@ -292,3 +292,7 @@ sequenceDiagram
 Update this page when a backend package, route, adapter, persistence boundary,
 authentication transport or authorization rule changes. Do not diagram planned
 OTP, recovery, catalog or order behavior as implemented.
+
+## Ticket 11 profile boundary
+
+ProfileController exposes only GET/PUT /api/user/me/profile and POST/DELETE /api/user/me/mobile-change, derives ownership from the current Bearer principal, and checks exact JSON keys/types. ProfileRules and IdentifierFormats own pure validation; ProfileService and MobileChangeService take the users row lock before mutations. ProfileService uses a constructor projection with a pending-mobile left join, avoiding an eager role fetch on reads. Changeset 012 adds the optional name/DOB, explicit edit version, closure state and one pending row per user. Bulk delete reaches the database before a replacement insert; activation catches uniqueness failure around the auto-flushing delete and rolls back the entire transaction. STALE_UPDATE and ACCOUNT_CLOSING use the shared bounded error envelope. The internal activation method belongs to the future OTP verifier; no HTTP handler invokes it.

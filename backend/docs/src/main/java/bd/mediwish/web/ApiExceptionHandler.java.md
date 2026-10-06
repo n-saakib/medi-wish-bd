@@ -8,7 +8,9 @@ Package-private `@RestControllerAdvice` that maps the domain exceptions of every
 
 | Exception | Response |
 | --- | --- |
-| `InvalidRequestException`, `UserService.InvalidRegistrationException`, `HttpMessageNotReadableException` | `400 INVALID_REQUEST` |
+| `InvalidRequestException`, `UserService.InvalidRegistrationException`, `HttpMessageNotReadableException`, `InvalidProfileException` | `400 INVALID_REQUEST` |
+| `StaleUpdateException` | `409 STALE_UPDATE` |
+| `AccountClosingException` | `409 ACCOUNT_CLOSING` |
 | `UserService.DuplicateUserException` | `409 DUPLICATE_USER` |
 | `AuthenticationFailedException` | `401 AUTHENTICATION_FAILED` |
 | `AuthenticationRequiredException` (including `SessionReplayException`) | `401 AUTHENTICATION_REQUIRED` |

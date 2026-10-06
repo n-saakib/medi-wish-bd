@@ -15,3 +15,7 @@ Every password, token, cookie, seed and backup code it sees is tracked; 204 and 
 ## Verification
 
 Exercised by every auth integration test.
+
+## Ticket 11 helpers
+
+profileOf, putProfile, stageMobile and cancelMobile call the owner-only profile contract. profileEdit always includes all four editable keys, retaining null values. accountState supplies the accepted closure fixture through this run's guarded schema. activatePendingMobile invokes the Spring MobileChangeService with the actual pending UUID; it creates no HTTP verification route. Staged mobile values join the privacy tracking set.

@@ -8,13 +8,13 @@ Registration service for the shared User. `register(username, mobile, email, pas
 
 ## Rules
 
-- **Username:** 3–50 characters from `a-z`, `0-9`, `.`, `_`, `-`, with at least one letter, so a username cannot equal a digits-only mobile number (Ticket 03.02 A3). Mobile format is not validated yet (Ticket 61), so a mobile containing a letter could still equal a username; sign-in then rejects the ambiguous identifier.
-- **Mobile:** non-blank after trimming, at most 30 characters; no format or country rule until Ticket 61.
-- **Email:** optional; blank means absent; otherwise at most 320 characters matching `local@domain` without whitespace.
+- **Username:** accepted P12 format: 3–20 ASCII characters from `a-z`, `0-9`, `.`, `_`, `-`, with at least one letter.
+- **Mobile:** exactly 11 ASCII digits after trimming. Country/E.164 conversion remains Ticket 61 work.
+- **Email:** optional; blank means absent; otherwise the P12 dot-atom address subset, at most 254 total characters, local part at most 64, and domain labels at most 63 each. `IdentifierFormats` owns these rules for both registration and profile edits.
 - **Password:** non-blank, 6 to 30 characters (the user's rule, 2026-09-26). Password text is never trimmed or transformed. Sign-in keeps its own wider bound in `AuthController`.
 
 Invalid input throws `InvalidRegistrationException` before any lookup or hashing. An existing username or mobile throws `DuplicateUserException` before hashing. The insert is flushed so a PostgreSQL unique violation (SQL state `23505`) also becomes `DuplicateUserException`: from a concurrent registration, or from a taken email, which only the unique `upper(email)` index checks; other integrity failures propagate. `ApiExceptionHandler` maps the two nested exceptions to `400 INVALID_REQUEST` and `409 DUPLICATE_USER`. Only the encoded verifier is stored.
 
 ## Verification
 
-`UserServiceTest` covers each boundary, the letter rule, whitespace-preserving passwords, duplicate checks and the uniqueness race. `RegistrationIT` covers duplicate registration and concurrent username/mobile races against PostgreSQL.
+`UserServiceTest` covers the current identifier boundaries, whitespace-preserving passwords, duplicate checks and the uniqueness race. `RegistrationIT` covers rejected P12 inputs, duplicate registration and concurrent username/mobile races against PostgreSQL.

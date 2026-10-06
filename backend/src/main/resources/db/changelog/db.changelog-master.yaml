@@ -471,3 +471,65 @@ databaseChangeLog:
             referencedColumnNames: id
             constraintName: fk_user_sessions_mfa_factor
             onDelete: SET NULL
+  - changeSet:
+      id: 012-user-profile
+      author: medi-wish
+      changes:
+        - addColumn:
+            tableName: users
+            columns:
+              - column:
+                  name: full_name
+                  type: VARCHAR(100)
+              - column:
+                  name: date_of_birth
+                  type: DATE
+              - column:
+                  name: profile_version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: account_state
+                  type: VARCHAR(24)
+                  defaultValue: ACTIVE
+                  constraints:
+                    nullable: false
+        - sql:
+            sql: >-
+              ALTER TABLE users ADD CONSTRAINT ck_users_account_state
+              CHECK (account_state IN ('ACTIVE', 'CLOSURE_REQUESTED'))
+        - createTable:
+            tableName: user_mobile_changes
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uk_user_mobile_changes_user
+              - column:
+                  name: new_mobile
+                  type: VARCHAR(11)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: requested_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+        - addForeignKeyConstraint:
+            baseTableName: user_mobile_changes
+            baseColumnNames: user_id
+            referencedTableName: users
+            referencedColumnNames: id
+            constraintName: fk_user_mobile_changes_user
+            onDelete: CASCADE

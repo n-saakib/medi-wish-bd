@@ -227,6 +227,48 @@ final class AuthApi implements AutoCloseable {
         return send("GET", "/api/user/me", Map.of("Authorization", "Bearer " + accessToken), null);
     }
 
+
+    /** The full owner-only profile resource, separate from the session's stable four-field projection. */
+    HttpResponse<String> profileOf(String accessToken) throws Exception {
+        return send("GET", "/api/user/me/profile", bearer(accessToken), null);
+    }
+
+    HttpResponse<String> putProfile(String accessToken, String body) throws Exception {
+        return send("PUT", "/api/user/me/profile", bearerJson(accessToken), body);
+    }
+
+    /** Exactly the four editable keys, including nulls that clear optional fields. */
+    static String profileEdit(long version, String fullName, String email, String dateOfBirth) {
+        var fields = new LinkedHashMap<String, Object>();
+        fields.put("fullName", fullName);
+        fields.put("email", email);
+        fields.put("dateOfBirth", dateOfBirth);
+        fields.put("version", version);
+        return JSON.writeValueAsString(fields);
+    }
+
+    HttpResponse<String> stageMobile(String accessToken, String mobile) throws Exception {
+        track(mobile);
+        return post("/api/user/me/mobile-change", bearerJson(accessToken),
+                JSON.writeValueAsString(Map.of("mobile", mobile)));
+    }
+
+    HttpResponse<String> cancelMobile(String accessToken) throws Exception {
+        return send("DELETE", "/api/user/me/mobile-change", bearer(accessToken), null);
+    }
+
+    void accountState(User user, String state) throws SQLException {
+        assertThat(database.update("UPDATE users SET account_state = ? WHERE username = ?", state, user.username()))
+                .isOne();
+    }
+
+    /** The deterministic verifier seam; deliberately no HTTP route or production OTP adapter. */
+    void activatePendingMobile(User user) throws SQLException {
+        UUID id = database.single("SELECT id FROM users WHERE username = ?", UUID.class, user.username());
+        UUID change = database.single("SELECT id FROM user_mobile_changes WHERE user_id = ?", UUID.class, id);
+        app.bean(bd.mediwish.user.MobileChangeService.class).activate(id, change);
+    }
+
     HttpResponse<String> staffMe(String accessToken) throws Exception {
         return send("GET", "/api/staff/me", bearer(accessToken), null);
     }

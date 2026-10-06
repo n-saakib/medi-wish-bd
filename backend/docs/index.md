@@ -54,3 +54,34 @@ The source files remain the executable source of truth. A mirrored page records 
 | Request correlation | [`RequestCorrelationFilterTest.java.md`](src/test/java/bd/mediwish/web/RequestCorrelationFilterTest.java.md) — one server-generated UUID across normal and ERROR dispatches; one final status event, no premature 200, and no caller-supplied ID reflection |
 
 Local commands, environment rules and dependency research are maintained in the repository's agent runbooks when those local-only files are present; the mirrored pages above document the behavior that the source tree itself guarantees.
+
+## Ticket 11 profile files
+
+| Documentation | Responsibility |
+| --- | --- |
+| [AccountClosingException.java.md](src/main/java/bd/mediwish/user/AccountClosingException.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [AccountState.java.md](src/main/java/bd/mediwish/user/AccountState.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [IdentifierFormats.java.md](src/main/java/bd/mediwish/user/IdentifierFormats.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [InvalidProfileException.java.md](src/main/java/bd/mediwish/user/InvalidProfileException.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [MobileChange.java.md](src/main/java/bd/mediwish/user/MobileChange.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [MobileChangeNotPendingException.java.md](src/main/java/bd/mediwish/user/MobileChangeNotPendingException.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [MobileChangeRepository.java.md](src/main/java/bd/mediwish/user/MobileChangeRepository.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [MobileChangeService.java.md](src/main/java/bd/mediwish/user/MobileChangeService.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [ProfileController.java.md](src/main/java/bd/mediwish/user/ProfileController.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [ProfileEdit.java.md](src/main/java/bd/mediwish/user/ProfileEdit.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [ProfileRules.java.md](src/main/java/bd/mediwish/user/ProfileRules.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [ProfileService.java.md](src/main/java/bd/mediwish/user/ProfileService.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [ProfileView.java.md](src/main/java/bd/mediwish/user/ProfileView.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [StaleUpdateException.java.md](src/main/java/bd/mediwish/user/StaleUpdateException.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [ProfileRequestAdvice.java.md](src/main/java/bd/mediwish/web/ProfileRequestAdvice.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [IdentifierFormatsTest.java.md](src/test/java/bd/mediwish/user/IdentifierFormatsTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [MobileChangeServiceTest.java.md](src/test/java/bd/mediwish/user/MobileChangeServiceTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [ProfileMigrationIT.java.md](src/test/java/bd/mediwish/user/ProfileMigrationIT.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [ProfileRulesTest.java.md](src/test/java/bd/mediwish/user/ProfileRulesTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [ProfileServiceTest.java.md](src/test/java/bd/mediwish/user/ProfileServiceTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [UserTest.java.md](src/test/java/bd/mediwish/user/UserTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [ConcurrentProfileIT.java.md](src/test/java/bd/mediwish/auth/ConcurrentProfileIT.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [UserProfileIT.java.md](src/test/java/bd/mediwish/auth/UserProfileIT.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [ProfileBodyLimitTest.java.md](src/test/java/bd/mediwish/web/ProfileBodyLimitTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [ProfileControllerTest.java.md](src/test/java/bd/mediwish/web/ProfileControllerTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [UserProfileRegressionIT.java.md](src/test/java/bd/mediwish/auth/UserProfileRegressionIT.java.md) | Ticket 11 all-table fingerprints and immutable username across profile save, mobile stage/cancel and activation |

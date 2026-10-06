@@ -28,3 +28,7 @@ There is exactly one key per `ApiError` constant; add both together. Do not put 
 ## Verification
 
 `ApiErrorsTest` checks that every `ApiError` constant has a message and the exact English envelope. HTTP integration tests verify that only these safe messages appear in error responses.
+
+## Ticket 11 messages
+
+error.STALE_UPDATE (409) asks the caller to reload after a changed profile version. error.ACCOUNT_CLOSING (409) explains why a closing account cannot mutate its profile or pending mobile. Neither identifies a conflicting user or echoes private values.

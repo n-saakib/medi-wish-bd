@@ -7,6 +7,9 @@ import bd.mediwish.auth.MfaCodeInvalidException;
 import bd.mediwish.auth.MfaEnrollmentStaleException;
 import bd.mediwish.auth.TooManyAttemptsException;
 import bd.mediwish.user.UserService;
+import bd.mediwish.user.InvalidProfileException;
+import bd.mediwish.user.AccountClosingException;
+import bd.mediwish.user.StaleUpdateException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.ResponseEntity;
@@ -28,9 +31,19 @@ class ApiExceptionHandler {
     }
 
     @ExceptionHandler({InvalidRequestException.class, UserService.InvalidRegistrationException.class,
-            HttpMessageNotReadableException.class})
+            HttpMessageNotReadableException.class, InvalidProfileException.class})
     ResponseEntity<ApiErrors.Body> invalidRequest(HttpServletRequest request) {
         return error(ApiError.INVALID_REQUEST, request);
+    }
+
+    @ExceptionHandler(StaleUpdateException.class)
+    ResponseEntity<ApiErrors.Body> staleUpdate(HttpServletRequest request) {
+        return error(ApiError.STALE_UPDATE, request);
+    }
+
+    @ExceptionHandler(AccountClosingException.class)
+    ResponseEntity<ApiErrors.Body> accountClosing(HttpServletRequest request) {
+        return error(ApiError.ACCOUNT_CLOSING, request);
     }
 
     @ExceptionHandler(UserService.DuplicateUserException.class)

@@ -17,6 +17,8 @@ Package-private enum that is the single owner of public API error codes, their H
 | `NOT_FOUND` | 404 |
 | `METHOD_NOT_ALLOWED` | 405 |
 | `DUPLICATE_USER` | 409 |
+| `STALE_UPDATE` | 409 |
+| `ACCOUNT_CLOSING` | 409 |
 | `MFA_ENROLLMENT_STALE` | 409 |
 | `TOO_MANY_ATTEMPTS` | 429 |
 | `INTERNAL_ERROR` | 500 |

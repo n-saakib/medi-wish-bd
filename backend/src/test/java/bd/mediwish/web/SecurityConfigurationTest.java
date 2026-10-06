@@ -40,7 +40,7 @@ class SecurityConfigurationTest {
         var cors = cors(securityConfiguration(true, "production"), " https://shop.example.test , https://www.example.test ");
 
         assertThat(cors.getAllowedOrigins()).containsExactly("https://shop.example.test", "https://www.example.test");
-        assertThat(cors.getAllowedMethods()).containsExactly("GET", "POST", "HEAD", "OPTIONS");
+        assertThat(cors.getAllowedMethods()).containsExactly("GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS");
         assertThat(cors.getAllowedHeaders()).containsExactly("Authorization", "Content-Type", "X-XSRF-TOKEN");
         assertThat(cors.getAllowCredentials()).isTrue();
     }
@@ -79,6 +79,15 @@ class SecurityConfigurationTest {
         assertThat(cookie.getAttribute("SameSite")).isEqualTo("Lax");
     }
 
+    @Test
+    void everyProfileReadAndCommandRunsBearerAuthentication() {
+        for (String[] route : new String[][]{
+                {"GET", "/api/user/me/profile"}, {"PUT", "/api/user/me/profile"},
+                {"POST", "/api/user/me/mobile-change"}, {"DELETE", "/api/user/me/mobile-change"}}) {
+            assertThat(SecurityConfiguration.PROTECTED_ROUTES.matches(new MockHttpServletRequest(route[0], route[1])))
+                    .as(route[0] + " " + route[1]).isTrue();
+        }
+    }
     private static CorsConfiguration cors(SecurityConfiguration configuration, String allowedOrigins) {
         return configuration.corsConfigurationSource(allowedOrigins)
                 .getCorsConfiguration(new MockHttpServletRequest("GET", "/api/auth/csrf"));

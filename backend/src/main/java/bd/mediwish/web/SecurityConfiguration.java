@@ -36,6 +36,11 @@ class SecurityConfiguration {
     private static final List<String> LOCAL_ALLOWED_ORIGINS =
             List.of("http://127.0.0.1:3000", "http://localhost:3000");
     private static final RequestMatcher USER_PROFILE = route(HttpMethod.GET, "/api/user/me");
+    static final RequestMatcher USER_PROFILE_READ = route(HttpMethod.GET, "/api/user/me/profile");
+    static final RequestMatcher USER_PROFILE_COMMANDS = new OrRequestMatcher(
+            route(HttpMethod.PUT, "/api/user/me/profile"),
+            route(HttpMethod.POST, "/api/user/me/mobile-change"),
+            route(HttpMethod.DELETE, "/api/user/me/mobile-change"));
     private static final RequestMatcher STAFF_PROFILE = route(HttpMethod.GET, "/api/staff/me");
     private static final RequestMatcher MFA_ENROLLMENT_ROUTES = new OrRequestMatcher(
             route(HttpMethod.POST, "/api/auth/mfa/enrollment"),
@@ -47,11 +52,13 @@ class SecurityConfiguration {
      */
     static final RequestMatcher MFA_ROUTES = new OrRequestMatcher(MFA_ENROLLMENT_ROUTES, MFA_CHALLENGE_ROUTE);
     /** Every route that needs a Bearer access token; the filter and the authorization rules share it. */
-    static final RequestMatcher PROTECTED_ROUTES = new OrRequestMatcher(USER_PROFILE, STAFF_PROFILE, MFA_ROUTES);
+    static final RequestMatcher PROTECTED_ROUTES = new OrRequestMatcher(USER_PROFILE, USER_PROFILE_READ, USER_PROFILE_COMMANDS, STAFF_PROFILE, MFA_ROUTES);
     /** Registration and sign-in: public, exempt from CSRF (no session exists yet) and body-limited. */
     static final RequestMatcher CREDENTIAL_ROUTES = new OrRequestMatcher(
             route(HttpMethod.POST, "/api/auth/register"),
             route(HttpMethod.POST, "/api/auth/login"));
+
+    static final RequestMatcher BEARER_COMMAND_ROUTES = new OrRequestMatcher(MFA_ROUTES, USER_PROFILE_COMMANDS);
 
     private final boolean localProfile;
     private final boolean secureCookies;
@@ -74,7 +81,7 @@ class SecurityConfiguration {
         if (origins.contains("*")) throw new IllegalStateException("credentialed CORS requires explicit origins");
         var configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(origins);
-        configuration.setAllowedMethods(List.of("GET", "POST", "HEAD", "OPTIONS"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-XSRF-TOKEN"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
@@ -90,10 +97,10 @@ class SecurityConfiguration {
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokenRepository())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-                        .ignoringRequestMatchers(CREDENTIAL_ROUTES, MFA_ROUTES))
+                        .ignoringRequestMatchers(CREDENTIAL_ROUTES, BEARER_COMMAND_ROUTES))
                 .cors(AbstractHttpConfigurer::disable)
                 .addFilterBefore(new BoundedCorsFilter(corsSource, errors), SecurityContextHolderFilter.class)
-                .addFilterAfter(new AuthRequestBodyLimitFilter(new OrRequestMatcher(CREDENTIAL_ROUTES, MFA_ROUTES), errors), BoundedCorsFilter.class)
+                .addFilterAfter(new AuthRequestBodyLimitFilter(new OrRequestMatcher(CREDENTIAL_ROUTES, BEARER_COMMAND_ROUTES), errors), BoundedCorsFilter.class)
                 .addFilterAfter(new BearerAccessTokenFilter(PROTECTED_ROUTES, currentUsers, errors), LogoutFilter.class)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .requestCache(cache -> cache.disable())
@@ -109,7 +116,7 @@ class SecurityConfiguration {
                         .requestMatchers(MFA_ENROLLMENT_ROUTES).hasAuthority(StaffAccessPolicy.MFA_ENROLLMENT)
                         .requestMatchers(MFA_CHALLENGE_ROUTE).hasAuthority(StaffAccessPolicy.MFA_CHALLENGE)
                         .requestMatchers(STAFF_PROFILE).hasAnyRole("ADMIN", "MODERATOR")
-                        .requestMatchers(USER_PROFILE).hasAnyRole("CUSTOMER", "ADMIN", "MODERATOR", "DELIVERY_PERSON")
+                        .requestMatchers(USER_PROFILE, USER_PROFILE_READ, USER_PROFILE_COMMANDS).hasAnyRole("CUSTOMER", "ADMIN", "MODERATOR", "DELIVERY_PERSON")
                         .anyRequest().denyAll())
                 .exceptionHandling(handler -> handler
                         .authenticationEntryPoint((request, response, exception) -> {

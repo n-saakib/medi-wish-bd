@@ -11,3 +11,5 @@ Standalone MockMvc test of `ApiExceptionHandler`: each domain failure, including
 13 tests.
 
 Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` passed all 238 unit tests.
+
+Ticket 11 extends this bounded error seam with InvalidProfileException, STALE_UPDATE and ACCOUNT_CLOSING, including private field-name redaction.

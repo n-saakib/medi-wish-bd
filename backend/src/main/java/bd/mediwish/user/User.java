@@ -12,6 +12,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -28,6 +29,15 @@ public class User {
     private String mobile;
     @Column(length = 320)
     private String email;
+    @Column(name = "full_name", length = 100)
+    private String fullName;
+    @Column(name = "date_of_birth")
+    private LocalDate dateOfBirth;
+    @Column(name = "profile_version", nullable = false)
+    private long profileVersion;
+    @Enumerated(EnumType.STRING)
+    @Column(name = "account_state", nullable = false, length = 24)
+    private AccountState accountState;
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
     @Column(name = "mobile_verified", nullable = false)
@@ -47,6 +57,8 @@ public class User {
         this.username = username;
         this.mobile = mobile;
         this.email = email;
+        this.profileVersion = 0;
+        this.accountState = AccountState.ACTIVE;
         this.passwordHash = passwordHash;
         this.createdAt = Instant.now();
         this.roles.add(UserRole.CUSTOMER);
@@ -56,11 +68,25 @@ public class User {
     public String username() { return username; }
     public String mobile() { return mobile; }
     public String email() { return email; }
+    public String fullName() { return fullName; }
+    public LocalDate dateOfBirth() { return dateOfBirth; }
+    public long profileVersion() { return profileVersion; }
+    public AccountState accountState() { return accountState; }
     public String passwordHash() { return passwordHash; }
     public boolean mobileVerified() { return mobileVerified; }
     public Set<UserRole> roles() { return Collections.unmodifiableSet(roles); }
 
     public boolean hasStaffRole() { return roles.stream().anyMatch(UserRole::isStaff); }
+    public void updateProfile(String fullName, String email, LocalDate dateOfBirth) {
+        this.fullName = fullName;
+        this.email = email;
+        this.dateOfBirth = dateOfBirth;
+    }
+    public void bumpProfileVersion() { profileVersion += 1; }
+    public void activateMobile(String mobile) {
+        this.mobile = mobile;
+        this.mobileVerified = true;
+    }
 
     /** Adds a role, keeping the existing ones; only the first-Admin provisioning grants roles so far. */
     public void grantRole(UserRole role) { roles.add(role); }

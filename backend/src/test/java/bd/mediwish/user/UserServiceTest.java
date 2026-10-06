@@ -65,8 +65,8 @@ class UserServiceTest {
 
         assertThat(service.register("abc", "01700000000", null, "a-very-long-password").username())
                 .hasSize(3);
-        assertThat(service.register("a".repeat(50), "01700000000", null, "a-very-long-password").username())
-                .hasSize(50);
+        assertThat(service.register("a".repeat(20), "01700000000", null, "a-very-long-password").username())
+                .hasSize(20);
     }
 
     @Test
@@ -78,7 +78,7 @@ class UserServiceTest {
 
     @Test
     void rejectsUsernameAboveMaximumLengthByItself() {
-        assertThatThrownBy(() -> service.register("a".repeat(51), "01700000000", null, "a-very-long-password"))
+        assertThatThrownBy(() -> service.register("a".repeat(21), "01700000000", null, "a-very-long-password"))
                 .isInstanceOf(UserService.InvalidRegistrationException.class);
         verifyNoInteractions(users, passwords);
     }
@@ -162,26 +162,28 @@ class UserServiceTest {
     }
 
     @Test
-    void acceptsMobileAtMaximumLengthWithoutApplyingFormatRules() {
+    void acceptsAnElevenDigitMobile() {
         stubSuccessfulRegistration();
 
-        assertThat(service.register("alice_1", "1".repeat(30), null, "a-very-long-password").mobile())
-                .hasSize(30);
+        assertThat(service.register("alice_1", "01700000000", null, "a-very-long-password").mobile())
+                .isEqualTo("01700000000");
     }
 
     @Test
-    void rejectsMobileAboveMaximumLengthByItself() {
-        assertThatThrownBy(() -> service.register("alice_1", "1".repeat(31), null, "a-very-long-password"))
-                .isInstanceOf(UserService.InvalidRegistrationException.class);
+    void rejectsMobilesThatAreNotExactlyElevenAsciiDigits() {
+        for (String mobile : new String[]{"1".repeat(10), "1".repeat(12), "+8801700000000", "01700 000000", "০১৭০০০০০০০০"}) {
+            assertThatThrownBy(() -> service.register("alice_1", mobile, null, "a-very-long-password"))
+                    .isInstanceOf(UserService.InvalidRegistrationException.class);
+        }
         verifyNoInteractions(users, passwords);
     }
 
     @Test
-    void acceptsOptionalEmailAtMaximumLengthUnderCurrentSyntaxRule() {
-        String email = "a@" + "b".repeat(318);
+    void acceptsOptionalEmailAtMaximumLengthUnderTheAcceptedFormat() {
+        String email = "a".repeat(64) + "@" + "b".repeat(63) + "." + "c".repeat(63) + "." + "d".repeat(61);
         stubSuccessfulRegistration();
 
-        assertThat(email).hasSize(320);
+        assertThat(email).hasSize(254);
         assertThat(service.register("alice_1", "01700000000", email, "a-very-long-password").email())
                 .isEqualTo(email);
     }
@@ -195,8 +197,7 @@ class UserServiceTest {
 
     @Test
     void rejectsOptionalEmailAboveMaximumLengthByItself() {
-        String email = "a@" + "b".repeat(319);
-        assertThat(email).hasSize(321);
+        String email = "a".repeat(65) + "@example.test";
 
         assertThatThrownBy(() -> service.register("alice_1", "01700000000", email, "a-very-long-password"))
                 .isInstanceOf(UserService.InvalidRegistrationException.class);
