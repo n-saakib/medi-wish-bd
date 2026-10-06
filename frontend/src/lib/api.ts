@@ -27,7 +27,8 @@ const maxJsonResponseBytes = 16 * 1024;
 const maxErrorCodeLength = 64;
 
 export type ErrorMessageKey = 'authenticationFailed' | 'duplicateUser' | 'mfaRequired' | 'mfaCodeInvalid'
-  | 'mfaEnrollmentStale' | 'tooManyAttempts' | 'invalidResponse' | 'genericError';
+  | 'mfaEnrollmentStale' | 'tooManyAttempts' | 'invalidResponse' | 'genericError'
+  | 'staleUpdate' | 'accountClosing' | 'checkDetails';
 
 /** The `errors` message key for a failure. Codes the UI does not tell apart share the generic message. */
 export function errorMessageKey(reason: unknown): ErrorMessageKey {
@@ -36,6 +37,12 @@ export function errorMessageKey(reason: unknown): ErrorMessageKey {
       return 'authenticationFailed';
     case 'DUPLICATE_USER':
       return 'duplicateUser';
+    case 'STALE_UPDATE':
+      return 'staleUpdate';
+    case 'ACCOUNT_CLOSING':
+      return 'accountClosing';
+    case 'INVALID_REQUEST':
+      return 'checkDetails';
     case 'MFA_REQUIRED':
       return 'mfaRequired';
     case 'MFA_CODE_INVALID':

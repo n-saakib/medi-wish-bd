@@ -4,7 +4,7 @@ Source: [`src/app/globals.css`](../../../src/app/globals.css)
 
 ## Purpose
 
-This is the global stylesheet loaded once by the root layout. It holds the design tokens and component styles ported from `agent-docs/ui-design/assets/styles.css`, limited to what the current home, account, sign-in, registration, staff MFA and staff landing pages use. There is no CSS framework or CSS-in-JS layer; components apply these class names directly.
+This is the global stylesheet loaded once by the root layout. It holds the design tokens and component styles ported from `agent-docs/ui-design/assets/styles.css`, limited to what the current home, account, editable profile, sign-in, registration, staff MFA and staff landing pages use. There is no CSS framework or CSS-in-JS layer; components apply these class names directly.
 
 ## Rules
 
@@ -18,6 +18,7 @@ This is the global stylesheet loaded once by the root layout. It holds the desig
 - **Home hero.** `.hero-main` is the green gradient panel for the home heading and preparation copy, with reduced padding at 860 px and below.
 - **Auth pages.** `.auth-header` is the 72 px sign-in/register header; at 480 px and below its button padding shrinks and the "Back to home" label is visually hidden in the same accessible way. `.auth-wrap` centers the form card below the header and `.auth-card` caps it at 440 px; the account and staff pages reuse `.auth-card` for its width.
 - **Staff MFA.** `.steps-mini` is the two-step progress bar; `.qr` frames the 176 px QR SVG on white for scanning contrast; `.disclosure` styles the `Can’t scan?` summary as a 44 px target and wraps the grouped key; `.code-input` enlarges and spaces the code field; `.secret` is the dashed amber backup-code panel and `.code-grid` its two-column code list.
+- **Account profile.** `.profile-card` caps the editor at 700 px; mobile, pending and action rows wrap on narrow screens. Verification chips include text for both states. Field errors use readable text, and the native dialog caps its width at 440 px with viewport gutters, a dimmed backdrop and the existing 44 px inputs/buttons and amber focus rings.
 - **Staff header.** `.staff-top` is the 64 px white header with the logo and sign-out button.
 
 Search, cart, category navigation, footer, product and order styles from the design system are not included because those features are not implemented.

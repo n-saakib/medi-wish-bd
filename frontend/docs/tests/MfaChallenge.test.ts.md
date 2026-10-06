@@ -14,3 +14,5 @@ Mounted jsdom coverage for [`MfaChallenge`](../src/auth/MfaChallenge.tsx.md) wit
 - `MFA_REQUIRED`, `INVALID_REQUEST` and `INVALID_RESPONSE` show their `errors` copy.
 - A malformed code is refused without an API call.
 - `Sign out` ends the session and returns to `/sign-in`; an enrollment-required session is sent to setup.
+
+Ticket 11 aligns INVALID_REQUEST assertions with the shared bounded checkDetails copy: Check your details and try again. No API message is rendered.

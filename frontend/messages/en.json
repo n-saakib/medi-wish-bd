@@ -41,7 +41,7 @@
     "submitting": "Creating account…",
     "haveAccount": "Have an account?",
     "signIn": "Sign in",
-    "invalid": "Check your details. Usernames use 3–50 letters, numbers, dots, hyphens or underscores, with at least one letter."
+    "invalid": "Check your details. Usernames use 3–20 letters, numbers, dots, hyphens or underscores, with at least one letter."
   },
   "account": {
     "title": "Your account",
@@ -49,6 +49,7 @@
     "username": "Username",
     "mobile": "Mobile",
     "email": "Email",
+    "editProfile": "Edit profile",
     "signOut": "Sign out",
     "signingOut": "Signing out…"
   },
@@ -94,10 +95,39 @@
       "DELIVERY_PERSON": "Delivery person"
     }
   },
+  "profile": {
+    "title": "Profile",
+    "loading": "Loading your profile…",
+    "username": "Username",
+    "fullName": "Full name",
+    "mobile": "Mobile",
+    "verified": "Verified",
+    "notVerified": "Not verified",
+    "change": "Change",
+    "pendingNote": "New number {mobile} is waiting for verification.",
+    "cancelChange": "Cancel change",
+    "email": "Email",
+    "dateOfBirth": "Date of birth",
+    "saveChanges": "Save changes",
+    "saving": "Saving…",
+    "saved": "Profile saved.",
+    "reload": "Reload",
+    "fullNameInvalid": "Enter a name of up to 100 characters.",
+    "emailInvalid": "Enter a valid email address, or leave it empty.",
+    "dateOfBirthInvalid": "Enter a date from 1 January 1900 to today.",
+    "changeMobileTitle": "Change mobile",
+    "newMobile": "New mobile",
+    "mobileExplanation": "Your current number stays active until the new one is verified. Verification by text message is coming soon.",
+    "cancel": "Cancel",
+    "saveForVerification": "Save for verification"
+  },
   "errors": {
     "genericError": "The request could not be completed.",
     "authenticationFailed": "Those details don’t match an account.",
     "duplicateUser": "The username, mobile number or email is already in use.",
+    "staleUpdate": "This record changed after you opened it. Reload and try again.",
+    "accountClosing": "Your account is closing.",
+    "checkDetails": "Check your details and try again.",
     "invalidResponse": "The service returned an invalid response.",
     "mfaRequired": "Authenticator verification is required.",
     "mfaCodeInvalid": "The code is invalid or has already been used.",

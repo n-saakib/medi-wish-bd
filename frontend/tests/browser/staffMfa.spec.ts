@@ -28,7 +28,7 @@ async function expectVerifiedAccess(page: Page, admin: Customer): Promise<void> 
   await expect(page).toHaveURL('/staff');
   const access = page.getByRole('region', { name: 'Staff access verified' });
   await expect(access.getByText(admin.username, { exact: true })).toBeVisible();
-  await expect(access.getByText('Admin, Customer', { exact: true })).toBeVisible();
+  await expect(access.getByText('Admin', { exact: true })).toBeVisible();
   // Only the provisioned first Admin is the Super Admin; a role granted in SQL is not.
   await expect(access.getByText('Super Admin')).toHaveCount(0);
 }

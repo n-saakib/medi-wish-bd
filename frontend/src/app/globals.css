@@ -71,6 +71,8 @@ p { margin: 0 0 .75rem; }
 .icon-btn[disabled] { opacity: .5; cursor: not-allowed; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600; line-height: 1.5; white-space: nowrap; }
 .chip-brand { background: var(--brand-50); color: var(--brand-700); border: 1px solid var(--brand-100); }
+.chip-success { background: var(--success-50); color: #11532a; border: 1px solid #bfe3cb; }
+.chip-muted { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
 
 /* Forms */
 .field { display: grid; gap: 6px; }
@@ -79,6 +81,18 @@ p { margin: 0 0 .75rem; }
 .hint { font-size: .8rem; color: var(--muted); }
 .input { width: 100%; min-height: 44px; padding: 10px 12px; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-s); }
 .input:focus { outline: 3px solid var(--accent); outline-offset: 0; border-color: var(--brand-600); }
+
+/* Account profile */
+.profile-card { width: min(100%, 700px); }
+.profile-label { font-weight: 600; font-size: .9rem; }
+.profile-mobile-row, .profile-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.profile-pending { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 10px 12px; background: var(--brand-50); border-radius: var(--radius-s); }
+.profile-pending p { margin: 0; overflow-wrap: anywhere; }
+.profile-field-error { color: #7f1a12; font-size: .875rem; }
+.profile-dialog { width: min(100% - 32px, 440px); max-height: min(90vh, 700px); padding: 24px; border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 16px 48px rgba(18, 48, 42, .2); color: var(--ink); }
+.profile-dialog::backdrop { background: rgba(18, 48, 42, .5); }
+.profile-dialog h2 { font-size: 1.25rem; }
+.profile-actions { justify-content: flex-end; }
 
 /* Alerts: every alert carries an icon and text, never color alone */
 .alert { display: flex; gap: 12px; padding: 14px 16px; border-radius: var(--radius-s); border: 1px solid; font-size: .92rem; }

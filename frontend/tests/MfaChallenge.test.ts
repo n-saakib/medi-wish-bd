@@ -119,7 +119,7 @@ describe('MfaChallenge', () => {
 
   it.each([
     ['MFA_REQUIRED', 403, 'Authenticator verification is required.'],
-    ['INVALID_REQUEST', 400, 'The request could not be completed.'],
+    ['INVALID_REQUEST', 400, 'Check your details and try again.'],
     ['INVALID_RESPONSE', 200, 'The service returned an invalid response.'],
   ])('shows the copy for %s, never the API message', async (code, status, copy) => {
     const page = await renderWithSession(createElement(MfaChallenge), challengeSource({

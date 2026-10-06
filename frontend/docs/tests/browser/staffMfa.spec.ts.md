@@ -14,7 +14,7 @@ The Ticket 06 staff MFA journeys against the real test API, run on the `chrome` 
   1. Register through the form, have ADMIN granted, and sign out.
   2. A password sign-in lands on `/staff/mfa/enroll` with the QR image.
   3. The code from the manual key shows ten focused backup codes, and the page does not move until `I’ve saved them`.
-  4. `/staff` shows the username, `Admin, Customer`, and no `Super Admin` label: only the provisioned first Admin is Super Admin.
+  4. `/staff` shows the username, the one role `Admin`, and no `Super Admin` label: only the provisioned first Admin is Super Admin.
   5. A reload keeps verified access.
   6. The staff header's `Sign out` returns to `/sign-in`.
   7. Signing in again lands on `/staff/mfa`.

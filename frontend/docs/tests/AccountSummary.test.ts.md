@@ -8,7 +8,7 @@ Mounted jsdom coverage for [`AccountSummary`](../src/account/AccountSummary.tsx.
 
 ## Verification
 
-- While the profile request is held open, `Checking your session…` is shown without a heading; the loaded card then shows the API's username, mobile and email (not the restored ones), the request carries the Bearer token, and nothing redirects. A profile without email has no email row.
+- While the profile request is held open, `Checking your session…` is shown without a heading; the loaded card then shows the API's username, mobile and email (not the restored ones), the request carries the Bearer token, the loaded card exposes an Edit profile link to `/account/profile`, and nothing redirects. A profile without email has no email row.
 - While the restore is held open, the status is shown without redirecting; a `204` restore then redirects to `/sign-in` without requesting the profile.
 - A profile request that is still `401` after one refresh makes two profile and two refresh requests, removes the card, redirects to `/sign-in`, and the sign-in form mounted alongside announces the expired session.
 - A `500` profile response shows the generic alert (not the API message) and keeps the heading and sign-out button, without redirecting.

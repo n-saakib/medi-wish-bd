@@ -133,7 +133,7 @@ describe('RegistrationForm', () => {
     await settle();
 
     expect(requiredElement(form, '[role="alert"]').textContent)
-      .toBe('Check your details. Usernames use 3–50 letters, numbers, dots, hyphens or underscores, with at least one letter.');
+      .toBe('Check your details. Usernames use 3–20 letters, numbers, dots, hyphens or underscores, with at least one letter.');
   });
 
   it('keeps transport details out of the alert', async () => {
