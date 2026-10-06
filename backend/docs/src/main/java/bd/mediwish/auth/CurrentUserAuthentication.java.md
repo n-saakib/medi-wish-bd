@@ -13,7 +13,7 @@ Public auth service that resolves an access token to the current User and the au
 1. verifies the token through `AccessTokenCodec`;
 2. requires the token's session to be active, unexpired and bound to the token's User, and reads its MFA evidence (`SessionService.requireActive`);
 3. loads the User and accepts it only when its stored verifier passes `PasswordVerifierPolicy`;
-4. evaluates `StaffAccessPolicy` with the roles read now, the active factor (`StaffMfaFactorRepository.activeFactorIdOf`, queried only for staff) and the session evidence;
+4. evaluates `StaffAccessPolicy` with the one role read now, the active factor (`StaffMfaFactorRepository.activeFactorIdOf`, queried only for staff) and the session evidence;
 5. returns `CurrentUser(userId, sessionId, profile, roles, mfa, authorities)`.
 
 Any failed step throws `AuthenticationRequiredException`. Role claims are never read from the token. Because roles, factor and evidence are read on every request, losing a staff role or having the factor replaced changes access on the next request. Persistence and transaction exceptions propagate unchanged; the bearer filter turns them into `500 INTERNAL_ERROR`.

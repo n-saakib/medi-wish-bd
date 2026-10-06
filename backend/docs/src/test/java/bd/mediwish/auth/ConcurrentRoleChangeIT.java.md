@@ -1,0 +1,11 @@
+# ConcurrentRoleChangeIT
+
+Exercises the role API through real HTTP and PostgreSQL in an owned test schema. Test-owned Mockito wrappers delegate to the real Spring beans and preserve their transactions; latches hold role revocation before or after its session locks, or hold the first refresh-token save inside password sign-in and MFA verification. No production hook decides the ordering. Competing operations must be observed in `pg_stat_activity` waiting on the expected User or session lock before release. The refresh-first case instead completes refresh while revocation is held before locking sessions.
+
+Separate verified Admins race different roles in both orders, proving the first version wins and the loser receives `STALE_UPDATE`. Identical commands return the committed version without another audit or revocation. Distinct actors prevent a shared actor lock from hiding missing target locking.
+
+The class provisions the real Super Admin before ordinary Admin fixtures. Both actor-demotion orders prove the command either commits before demotion, with its audit attributed to the actor, or rechecks the demoted actor and refuses without changing the third User.
+
+Both refresh orders require no usable target session afterwards: a refresh completed before revocation loses its new access token and cookie, while a refresh blocked behind revocation must be refused. Password sign-in is forced in both orders: after promotion it reads the committed role and opens a restricted session with the matching cookie lifetime; before promotion its new session is included in revocation. MFA verification likewise either finds its restricted session revoked or completes first and has the upgraded session revoked. Demotion retains the active authenticator.
+
+Assertions cover HTTP status and bounded errors, role/version/audit counts, session revocation, restricted assurance and lifetime, retained factors, and omission of tracked synthetic secrets from captured logs. Bounded latch and PostgreSQL waits always release during cleanup. The class carries integration, security, recovery and regression tags; the guarded AuthApi closes its application and owned schema.

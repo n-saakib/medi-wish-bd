@@ -281,13 +281,44 @@ final class AuthApi implements AutoCloseable {
     }
 
     void grantRole(User user, String role) throws SQLException {
-        assertThat(database.update("INSERT INTO user_roles (user_id, role) VALUES (?, ?)", userId(user), role)).isOne();
+        assertThat(database.update("UPDATE user_roles SET role = ? WHERE user_id = ?", role, userId(user))).isOne();
     }
 
     void removeRole(User user, String role) throws SQLException {
-        assertThat(database.update("DELETE FROM user_roles WHERE user_id = ? AND role = ?", userId(user), role)).isOne();
+        assertThat(database.update("UPDATE user_roles SET role = 'CUSTOMER' WHERE user_id = ? AND role = ?", userId(user), role)).isOne();
     }
 
+    /** Admin read/command routes use a Bearer token only; filters stay in the JSON body. */
+    HttpResponse<String> adminUsers(String token, Map<String, Object> filter) throws Exception {
+        return post("/api/admin/users/search", bearerJson(token), JSON.writeValueAsString(filter));
+    }
+
+    HttpResponse<String> adminUser(String token, UUID id) throws Exception {
+        return send("GET", "/api/admin/users/" + id, bearer(token), null);
+    }
+
+    HttpResponse<String> putRole(String token, UUID id, String role, long version) throws Exception {
+        return send("PUT", "/api/admin/users/" + id + "/roles", bearerJson(token),
+                JSON.writeValueAsString(Map.of("role", role, "rolesVersion", version)));
+    }
+
+    record VerifiedStaff(User user, Enrolled enrolled) {
+        String token() { return enrolled.session().accessToken(); }
+    }
+
+    VerifiedStaff verifiedAdmin() throws Exception {
+        User user = registered();
+        grantRole(user, "ADMIN");
+        return new VerifiedStaff(user, enroll(user));
+    }
+
+    /** Uses the real provisioning transaction, once per owned schema, then the real MFA enrollment. */
+    VerifiedStaff verifiedSuperAdmin() throws Exception {
+        User user = registered();
+        assertThat(app.bean(FirstAdminProvisioningService.class).provision(user.username()))
+                .isEqualTo(FirstAdminProvisioningService.Outcome.PROVISIONED);
+        return new VerifiedStaff(user, enroll(user));
+    }
     /** Clears the User's wrong-code count and lock, as the lockout expiring would. */
     void clearMfaThrottle(User user) throws SQLException {
         database.update("DELETE FROM staff_mfa_throttle WHERE user_id = ?", userId(user));

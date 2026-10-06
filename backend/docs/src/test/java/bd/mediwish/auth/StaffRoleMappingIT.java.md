@@ -1,0 +1,3 @@
+# StaffRoleMappingIT
+
+Captures parameterized Hibernate statements against the guarded PostgreSQL schema. A public `User.replaceRole` deletes the old collection row and inserts the new one in the same transaction. Repository `findAllByIdForUpdate` and `findByIdForShare` must render FOR NO KEY UPDATE and FOR SHARE inline before the eager role read. This catches follow-on-lock behavior that could read stale roles before waiting; the application uses these repository JPQL operations instead of EntityManager.find lock options. Captured SQL excludes bind values. The before-change T1 run characterized the private mapping before the public replacement operation existed; the permanent test now uses that operation.

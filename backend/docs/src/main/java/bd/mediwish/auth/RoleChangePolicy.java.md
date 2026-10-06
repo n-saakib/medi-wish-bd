@@ -1,0 +1,5 @@
+# RoleChangePolicy
+
+Pure ordered rules for assigning exactly one role. `decide` refuses a non-Admin actor before considering a no-op. A repeated current role succeeds before version, self, Super Admin or Admin-role restrictions, allowing a lost-response retry. Actual changes refuse self first, the Super Admin target next, and transitions to/from Admin by an ordinary Admin next; stale versions follow those restrictions. Otherwise it returns APPLY. The transaction service retains the old/new role values and performs writes only for APPLY.
+
+`assignableRoles` exposes the ordered UI choices: none for self or Super Admin; all four for the owner changing someone else; none for an ordinary Admin changing an Admin; the lower three otherwise. `staffMfaState` returns NOT_REQUIRED for Customer/DeliveryPerson, ENROLLED for staff with an active factor and SETUP_REQUIRED for staff without one. MFA authorization remains in StaffAccessPolicy. `RoleChangePolicyTest` covers the precedence, protected targets, stale retries, all six lower-role transitions, owner transitions and display choices.

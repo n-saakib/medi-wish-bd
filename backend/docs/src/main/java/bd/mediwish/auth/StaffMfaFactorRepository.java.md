@@ -12,3 +12,5 @@ Public Spring Data repository for `StaffMfaFactor`. Callers that change a factor
 | `activeFactorIdOf(user)` | The active factor ID for a staff User, `null` otherwise; non-staff Users cause no query. `CurrentUserAuthentication` and `AuthenticationService` pass it to `StaffAccessPolicy`. |
 
 The active-factor lookup is the one extra statement a staff request prepares (`ConcurrentMfaIT`). Covered by `StaffMfaServiceTest`, `CurrentUserAuthenticationTest` and the staff MFA integration tests.
+
+`findActiveUserIds(userIds)` returns only the ids with active factors in one bounded page-level query, allowing the admin search projection to avoid querying each User's factor.

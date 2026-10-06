@@ -44,9 +44,14 @@ class FirstAdminProvisioningIT {
             assertError(api.profile(before.accessToken()), 401, "AUTHENTICATION_REQUIRED");
             assertError(api.refresh(before.refreshToken()), 401, "AUTHENTICATION_REQUIRED");
             assertThat(api.revoked(owner, RevocationReason.STAFF_PROVISIONED)).isOne();
+            assertThat(api.database().query("SELECT role FROM user_roles WHERE user_id = ?",
+                    row -> row.getString(1), api.userId(owner))).containsExactly("ADMIN");
+            assertThat(api.database().single("SELECT roles_version FROM users WHERE id = ?",
+                    Long.class, api.userId(owner))).isZero();
+            assertThat(api.database().single("SELECT count(*) FROM user_role_changes", Long.class)).isZero();
             var enrolled = api.enroll(owner);
             assertThat(json(api.staffMe(enrolled.session().accessToken())))
-                    .isEqualTo(Map.of("username", owner.username(), "roles", List.of("ADMIN", "CUSTOMER"),
+                    .isEqualTo(Map.of("username", owner.username(), "roles", List.of("ADMIN"),
                             "superAdmin", true));
             assertThat(api.database().single("SELECT super_admin_user_id FROM staff_bootstrap WHERE id = 1",
                     UUID.class)).isEqualTo(api.userId(owner));

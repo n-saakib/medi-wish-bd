@@ -91,7 +91,7 @@ class StaffMfaIT {
         assertError(api.profile(restricted.accessToken()), 401, "AUTHENTICATION_REQUIRED");
         AuthApi.assertRefreshCookieCleared(api.refresh(restricted.refreshToken()));
         assertThat(json(api.staffMe(verified.accessToken())))
-                .isEqualTo(Map.of("username", admin.username(), "roles", List.of("ADMIN", "CUSTOMER"), "superAdmin", false));
+                .isEqualTo(Map.of("username", admin.username(), "roles", List.of("ADMIN"), "superAdmin", false));
         assertThat(api.profile(verified.accessToken()).statusCode()).isEqualTo(200);
         assertThat(api.revoked(admin, RevocationReason.MFA_VERIFIED)).isOne();
 
@@ -151,7 +151,7 @@ class StaffMfaIT {
         var enrolled = api.enroll(moderator);
 
         assertThat(json(api.staffMe(enrolled.session().accessToken())))
-                .containsEntry("roles", List.of("CUSTOMER", "MODERATOR")).containsEntry("superAdmin", false);
+                .containsEntry("roles", List.of("MODERATOR")).containsEntry("superAdmin", false);
     }
 
     @Test

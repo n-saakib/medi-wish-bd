@@ -15,3 +15,5 @@ Every password, token, cookie, seed and backup code it sees is tracked; 204 and 
 ## Verification
 
 Exercised by every auth integration test.
+
+Ticket 08: grantRole replaces the only stored role with UPDATE; removeRole restores CUSTOMER, preserving the existing per-request authorization fixture intent. adminUsers sends filters only in POST JSON; adminUser and putRole identify by UUID. verifiedAdmin enrolls a synthetic staff fixture; verifiedSuperAdmin uses the real provisioning transaction, once per owned schema, before enrollment. VerifiedStaff retains the fixture identity and enrollment for fresh-code/revocation checks.

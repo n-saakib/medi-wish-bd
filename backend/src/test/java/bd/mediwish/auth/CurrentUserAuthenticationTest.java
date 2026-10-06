@@ -62,7 +62,7 @@ class CurrentUserAuthenticationTest {
     @Test
     void aStaffSessionIsGrantedItsRolesOnlyWhileItCarriesEvidenceForTheActiveAuthenticator() {
         var admin = new User("owner_1", "01700000000", null, VALID_VERIFIER);
-        admin.grantRole(UserRole.ADMIN);
+        admin.replaceRole(UserRole.ADMIN);
         UUID factorId = UUID.randomUUID();
         when(accessTokens.verify("access")).thenReturn(new AccessTokenCodec.AccessTokenClaims(USER_ID, SESSION_ID));
         when(users.findById(USER_ID)).thenReturn(Optional.of(admin));
@@ -75,7 +75,7 @@ class CurrentUserAuthenticationTest {
                 .thenReturn(new SessionService.MfaEvidence(factorId, NOW.minusSeconds(60)));
         var verified = currentUsers.authenticate("access");
         assertThat(verified.mfa()).isEqualTo(MfaStatus.VERIFIED);
-        assertThat(verified.authorities()).containsExactlyInAnyOrder("ROLE_CUSTOMER", "ROLE_ADMIN");
+        assertThat(verified.authorities()).containsExactly("ROLE_ADMIN");
     }
 
     @Test

@@ -6,6 +6,9 @@ import bd.mediwish.auth.InvalidRequestException;
 import bd.mediwish.auth.MfaCodeInvalidException;
 import bd.mediwish.auth.MfaEnrollmentStaleException;
 import bd.mediwish.auth.TooManyAttemptsException;
+import bd.mediwish.auth.RoleChangeRefusedException;
+import bd.mediwish.auth.UserNotFoundException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
 import bd.mediwish.user.UserService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.DataAccessException;
@@ -67,6 +70,22 @@ class ApiExceptionHandler {
     ResponseEntity<ApiErrors.Body> persistenceFailure(HttpServletRequest request) {
         return error(ApiError.INTERNAL_ERROR, request);
     }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    ResponseEntity<ApiErrors.Body> unsupportedMedia(HttpServletRequest request) {
+        // Ticket 08 freezes non-JSON admin commands as 400; existing credential routes retain their 415 contract.
+        int status = request.getRequestURI().startsWith("/api/admin/users/") ? 400 : 415;
+        return ResponseEntity.status(status).body(errors.body(ApiError.INVALID_REQUEST, request));
+    }
+
+    @ExceptionHandler(StaleUpdateException.class)
+    ResponseEntity<ApiErrors.Body> staleUpdate(HttpServletRequest request) { return error(ApiError.STALE_UPDATE, request); }
+
+    @ExceptionHandler(RoleChangeRefusedException.class)
+    ResponseEntity<ApiErrors.Body> refusedRole(HttpServletRequest request) { return error(ApiError.ROLE_CHANGE_REFUSED, request); }
+
+    @ExceptionHandler(UserNotFoundException.class)
+    ResponseEntity<ApiErrors.Body> userNotFound(HttpServletRequest request) { return error(ApiError.NOT_FOUND, request); }
 
     private ResponseEntity<ApiErrors.Body> error(ApiError error, HttpServletRequest request) {
         return ResponseEntity.status(error.status).body(errors.body(error, request));

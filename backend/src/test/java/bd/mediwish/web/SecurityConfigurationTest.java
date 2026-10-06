@@ -40,7 +40,7 @@ class SecurityConfigurationTest {
         var cors = cors(securityConfiguration(true, "production"), " https://shop.example.test , https://www.example.test ");
 
         assertThat(cors.getAllowedOrigins()).containsExactly("https://shop.example.test", "https://www.example.test");
-        assertThat(cors.getAllowedMethods()).containsExactly("GET", "POST", "HEAD", "OPTIONS");
+        assertThat(cors.getAllowedMethods()).containsExactly("GET", "POST", "PUT", "HEAD", "OPTIONS");
         assertThat(cors.getAllowedHeaders()).containsExactly("Authorization", "Content-Type", "X-XSRF-TOKEN");
         assertThat(cors.getAllowCredentials()).isTrue();
     }
@@ -77,6 +77,26 @@ class SecurityConfigurationTest {
         assertThat(cookie.isHttpOnly()).isFalse();
         assertThat(cookie.getPath()).isEqualTo("/api");
         assertThat(cookie.getAttribute("SameSite")).isEqualTo("Lax");
+    }
+
+    @Test
+    void anAdminAuthorityIncludesEveryLowerRoleButRestrictedAuthoritiesIncludeNone() {
+        var hierarchy = SecurityConfiguration.roleHierarchy();
+        assertThat(hierarchy.getReachableGrantedAuthorities(java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))))
+                .extracting(org.springframework.security.core.GrantedAuthority::getAuthority)
+                .containsExactlyInAnyOrder("ROLE_ADMIN", "ROLE_MODERATOR", "ROLE_DELIVERY_PERSON", "ROLE_CUSTOMER");
+        assertThat(hierarchy.getReachableGrantedAuthorities(java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("MFA_ENROLLMENT"))))
+                .extracting(org.springframework.security.core.GrantedAuthority::getAuthority).containsExactly("MFA_ENROLLMENT");
+    }
+
+    @Test
+    void searchAndRoleChangesShareBearerProtectionAndBodyLimitMatchers() {
+        for (var request : java.util.List.of(new MockHttpServletRequest("POST", "/api/admin/users/search"),
+                new MockHttpServletRequest("PUT", "/api/admin/users/3f6b2d1e-8a4c-4b7e-9d2f-0a1b2c3d4e5f/roles"))) {
+            assertThat(SecurityConfiguration.PROTECTED_ROUTES.matches(request)).isTrue();
+            assertThat(SecurityConfiguration.BEARER_COMMAND_ROUTES.matches(request)).isTrue();
+        }
+        assertThat(SecurityConfiguration.BEARER_COMMAND_ROUTES.matches(new MockHttpServletRequest("POST", "/api/auth/refresh"))).isFalse();
     }
 
     private static CorsConfiguration cors(SecurityConfiguration configuration, String allowedOrigins) {

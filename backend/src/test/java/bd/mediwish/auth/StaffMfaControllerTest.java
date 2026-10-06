@@ -29,7 +29,7 @@ class StaffMfaControllerTest {
     private static final Instant NOW = Instant.parse("2026-09-27T10:00:00Z");
     private static final UserProfile PROFILE = new UserProfile("owner_1", "01700000000", null, false);
     private static final CurrentUserAuthentication.CurrentUser RESTRICTED = new CurrentUserAuthentication.CurrentUser(
-            UUID.randomUUID(), UUID.randomUUID(), PROFILE, Set.of(UserRole.CUSTOMER, UserRole.ADMIN),
+            UUID.randomUUID(), UUID.randomUUID(), PROFILE, Set.of(UserRole.ADMIN),
             MfaStatus.VERIFICATION_REQUIRED, Set.of(StaffAccessPolicy.MFA_CHALLENGE));
     private static final AuthenticationService.AuthenticatedSession VERIFIED = new AuthenticationService
             .AuthenticatedSession("access", 900, "verified-refresh", NOW.plus(Duration.ofDays(30)), PROFILE,

@@ -54,3 +54,30 @@ The source files remain the executable source of truth. A mirrored page records 
 | Request correlation | [`RequestCorrelationFilterTest.java.md`](src/test/java/bd/mediwish/web/RequestCorrelationFilterTest.java.md) — one server-generated UUID across normal and ERROR dispatches; one final status event, no premature 200, and no caller-supplied ID reflection |
 
 Local commands, environment rules and dependency research are maintained in the repository's agent runbooks when those local-only files are present; the mirrored pages above document the behavior that the source tree itself guarantees.
+
+## Ticket 08 staff roles
+
+| Source | Documentation |
+| --- | --- |
+| `src/main/java/bd/mediwish/admin/AdminUserController.java` | [src/main/java/bd/mediwish/admin/AdminUserController.java](src/main/java/bd/mediwish/admin/AdminUserController.java.md) |
+| `src/main/java/bd/mediwish/auth/RoleAssignmentService.java` | [src/main/java/bd/mediwish/auth/RoleAssignmentService.java](src/main/java/bd/mediwish/auth/RoleAssignmentService.java.md) |
+| `src/main/java/bd/mediwish/auth/RoleChangePolicy.java` | [src/main/java/bd/mediwish/auth/RoleChangePolicy.java](src/main/java/bd/mediwish/auth/RoleChangePolicy.java.md) |
+| `src/main/java/bd/mediwish/auth/RoleChangeRefusedException.java` | [src/main/java/bd/mediwish/auth/RoleChangeRefusedException.java](src/main/java/bd/mediwish/auth/RoleChangeRefusedException.java.md) |
+| `src/main/java/bd/mediwish/auth/UserNotFoundException.java` | [src/main/java/bd/mediwish/auth/UserNotFoundException.java](src/main/java/bd/mediwish/auth/UserNotFoundException.java.md) |
+| `src/main/java/bd/mediwish/auth/UserRoleChange.java` | [src/main/java/bd/mediwish/auth/UserRoleChange.java](src/main/java/bd/mediwish/auth/UserRoleChange.java.md) |
+| `src/main/java/bd/mediwish/auth/UserRoleChangeRepository.java` | [src/main/java/bd/mediwish/auth/UserRoleChangeRepository.java](src/main/java/bd/mediwish/auth/UserRoleChangeRepository.java.md) |
+| `src/main/java/bd/mediwish/web/StaleUpdateException.java` | [src/main/java/bd/mediwish/web/StaleUpdateException.java](src/main/java/bd/mediwish/web/StaleUpdateException.java.md) |
+| `src/test/java/bd/mediwish/admin/AdminUserControllerTest.java` | [src/test/java/bd/mediwish/admin/AdminUserControllerTest.java](src/test/java/bd/mediwish/admin/AdminUserControllerTest.java.md) |
+| `src/test/java/bd/mediwish/auth/AdminUserListIT.java` | [src/test/java/bd/mediwish/auth/AdminUserListIT.java](src/test/java/bd/mediwish/auth/AdminUserListIT.java.md) |
+| `src/test/java/bd/mediwish/auth/ConcurrentRoleChangeIT.java` | [src/test/java/bd/mediwish/auth/ConcurrentRoleChangeIT.java](src/test/java/bd/mediwish/auth/ConcurrentRoleChangeIT.java.md) |
+| `src/test/java/bd/mediwish/auth/RoleAssignmentServiceTest.java` | [src/test/java/bd/mediwish/auth/RoleAssignmentServiceTest.java](src/test/java/bd/mediwish/auth/RoleAssignmentServiceTest.java.md) |
+| `src/test/java/bd/mediwish/auth/RoleChangePolicyTest.java` | [src/test/java/bd/mediwish/auth/RoleChangePolicyTest.java](src/test/java/bd/mediwish/auth/RoleChangePolicyTest.java.md) |
+| `src/test/java/bd/mediwish/auth/RoleChangeRecoveryIT.java` | [src/test/java/bd/mediwish/auth/RoleChangeRecoveryIT.java](src/test/java/bd/mediwish/auth/RoleChangeRecoveryIT.java.md) |
+| `src/test/java/bd/mediwish/auth/StaffRoleIT.java` | [src/test/java/bd/mediwish/auth/StaffRoleIT.java](src/test/java/bd/mediwish/auth/StaffRoleIT.java.md) |
+| `src/test/java/bd/mediwish/auth/StaffRoleMappingIT.java` | [src/test/java/bd/mediwish/auth/StaffRoleMappingIT.java](src/test/java/bd/mediwish/auth/StaffRoleMappingIT.java.md) |
+| `src/test/java/bd/mediwish/auth/StaffRoleMigrationIT.java` | [src/test/java/bd/mediwish/auth/StaffRoleMigrationIT.java](src/test/java/bd/mediwish/auth/StaffRoleMigrationIT.java.md) |
+| `src/test/java/bd/mediwish/auth/StaffRoleRegressionIT.java` | [src/test/java/bd/mediwish/auth/StaffRoleRegressionIT.java](src/test/java/bd/mediwish/auth/StaffRoleRegressionIT.java.md) |
+| `src/test/java/bd/mediwish/user/UserRoleTest.java` | [src/test/java/bd/mediwish/user/UserRoleTest.java](src/test/java/bd/mediwish/user/UserRoleTest.java.md) |
+| `src/test/java/bd/mediwish/user/UserTest.java` | [src/test/java/bd/mediwish/user/UserTest.java](src/test/java/bd/mediwish/user/UserTest.java.md) |
+
+Refresh revocation freshness: [`UserSessionRefreshToken`](src/main/java/bd/mediwish/auth/UserSessionRefreshToken.java.md) exposes its foreign-key ID without loading the family before [`SessionService`](src/main/java/bd/mediwish/auth/SessionService.java.md) locks and checks current state.

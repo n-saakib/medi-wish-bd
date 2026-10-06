@@ -11,7 +11,7 @@ Package-private service that grants `ADMIN` to one registered User, exactly once
 | Member | Behavior |
 | --- | --- |
 | `decide(bootstrapUsed, adminExists, userEligible)` | Fixed refusal order: `BOOTSTRAP_USED`, then `ADMIN_EXISTS`, then `USER_NOT_FOUND`; otherwise `PROVISIONED`. |
-| `provision(username)` | In one `TransactionOperations` transaction: finds the User by the normalized username, keeping it only when `PasswordVerifierPolicy` accepts its verifier; claims `staff_bootstrap` row 1 through `StaffBootstrapRepository.claim` (with a `null` User when none was found); checks `UserRepository.existsByRole(ADMIN)` only when the claim succeeded; and decides. A refusal marks the transaction rollback-only, so a claimed row from a refused run is not kept. `PROVISIONED` locks the User row (`findByIdForUpdate`), adds `ADMIN` to the existing roles, saves, revokes every active session with `RevocationReason.STAFF_PROVISIONED` and records `FIRST_ADMIN_PROVISIONED` with no session. |
+| `provision(username)` | In one `TransactionOperations` transaction: finds the User by the normalized username, keeping it only when `PasswordVerifierPolicy` accepts its verifier; claims `staff_bootstrap` row 1 through `StaffBootstrapRepository.claim` (with a `null` User when none was found); checks `UserRepository.existsByRole(ADMIN)` only when the claim succeeded; and decides. A refusal marks the transaction rollback-only, so a claimed row from a refused run is not kept. `PROVISIONED` locks the User row (`findByIdForUpdate`), replaces the existing role with `ADMIN`, saves, revokes every active session with `RevocationReason.STAFF_PROVISIONED` and records `FIRST_ADMIN_PROVISIONED` with no session. |
 
 `Outcome` is `PROVISIONED`, `BOOTSTRAP_USED`, `ADMIN_EXISTS` or `USER_NOT_FOUND`.
 
@@ -24,3 +24,5 @@ Package-private service that grants `ADMIN` to one registered User, exactly once
 ## Verification
 
 `FirstAdminProvisioningTest` covers the refusal order, the grant with session revocation and audit, an unknown User, and a used bootstrap that is refused without checking for Admins. `FirstAdminProvisioningIT` covers the refusals that leave the bootstrap open and two concurrent runs that provision exactly one User against PostgreSQL.
+
+Provisioning retains roles_version zero and writes no user_role_changes row; FIRST_ADMIN_PROVISIONED remains its separate operator audit event (R13).

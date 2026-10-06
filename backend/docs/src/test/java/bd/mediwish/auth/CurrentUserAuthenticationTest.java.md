@@ -11,3 +11,5 @@ Unit coverage for loading the current User from an access token, with mocked cod
 Role and MFA denial over HTTP is covered by [`RoleAuthorizationIT`](RoleAuthorizationIT.java.md) and [`StaffMfaIT`](StaffMfaIT.java.md).
 
 Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` passed all 238 unit tests.
+
+Ticket 08 fixtures replace CUSTOMER with ADMIN; granted role authorities contain only ROLE_ADMIN, expanded by the shared hierarchy at route authorization. Existing assurance/revocation behavior remains covered.

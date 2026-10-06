@@ -7,6 +7,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.util.Optional;
+import java.util.Collection;
+import java.util.Set;
 import java.util.UUID;
 
 /** Callers hold the User's row lock ({@code UserRepository.findByIdForUpdate}) before reading a factor to change it. */
@@ -22,6 +24,10 @@ public interface StaffMfaFactorRepository extends JpaRepository<StaffMfaFactor, 
     @Query("select factor.id from StaffMfaFactor factor where factor.userId = :userId"
             + " and factor.status = bd.mediwish.auth.StaffMfaFactor.Status.ACTIVE")
     Optional<UUID> findActiveId(@Param("userId") UUID userId);
+
+    @Query("select factor.userId from StaffMfaFactor factor where factor.userId in :userIds"
+            + " and factor.status = bd.mediwish.auth.StaffMfaFactor.Status.ACTIVE")
+    Set<UUID> findActiveUserIds(@Param("userIds") Collection<UUID> userIds);
 
     @Modifying(flushAutomatically = true, clearAutomatically = true)
     @Query("delete from StaffMfaFactor factor where factor.userId = :userId"

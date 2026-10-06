@@ -36,7 +36,7 @@ public class CurrentUserAuthentication {
         return users.findById(claims.userId())
                 .filter(user -> PasswordVerifierPolicy.isUsable(user.passwordHash()))
                 .map(user -> {
-                    var access = StaffAccessPolicy.evaluate(user.roles(), factors.activeFactorIdOf(user),
+                    var access = StaffAccessPolicy.evaluate(user.role(), factors.activeFactorIdOf(user),
                             evidence.factorId(), evidence.verifiedAt());
                     return new CurrentUser(user.id(), claims.sessionId(), UserProfile.from(user), user.roles(),
                             access.mfa(), access.authorities());

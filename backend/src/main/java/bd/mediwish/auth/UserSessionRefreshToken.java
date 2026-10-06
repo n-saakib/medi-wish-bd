@@ -19,6 +19,8 @@ public class UserSessionRefreshToken {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "session_id", nullable = false)
     private UserSession session;
+    @Column(name = "session_id", nullable = false, insertable = false, updatable = false)
+    private UUID sessionId;
     @Column(nullable = false)
     private long generation;
     @Column(name = "token_hash", nullable = false, length = 64)
@@ -36,6 +38,7 @@ public class UserSessionRefreshToken {
                                    Instant issuedAt, Instant expiresAt) {
         this.id = id;
         this.session = session;
+        this.sessionId = session.id();
         this.generation = generation;
         this.tokenHash = tokenHash;
         this.issuedAt = issuedAt;
@@ -43,6 +46,8 @@ public class UserSessionRefreshToken {
     }
 
     public UserSession session() { return session; }
+    /** Identifies the family without loading its state before the locking query. */
+    public UUID sessionId() { return sessionId; }
     public long generation() { return generation; }
     public String tokenHash() { return tokenHash; }
     public Instant expiresAt() { return expiresAt; }
