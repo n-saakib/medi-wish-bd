@@ -19,7 +19,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => router, usePathname: () => 
 beforeEach(() => router.replace.mockClear());
 afterEach(unmountAll);
 
-const adminAccess = { username: 'owner.admin', roles: ['ADMIN', 'CUSTOMER'], superAdmin: true };
+const adminAccess = { username: 'owner.admin', roles: ['ADMIN'], superAdmin: true };
 
 /** Mounts the staff page with a real session client whose refresh cookie restores a session with `mfa`. */
 async function renderStaffHome(routes: Parameters<typeof apiRoutes>[0], mfa: MfaStatus = 'VERIFIED') {
@@ -48,10 +48,11 @@ describe('StaffHome', () => {
 
     expect(requiredElement(page, 'h1').textContent).toBe('Staff access verified');
     expect([...page.querySelectorAll('dt')].map((term) => term.textContent)).toEqual(['Username', 'Roles']);
-    expect([...page.querySelectorAll('dd')].map((value) => value.textContent)).toEqual(['owner.admin', 'Admin, Customer']);
+    expect([...page.querySelectorAll('dd')].map((value) => value.textContent)).toEqual(['owner.admin', 'Admin']);
     expect(requiredElement(page, '.chip').textContent).toBe('Super Admin');
     expect(api.requests.at(-1)?.headers.get('Authorization')).toBe('Bearer access-verified');
     expect(router.replace).not.toHaveBeenCalled();
+    expect(requiredElement(page, 'a[href="/admin/users"]').textContent).toBe('Users and roles');
   });
 
   it('shows no Super Admin label for another staff member', async () => {
@@ -108,7 +109,9 @@ describe('projectStaffAccess', () => {
 
   it.each([
     ['no roles', { ...adminAccess, roles: [] }],
-    ['too many roles', { ...adminAccess, roles: Array(9).fill('ADMIN') }],
+    ['multiple roles', { ...adminAccess, roles: ['ADMIN', 'CUSTOMER'] }],
+    ['Super Admin without Admin', { ...adminAccess, roles: ['MODERATOR'] }],
+    ['unknown role', { ...adminAccess, roles: ['ROOT'] }],
     ['a malformed role', { ...adminAccess, roles: ['admin'] }],
     ['a non-boolean Super Admin flag', { ...adminAccess, superAdmin: 'true' }],
     ['an oversized username', { ...adminAccess, username: 'x'.repeat(51) }],

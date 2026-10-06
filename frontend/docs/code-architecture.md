@@ -5,13 +5,15 @@ remains authoritative; this page documents the route structure, the
 server/client boundary, the shared session state and the small API client
 seams.
 
-**Last reviewed:** 2026-09-27<br/>
+**Last reviewed:** 2026-10-05<br/>
 **Current scope:** application shell, English localization, health probe
 boundary, and the Ticket 03.01 designed storefront routes: home, sign-in,
 registration (Ticket 02), account with sign-out (Ticket 03 browser session),
 and the staff authenticator setup, code and placeholder staff pages (Ticket 06).
 Product catalog, search, cart, orders, the staff dashboard, OTP, backup-code
 sign-in, recovery and OAuth screens are not implemented in this slice.
+
+Ticket08 adds `/admin/users` and `/admin/users/[userId]` in the staff route group. UserList and UserRoleForm use the shared session guard and `authenticatedFetch` through the bounded `lib/adminUsers` client; private username filters travel only in POST bodies and route IDs are UUIDs. The forms render one role, explicit disabled reasons, busy/error/retry states and the latest20 history entries. The session guard resolves in the browser; dynamic detail IDs are validated before any API call. Admin document responses carry no-store.
 
 ## Application dependency diagram
 
@@ -51,6 +53,17 @@ flowchart TD
     subgraph STAFFF[src/staff - client]
         STAFFHOME[StaffHome.tsx]
     end
+
+    ADMINPAGES[Admin user route wrappers]
+    ADMINCOMP[UserList / UserRoleForm]
+    ADMINLIB[adminUsers.ts<br/>bounded search/detail/role client]
+    STAFFGROUP --> ADMINPAGES
+    ADMINPAGES --> ADMINCOMP
+    ADMINCOMP --> REDIRECT
+    ADMINCOMP --> PROVIDER
+    ADMINCOMP --> ADMINLIB
+    ADMINLIB --> SESSION
+    ADMINLIB --> APIMOD
 
     subgraph SHELL[src/shell]
         SITEHEADER[SiteHeader.tsx<br/>client]

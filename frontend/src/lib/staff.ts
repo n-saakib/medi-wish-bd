@@ -9,11 +9,11 @@ export type StaffAccess = {
 };
 
 const maxUsernameLength = 50;
-const maxRoles = 8;
-const rolePattern = /^[A-Z][A-Z_]{0,31}$/;
+const validRoles = ['CUSTOMER', 'DELIVERY_PERSON', 'MODERATOR', 'ADMIN'];
+
 
 function isRole(value: unknown): value is string {
-  return typeof value === 'string' && rolePattern.test(value);
+  return typeof value === 'string' && validRoles.includes(value);
 }
 
 export function projectStaffAccess(body: unknown): StaffAccess | undefined {
@@ -24,7 +24,7 @@ export function projectStaffAccess(body: unknown): StaffAccess | undefined {
     return undefined;
   }
   const roles: unknown[] = body.roles;
-  if (roles.length === 0 || roles.length > maxRoles || !roles.every(isRole)) return undefined;
+  if (roles.length !== 1 || !roles.every(isRole) || (body.superAdmin && roles[0] !== 'ADMIN')) return undefined;
   return { username: body.username, roles: roles.filter(isRole), superAdmin: body.superAdmin };
 }
 

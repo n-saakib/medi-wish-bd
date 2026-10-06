@@ -92,7 +92,8 @@
       "MODERATOR": "Moderator",
       "CUSTOMER": "Customer",
       "DELIVERY_PERSON": "Delivery person"
-    }
+    },
+    "usersAndRoles": "Users and roles"
   },
   "errors": {
     "genericError": "The request could not be completed.",
@@ -102,6 +103,59 @@
     "mfaRequired": "Authenticator verification is required.",
     "mfaCodeInvalid": "The code is invalid or has already been used.",
     "mfaEnrollmentStale": "This setup has expired. Start again.",
-    "tooManyAttempts": "Too many attempts. Try again later."
+    "tooManyAttempts": "Too many attempts. Try again later.",
+    "staleUpdate": "This record changed after you opened it. Reload and try again.",
+    "roleChangeRefused": "This role change is not allowed.",
+    "accessDenied": "You don’t have permission to do that.",
+    "notFound": "This could not be found."
+  },
+  "adminUsers": {
+    "pageTitle": "Users and roles",
+    "title": "Users and roles",
+    "intro": "Registered accounts. Guests are not users and don’t appear here.",
+    "searchLabel": "Search users",
+    "searchPlaceholder": "Username",
+    "role": "Role",
+    "anyRole": "Any role",
+    "search": "Search",
+    "users": "Users",
+    "user": "User",
+    "staffMfa": "Staff MFA",
+    "joined": "Joined",
+    "open": "Open",
+    "openUser": "Open {username}",
+    "empty": "No users match.",
+    "checking": "Loading users…",
+    "checkingRole": "Loading this user…",
+    "showing": "Showing {start}–{end} of {total}",
+    "previous": "Previous",
+    "next": "Next",
+    "superAdmin": "Super Admin",
+    "joinedDate": "Joined {date}",
+    "moderatorOption": "Moderator · requires authenticator",
+    "adminOption": "Admin · requires authenticator",
+    "selfNote": "You can’t change your own role.",
+    "superAdminNote": "The Super Admin’s role can’t be changed.",
+    "adminNote": "Only the Super Admin can change the Admin role.",
+    "footerNote": "Saving signs this person out everywhere. Staff roles need an authenticator before they work.",
+    "save": "Save role",
+    "saving": "Saving…",
+    "saved": "Role saved. {username} has been signed out everywhere.",
+    "history": "Change history",
+    "emptyHistory": "No role changes yet.",
+    "change": "Changed from {oldRole} to {newRole} by {actor} · {date}",
+    "deletedActor": "a deleted account",
+    "staleUpdate": "This record changed after you opened it. Reload and try again.",
+    "roleChangeRefused": "This role change is not allowed.",
+    "accessDenied": "Only Admins can manage users.",
+    "notFound": "This user could not be found.",
+    "genericError": "The request could not be completed.",
+    "reload": "Reload",
+    "breadcrumb": "Breadcrumb",
+    "mfaStates": {
+      "NOT_REQUIRED": "Not required",
+      "SETUP_REQUIRED": "Setup pending",
+      "ENROLLED": "Enrolled"
+    }
   }
 }
