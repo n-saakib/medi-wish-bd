@@ -21,7 +21,7 @@ Package-private application service for password sign-in, refresh and logout, an
 
 - The dummy verifier is generated once in the constructor by encoding a random UUID with the production `PasswordEncoder`; there is no configuration property for it.
 - `signIn` is deliberately not transactional, so Argon2 hashing never holds a pooled connection; `SessionService.create` owns its own transaction.
-- Refresh never raises assurance: a rotated password session keeps no MFA evidence, so a User promoted to staff after sign-in gets only an MFA authority, with the session's original expiry.
+- Refresh never raises assurance: rotation preserves the session's MFA evidence and absolute expiry. A production role change revokes the old session family; a fresh password sign-in for Admin/Moderator opens a restricted session requiring enrollment or verification.
 - The service logs nothing and never returns which identifier field matched or why sign-in failed.
 
 ## Verification

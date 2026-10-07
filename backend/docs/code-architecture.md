@@ -12,7 +12,7 @@ the staff route.
 **Later boundaries:** OTP, password recovery, staff management beyond the
 recovery/reset workflows, and deployment.
 
-Ticket08 adds `bd.mediwish.admin.AdminUserController`: strict JSON commands and UUID reads. It calls `auth.RoleAssignmentService`, which owns the role policy, bounded projections, audit persistence and atomic revocation because it shares the package-private SessionService. The User aggregate exposes one role and rolesVersion over the retained private role collection; PostgreSQL enforces exactly-one at commit. The Spring role hierarchy expands the single authority only at authorization; restricted MFA sessions hold no role authority. Password session creation locks the User FOR SHARE before reading the role, then writes sessions; role commands lock actor/target in UUID order before sessions.
+Ticket08 adds `bd.mediwish.admin.AdminUserController`: strict JSON commands and UUID reads. It calls `auth.RoleAssignmentService`, which owns the role policy, bounded projections, audit persistence and atomic revocation because it shares the package-private SessionService. The User aggregate exposes one role and rolesVersion over the retained private role collection; PostgreSQL enforces exactly-one at commit. The Spring role hierarchy expands the single authority only at authorization; restricted MFA sessions hold no role authority. Password session creation locks the User FOR SHARE before reading the role, then writes sessions; bearer authentication holds the same User share lock while reading current session evidence, role and factor in one transaction, releasing it before route handling; role commands lock actor/target in UUID order before sessions.
 
 ## Package and dependency diagram
 
@@ -181,7 +181,10 @@ flowchart LR
 - `CurrentUserAuthentication` is the only current-session/User handoff for
   the bearer filter. Roles are loaded from the current User, never from JWT
   claims, and a staff role becomes an authority only for a session carrying
-  evidence for the User's active factor.
+  evidence for the User's active factor. Its transaction locks the User FOR SHARE
+  before session evidence and factor reads, preventing an old active-session
+  read from being combined with a newly committed staff promotion. The lock
+  ends when authentication returns; route handling is outside that transaction.
 - `UserRepository.findByIdForUpdate` is the first lock of every MFA change
   (provisioning claims `staff_bootstrap` first); `SessionService.upgradeToMfa` and `SecurityAuditLog`
   require an existing transaction.
@@ -275,8 +278,9 @@ sequenceDiagram
 
     B->>S: GET /api/user/me + Bearer access token
     S->>F: PROTECTED_ROUTES match, after LogoutFilter
-    F->>C: verify token and active session
-    C->>C: load current User, roles and StaffAccessPolicy result
+    F->>C: verify token
+    C->>C: transaction: lock User FOR SHARE, check session and current role/factor
+    C->>C: StaffAccessPolicy result; release User lock before route handling
     alt valid current session
         F-->>S: CurrentUser principal and granted authorities
         S-->>U: authenticated request

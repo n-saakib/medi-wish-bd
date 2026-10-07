@@ -6,9 +6,9 @@ Public enum of how far a session satisfies staff MFA, decided by `StaffAccessPol
 
 | Value | Meaning |
 | --- | --- |
-| `NOT_REQUIRED` | The User holds no staff role (`ADMIN` or `MODERATOR`); roles apply as before. |
+| `NOT_REQUIRED` | The User holds no staff role (`ADMIN` or `MODERATOR`); the one role authority applies. |
 | `ENROLLMENT_REQUIRED` | Staff User with no active authenticator; the session may only enroll. |
 | `VERIFICATION_REQUIRED` | Staff User whose session carries no evidence for the active authenticator; the session may only verify. |
-| `VERIFIED` | The session was verified by the User's current active authenticator; every role applies. |
+| `VERIFIED` | The session was verified by the User's current active authenticator; the one current role authority applies. |
 
 It is also on `CurrentUserAuthentication.CurrentUser`. Covered by `StaffAccessPolicyTest`, `AuthControllerTest`, `StaffMfaControllerTest` and the staff MFA integration tests.

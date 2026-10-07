@@ -4,6 +4,7 @@ import bd.mediwish.user.UserProfile;
 import bd.mediwish.user.UserRepository;
 import bd.mediwish.user.UserRole;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.util.Set;
@@ -30,18 +31,18 @@ public class CurrentUserAuthentication {
         this.clock = clock;
     }
 
+    /** The User share lock keeps role/factor reads coherent with session evidence until authentication returns. */
+    @Transactional
     public CurrentUser authenticate(String accessToken) {
         var claims = accessTokens.verify(accessToken);
-        var evidence = sessions.requireActive(claims.sessionId(), claims.userId(), clock.instant());
-        return users.findById(claims.userId())
-                .filter(user -> PasswordVerifierPolicy.isUsable(user.passwordHash()))
-                .map(user -> {
-                    var access = StaffAccessPolicy.evaluate(user.role(), factors.activeFactorIdOf(user),
-                            evidence.factorId(), evidence.verifiedAt());
-                    return new CurrentUser(user.id(), claims.sessionId(), UserProfile.from(user), user.roles(),
-                            access.mfa(), access.authorities());
-                })
+        var user = users.findByIdForShare(claims.userId())
+                .filter(candidate -> PasswordVerifierPolicy.isUsable(candidate.passwordHash()))
                 .orElseThrow(AuthenticationRequiredException::new);
+        var evidence = sessions.requireActive(claims.sessionId(), claims.userId(), clock.instant());
+        var access = StaffAccessPolicy.evaluate(user.role(), factors.activeFactorIdOf(user),
+                evidence.factorId(), evidence.verifiedAt());
+        return new CurrentUser(user.id(), claims.sessionId(), UserProfile.from(user), user.roles(),
+                access.mfa(), access.authorities());
     }
 
     /** The request's principal; {@code authorities} is what Spring Security checks. */
