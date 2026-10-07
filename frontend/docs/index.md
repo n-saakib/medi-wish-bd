@@ -117,7 +117,7 @@ When a frontend file is added, add its mirrored `.md` page and one row to the ta
 | Source | Documentation |
 | --- | --- |
 | `src/admin/UserList.tsx` | [src/admin/UserList.tsx](src/admin/UserList.tsx.md) |
-| `src/admin/UserRoleForm.tsx` | [src/admin/UserRoleForm.tsx](src/admin/UserRoleForm.tsx.md) |
+| `src/admin/UserRoleForm.tsx` | [src/admin/UserRoleForm.tsx](src/admin/UserRoleForm.tsx.md) - shared error mapping narrowed to bounded role form messages |
 | `src/admin/UserRolePage.tsx` | [src/admin/UserRolePage.tsx](src/admin/UserRolePage.tsx.md) |
 | `src/app/(staff)/admin/users/[userId]/page.tsx` | [src/app/(staff)/admin/users/[userId]/page.tsx](src/app/(staff)/admin/users/[userId]/page.tsx.md) |
 | `src/app/(staff)/admin/users/page.tsx` | [src/app/(staff)/admin/users/page.tsx](src/app/(staff)/admin/users/page.tsx.md) |

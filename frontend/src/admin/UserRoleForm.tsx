@@ -6,17 +6,18 @@ import { useTranslations } from 'next-intl';
 import { useSession } from '../auth/SessionProvider';
 import { useSessionRedirect } from '../auth/sessionRedirect';
 import { isUserId, loadUserRoles, saveRole, userRoles, type UserRole, type UserRoles } from '../lib/adminUsers';
-import { ApiError } from '../lib/api';
+import { errorMessageKey } from '../lib/api';
 import { Alert } from '../shell/Alert';
 
 type Failure = 'staleUpdate' | 'roleChangeRefused' | 'accessDenied' | 'notFound' | 'genericError';
 function failureKey(reason: unknown): Failure {
-  if (!(reason instanceof ApiError)) return 'genericError';
-  switch (reason.code) {
-    case 'STALE_UPDATE': return 'staleUpdate';
-    case 'ROLE_CHANGE_REFUSED': return 'roleChangeRefused';
-    case 'ACCESS_DENIED': return 'accessDenied';
-    case 'NOT_FOUND': return 'notFound';
+  const key = errorMessageKey(reason);
+  switch (key) {
+    case 'staleUpdate':
+    case 'roleChangeRefused':
+    case 'accessDenied':
+    case 'notFound':
+      return key;
     default: return 'genericError';
   }
 }

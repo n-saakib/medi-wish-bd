@@ -165,6 +165,7 @@ describe('UserRoleForm permissions and failures', () => {
   it.each([
     ['NOT_FOUND', 404, 'This user could not be found.'],
     ['INTERNAL_ERROR', 500, 'The request could not be completed.'],
+    ['MFA_REQUIRED', 403, 'The request could not be completed.'],
   ])('shows a focused %s detail error without a role form', async (code, status, copy) => {
     const api = roleApi({ [`/api/admin/users/${detail.id}`]: () => Response.json({ code, message: 'private' }, { status }) });
     const page = await renderWithSession(createElement(UserRoleForm, { userId: detail.id }), createSessionClient({ fetch: api.fetch }));
