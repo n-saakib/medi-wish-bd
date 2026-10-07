@@ -14,3 +14,5 @@ Mounted tests exercise the public `ProfileForm` with an injected session source 
 - Stage and cancel retain an unsaved draft and version. A held save excludes duplicate saves and mobile commands. Dialog Cancel sends no POST; successful stage closes and restores focus. Duplicate stage failure remains inside the dialog, and Escape restores focus.
 - Session transitions discard old profile/draft data even when the new GET fails, and drop old save/stage completions even if sign-in reuses the same user object. An old stage cannot close a newer dialog or move its focus.
 The successful-stage focus assertion reproduced a real disabled-button timing bug (RED on 2026-10-06). Native close/focus now follows the closing render; the closing notice assertion uses the existing warning status role.
+
+The client-validation cases include a 102-unit trimmed name that would collapse to A B, proving the browser refuses it without issuing PUT. The accepted limit applies before internal-space collapse, matching the server validation rule.

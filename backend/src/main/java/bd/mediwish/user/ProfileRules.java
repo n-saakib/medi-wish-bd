@@ -20,9 +20,9 @@ public final class ProfileRules {
         String name = edit.fullName();
         if (name != null) {
             if (CONTROL.matcher(name).find()) throw new InvalidProfileException("fullName");
-            name = SPACES.matcher(name.trim()).replaceAll(" ");
-            if (name.isEmpty()) name = null;
-            else if (name.length() > 100) throw new InvalidProfileException("fullName");
+            name = name.trim();
+            if (name.length() > 100) throw new InvalidProfileException("fullName");
+            name = name.isEmpty() ? null : SPACES.matcher(name).replaceAll(" ");
         }
         String email = identifiers.email(edit.email());
         if (email != null && !IdentifierFormats.isEmail(email)) throw new InvalidProfileException("email");

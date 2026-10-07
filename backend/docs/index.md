@@ -69,7 +69,7 @@ Local commands, environment rules and dependency research are maintained in the 
 | [MobileChangeService.java.md](src/main/java/bd/mediwish/user/MobileChangeService.java.md) | Ticket 11 profile, mobile staging or contract coverage |
 | [ProfileController.java.md](src/main/java/bd/mediwish/user/ProfileController.java.md) | Ticket 11 profile, mobile staging or contract coverage |
 | [ProfileEdit.java.md](src/main/java/bd/mediwish/user/ProfileEdit.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [ProfileRules.java.md](src/main/java/bd/mediwish/user/ProfileRules.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [ProfileRules.java.md](src/main/java/bd/mediwish/user/ProfileRules.java.md) | Profile validation, with trimmed-name length checked before space collapse |
 | [ProfileService.java.md](src/main/java/bd/mediwish/user/ProfileService.java.md) | Ticket 11 profile, mobile staging or contract coverage |
 | [ProfileView.java.md](src/main/java/bd/mediwish/user/ProfileView.java.md) | Ticket 11 profile, mobile staging or contract coverage |
 | [StaleUpdateException.java.md](src/main/java/bd/mediwish/user/StaleUpdateException.java.md) | Ticket 11 profile, mobile staging or contract coverage |
@@ -77,7 +77,7 @@ Local commands, environment rules and dependency research are maintained in the 
 | [IdentifierFormatsTest.java.md](src/test/java/bd/mediwish/user/IdentifierFormatsTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
 | [MobileChangeServiceTest.java.md](src/test/java/bd/mediwish/user/MobileChangeServiceTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
 | [ProfileMigrationIT.java.md](src/test/java/bd/mediwish/user/ProfileMigrationIT.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [ProfileRulesTest.java.md](src/test/java/bd/mediwish/user/ProfileRulesTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [ProfileRulesTest.java.md](src/test/java/bd/mediwish/user/ProfileRulesTest.java.md) | Profile validation and space-heavy trimmed-name boundary regressions |
 | [ProfileServiceTest.java.md](src/test/java/bd/mediwish/user/ProfileServiceTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
 | [UserTest.java.md](src/test/java/bd/mediwish/user/UserTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
 | [ConcurrentProfileIT.java.md](src/test/java/bd/mediwish/auth/ConcurrentProfileIT.java.md) | Ticket 11 profile, mobile staging or contract coverage |
@@ -85,3 +85,4 @@ Local commands, environment rules and dependency research are maintained in the 
 | [ProfileBodyLimitTest.java.md](src/test/java/bd/mediwish/web/ProfileBodyLimitTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
 | [ProfileControllerTest.java.md](src/test/java/bd/mediwish/web/ProfileControllerTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
 | [UserProfileRegressionIT.java.md](src/test/java/bd/mediwish/auth/UserProfileRegressionIT.java.md) | Ticket 11 all-table fingerprints and immutable username across profile save, mobile stage/cancel and activation |
+| [UserProfilePermissionIT.java.md](src/test/java/bd/mediwish/auth/UserProfilePermissionIT.java.md) | Ticket 11 real HTTP permission matrix: missing/malformed/revoked tokens, sole staff MFA restrictions, all four sole roles, ownership and denial persistence |

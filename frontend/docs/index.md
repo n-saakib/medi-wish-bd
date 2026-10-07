@@ -82,7 +82,7 @@ The session client keeps the access token in memory, refuses off-origin Bearer r
 | [`tests/fakeApi.ts`](../tests/fakeApi.ts) | [`tests/fakeApi.ts.md`](tests/fakeApi.ts.md) — shared API, lock and promise fakes, not a test file |
 | [`tests/browser/journey.spec.ts`](../tests/browser/journey.spec.ts) | [`tests/browser/journey.spec.ts.md`](tests/browser/journey.spec.ts.md) |
 | [`tests/browser/privacy.spec.ts`](../tests/browser/privacy.spec.ts) | [`tests/browser/privacy.spec.ts.md`](tests/browser/privacy.spec.ts.md) |
-| [`tests/browser/profileApi.spec.ts`](../tests/browser/profileApi.spec.ts) | [`tests/browser/profileApi.spec.ts.md`](tests/browser/profileApi.spec.ts.md) — Ticket 11 API acceptance tests (`@t11-T4`; E2E-11-50 `@t11-T2`) |
+| [`tests/browser/profileApi.spec.ts`](../tests/browser/profileApi.spec.ts) | [`tests/browser/profileApi.spec.ts.md`](tests/browser/profileApi.spec.ts.md) — Ticket 11 API acceptance tests, including all-role and enrollment/challenge MFA route permissions (`@t11-T4`; E2E-11-50 `@t11-T2`) |
 | [`tests/browser/profile.spec.ts`](../tests/browser/profile.spec.ts) | [`tests/browser/profile.spec.ts.md`](tests/browser/profile.spec.ts.md) — Ticket 11 browser acceptance tests (`@t11-T5`), including native successful-stage focus |
 | [`tests/browser/profileSupport.ts`](../tests/browser/profileSupport.ts) | [`tests/browser/profileSupport.ts.md`](tests/browser/profileSupport.ts.md) — Ticket 11 spec helpers and contract strings, not a spec |
 | [`tests/browser/matrix.spec.ts`](../tests/browser/matrix.spec.ts) | [`tests/browser/matrix.spec.ts.md`](tests/browser/matrix.spec.ts.md) |
@@ -107,7 +107,7 @@ The session client keeps the access token in memory, refuses off-origin Bearer r
 | [`src/account/MobileChangeDialog.tsx`](../src/account/MobileChangeDialog.tsx) | [`src/account/MobileChangeDialog.tsx.md`](src/account/MobileChangeDialog.tsx.md) — native close and focus after the parent render |
 | [`src/lib/profile.ts`](../src/lib/profile.ts) | [`src/lib/profile.ts.md`](src/lib/profile.ts.md) |
 | [`src/lib/identifiers.ts`](../src/lib/identifiers.ts) | [`src/lib/identifiers.ts.md`](src/lib/identifiers.ts.md) |
-| [`tests/ProfileForm.test.tsx`](../tests/ProfileForm.test.tsx) | [`tests/ProfileForm.test.tsx.md`](tests/ProfileForm.test.tsx.md) — 19 mounted state, ordering and focus cases |
+| [`tests/ProfileForm.test.tsx`](../tests/ProfileForm.test.tsx) | [`tests/ProfileForm.test.tsx.md`](tests/ProfileForm.test.tsx.md) — mounted state, ordering, focus and trimmed-name boundary cases |
 | [`tests/profile.test.ts`](../tests/profile.test.ts) | [`tests/profile.test.ts.md`](tests/profile.test.ts.md) |
 | [`tests/identifiers.test.ts`](../tests/identifiers.test.ts) | [`tests/identifiers.test.ts.md`](tests/identifiers.test.ts.md) |
 

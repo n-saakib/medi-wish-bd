@@ -32,6 +32,19 @@ class ProfileRulesTest {
     }
 
     @Test
+    void checksTheTrimmedNameLengthBeforeCollapsingInternalSpaces() {
+        String atLimit = "A" + " ".repeat(98) + "B";
+        assertThat(rules.validate(new ProfileEdit("  " + atLimit + "  ", null, null, 0L), today).fullName())
+                .isEqualTo("A B");
+        for (int spaces : new int[]{99, 100}) {
+            String overLimit = "A" + " ".repeat(spaces) + "B";
+            assertThatThrownBy(() -> rules.validate(new ProfileEdit(overLimit, null, null, 0L), today))
+                    .isInstanceOf(InvalidProfileException.class)
+                    .satisfies(error -> assertThat(((InvalidProfileException) error).field()).isEqualTo("fullName"));
+        }
+    }
+
+    @Test
     void rejectsInvalidEmailDobAndVersion() {
         assertThatThrownBy(() -> rules.validate(new ProfileEdit(null, "a..b@example.test", null, 0L), today))
                 .isInstanceOf(InvalidProfileException.class)

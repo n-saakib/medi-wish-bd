@@ -95,22 +95,28 @@ async function verifiedStaff(role: 'ADMIN' | 'MODERATOR'): Promise<ProfileApi> {
     const member = await registerByApi(api);
     grantRole(member.username, role);
     const signedIn = await signInByApi(api, member.username, member.password);
-    const restricted = { Authorization: `Bearer ${(await signedIn.json() as { accessToken: string }).accessToken}` };
-    const enrollment = await api.post(`${apiUrl}/api/auth/mfa/enrollment`, { headers: restricted });
-    expect(enrollment.status()).toBe(201);
-    const { enrollmentId, secret } = await enrollment.json() as { enrollmentId: string; secret: string };
-    const verified = await api.post(`${apiUrl}/api/auth/mfa/enrollment/verify`, {
-      headers: { ...restricted, 'Content-Type': 'application/json' },
-      data: JSON.stringify({ enrollmentId, code: totpCode(secret, totpStep()) }),
-    });
-    expect(verified.status()).toBe(200);
-    const session = await verified.json() as { accessToken: string; mfa: MfaStatus };
-    expect(session.mfa).toBe('VERIFIED');
-    return ProfileApi.onSession(api, member, session);
+    const session = await signedIn.json() as { accessToken: string; mfa: MfaStatus };
+    expect(session.mfa).toBe('ENROLLMENT_REQUIRED');
+    return await enrollStaff(ProfileApi.onSession(api, member, session));
   } catch (error) {
     await api.dispose();
     throw error;
   }
+}
+
+/** Enrolls the authenticator of an enrollment-restricted staff session, retaining its own refresh context. */
+async function enrollStaff(staff: ProfileApi): Promise<ProfileApi> {
+  const enrollment = await staff.api.post(`${apiUrl}/api/auth/mfa/enrollment`, { headers: await staff.headers() });
+  expect(enrollment.status()).toBe(201);
+  const { enrollmentId, secret } = await enrollment.json() as { enrollmentId: string; secret: string };
+  const verified = await staff.api.post(`${apiUrl}/api/auth/mfa/enrollment/verify`, {
+    headers: { ...await staff.headers(), 'Content-Type': 'application/json' },
+    data: JSON.stringify({ enrollmentId, code: totpCode(secret, totpStep()) }),
+  });
+  expect(verified.status()).toBe(200);
+  const session = await verified.json() as { accessToken: string; mfa: MfaStatus };
+  expect(session.mfa).toBe('VERIFIED');
+  return ProfileApi.onSession(staff.api, staff.user, session);
 }
 
 /**
@@ -219,6 +225,7 @@ test.describe('Ticket 11 profile API', () => {
       ['x'.repeat(100), 'x'.repeat(100)],
       [` ${'y'.repeat(100)} `, 'y'.repeat(100)],
       ['  Many   inner    spaces  ', 'Many inner spaces'],
+      [`A${' '.repeat(98)}B`, 'A B'],
       ['নুসরাত জাহান', 'নুসরাত জাহান'],
     ]) {
       const saved = await expectProfile(await user.put(edit(version, { fullName: sent })), 200);
@@ -226,8 +233,11 @@ test.describe('Ticket 11 profile API', () => {
       version = saved.version;
     }
 
-    for (const refused of ['z'.repeat(101), 'A\u0007B', 'A\nB', 'A\r\nB', 'A\tB', 'A\u0000B']) {
+    const before = storedProfile(user.user.username);
+    for (const refused of ['z'.repeat(101), `A${' '.repeat(99)}B`, `A${' '.repeat(100)}B`,
+      'A\u0007B', 'A\nB', 'A\r\nB', 'A\tB', 'A\u0000B']) {
       await expectError(await user.put(edit(version, { fullName: refused })), 400, 'INVALID_REQUEST');
+      expect(storedProfile(user.user.username)).toEqual(before);
     }
     expect(storedProfile(user.user.username)).toMatchObject({ fullName: 'নুসরাত জাহান', profileVersion: version });
   });
@@ -672,18 +682,39 @@ test.describe('Ticket 11 profile API', () => {
     expect(await victim.profile()).toMatchObject({ fullName: 'Victim Profile', pendingMobile: victimMobile });
   });
 
-  test('E2E-11-29 restricted staff sessions get MFA_REQUIRED on every profile route', t4, async ({ request }) => {
+  test('E2E-11-29 enrollment- and challenge-restricted staff get MFA_REQUIRED on every profile route', t4, async () => {
     for (const role of ['ADMIN', 'MODERATOR'] as const) {
-      const staff = await registerByApi(request);
-      grantRole(staff.username, role);
-      const signedIn = await signInByApi(request, staff.username, staff.password);
-      const { accessToken, mfa } = await signedIn.json() as { accessToken: string; mfa: string };
-      expect(mfa).toBe('ENROLLMENT_REQUIRED');
+      const api = await apiRequest.newContext();
+      try {
+        const member = await registerByApi(api);
+        grantRole(member.username, role);
+        expect(storedRoles(member.username)).toEqual([role]);
+        const signedIn = await signInByApi(api, member.username, member.password);
+        expect(signedIn.status()).toBe(200);
+        const session = await signedIn.json() as { accessToken: string; mfa: MfaStatus };
+        expect(session.mfa).toBe('ENROLLMENT_REQUIRED');
+        const staff = ProfileApi.onSession(api, member, session);
+        const before = storedProfile(member.username);
 
-      for (const answer of await Promise.all(everyRoute(request, { Authorization: `Bearer ${accessToken}` }))) {
-        await expectError(answer, 403, 'MFA_REQUIRED');
+        for (const answer of await Promise.all(everyRoute(api, await staff.headers()))) {
+          await expectError(answer, 403, 'MFA_REQUIRED');
+        }
+        expect(storedProfile(member.username)).toEqual(before);
+
+        await enrollStaff(staff);
+        const challengeSignIn = await signInByApi(api, member.username, member.password);
+        expect(challengeSignIn.status()).toBe(200);
+        const challengeSession = await challengeSignIn.json() as { accessToken: string; mfa: MfaStatus };
+        expect(challengeSession.mfa).toBe('VERIFICATION_REQUIRED');
+        const challengeStaff = ProfileApi.onSession(api, member, challengeSession);
+
+        for (const answer of await Promise.all(everyRoute(api, await challengeStaff.headers()))) {
+          await expectError(answer, 403, 'MFA_REQUIRED');
+        }
+        expect(storedProfile(member.username)).toEqual(before);
+      } finally {
+        await api.dispose();
       }
-      expect(storedProfile(staff.username)).toMatchObject({ fullName: null, profileVersion: 0, pendingChanges: [] });
     }
   });
 
@@ -696,12 +727,15 @@ test.describe('Ticket 11 profile API', () => {
     expect((await (await signInByApi(request, deliveryPerson.username, deliveryPerson.password)).json() as { mfa: string })
       .mfa).toBe('NOT_REQUIRED');
 
-    // The verified Admin session lives in its own request context and is refreshed as its token ages.
+    // Each verified staff session has its own refresh cookie and renews as its token ages.
     const admin = await verifiedStaff('ADMIN');
+    let moderator: ProfileApi | undefined;
     try {
+      moderator = await verifiedStaff('MODERATOR');
       expect(storedRoles(admin.user.username)).toEqual(['ADMIN']);
+      expect(storedRoles(moderator.user.username)).toEqual(['MODERATOR']);
 
-      for (const user of [admin, delivery]) {
+      for (const user of [admin, moderator, delivery]) {
         expect((await user.profile()).username).toBe(user.user.username);
         expect((await user.save({ fullName: 'Staff Member' })).fullName).toBe('Staff Member');
         await expectProfile(await user.stage({ mobile: syntheticMobile() }), 202);
@@ -710,6 +744,7 @@ test.describe('Ticket 11 profile API', () => {
       }
     } finally {
       await admin.api.dispose();
+      await moderator?.api.dispose();
     }
   });
 

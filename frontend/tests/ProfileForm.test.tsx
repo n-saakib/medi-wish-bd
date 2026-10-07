@@ -303,6 +303,7 @@ describe('ProfileForm', () => {
 
   it.each([
     ['full-name', 'x'.repeat(101), 'Enter a name of up to 100 characters.'],
+    ['full-name', 'A' + ' '.repeat(100) + 'B', 'Enter a name of up to 100 characters.'],
     ['email', 'not-an-email', 'Enter a valid email address, or leave it empty.'],
     ['date-of-birth', '1899-12-31', 'Enter a date from 1 January 1900 to today.'],
     ['date-of-birth', '9999-12-31', 'Enter a date from 1 January 1900 to today.'],
