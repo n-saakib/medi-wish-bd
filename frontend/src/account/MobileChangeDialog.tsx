@@ -18,6 +18,8 @@ export function MobileChangeDialog({ open, disabled, returnFocus, onClose, onSub
   const t = useTranslations('profile');
   const tErrors = useTranslations('errors');
   const dialog = useRef<HTMLDialogElement>(null);
+  const input = useRef<HTMLInputElement>(null);
+  const refocus = useRef(false);
   const [mobile, setMobile] = useState('');
   const [error, setError] = useState<ReturnType<typeof errorMessageKey> | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -34,10 +36,18 @@ export function MobileChangeDialog({ open, disabled, returnFocus, onClose, onSub
     if (!element) return;
     if (open && !element.open) element.showModal();
     if (!open && element.open) {
+      refocus.current = false;
       element.close();
       returnFocus();
     }
   }, [open, returnFocus]);
+
+  // A refused number returns focus to the input once it is enabled again, so its linked error is reachable.
+  useEffect(() => {
+    if (!refocus.current || !input.current || input.current.disabled) return;
+    refocus.current = false;
+    input.current.focus();
+  }, [submitting, disabled]);
 
   function close() {
     if (submittingRef.current) return;
@@ -58,7 +68,10 @@ export function MobileChangeDialog({ open, disabled, returnFocus, onClose, onSub
       setMobile('');
       onClose();
     } catch (reason) {
-      if (mounted.current) setError(errorMessageKey(reason));
+      if (mounted.current) {
+        setError(errorMessageKey(reason));
+        refocus.current = true;
+      }
     } finally {
       submittingRef.current = false;
       if (mounted.current) setSubmitting(false);
@@ -74,7 +87,7 @@ export function MobileChangeDialog({ open, disabled, returnFocus, onClose, onSub
         {error && <div id="new-mobile-error"><Alert tone="danger">{tErrors(error)}</Alert></div>}
         <div className="field">
           <label htmlFor="new-mobile">{t('newMobile')}</label>
-          <input className="input" id="new-mobile" type="tel" inputMode="tel" autoComplete="tel"
+          <input ref={input} className="input" id="new-mobile" type="tel" inputMode="tel" autoComplete="tel"
             aria-invalid={error ? true : undefined} aria-describedby={error ? 'new-mobile-hint new-mobile-error' : 'new-mobile-hint'}
             disabled={disabled || submitting} value={mobile} onChange={(event) => { setMobile(event.target.value); setError(null); }} />
         </div>

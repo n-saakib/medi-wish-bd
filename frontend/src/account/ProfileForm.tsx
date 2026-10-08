@@ -13,6 +13,12 @@ import { MobileChangeDialog } from './MobileChangeDialog';
 type Draft = { fullName: string; email: string; dateOfBirth: string };
 type Field = keyof Draft;
 type Busy = 'load' | 'save' | 'stage' | 'cancel' | null;
+type Notice = 'saved' | 'mobileChangeCancelled';
+
+const fullNameMaxLength = 100;
+const fieldIds: Record<Field, string> = {
+  fullName: 'profile-full-name', email: 'profile-email', dateOfBirth: 'profile-date-of-birth',
+};
 
 function draftOf(profile: Profile): Draft {
   return { fullName: profile.fullName ?? '', email: profile.email ?? '', dateOfBirth: profile.dateOfBirth ?? '' };
@@ -48,17 +54,26 @@ function ProfileEditor() {
   const [draft, setDraft] = useState<Draft>({ fullName: '', email: '', dateOfBirth: '' });
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<ErrorMessageKey | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [notice, setNotice] = useState<Notice | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<Field, string>>>({});
   const [dialogOpen, setDialogOpen] = useState(false);
   const changeButton = useRef<HTMLButtonElement>(null);
   const title = useRef<HTMLHeadingElement>(null);
+  const focusField = useRef<Field | null>(null);
   const active = useRef(true);
   const flight = useRef<object | null>(null);
   const currentSession = useRef({ generation: session.generation, signedIn: Boolean(session.profile) });
   useLayoutEffect(() => {
     currentSession.current = { generation: session.generation, signedIn: Boolean(session.profile) && !session.signingOut };
   }, [session.generation, session.profile, session.signingOut]);
+
+  // The first invalid field is focused after its error is linked and once it is enabled again.
+  useEffect(() => {
+    const input = focusField.current && document.getElementById(fieldIds[focusField.current]);
+    if (!(input instanceof HTMLInputElement) || input.disabled) return;
+    focusField.current = null;
+    input.focus();
+  }, [fieldErrors, busy]);
 
   useEffect(() => {
     active.current = true;
@@ -101,7 +116,7 @@ function ProfileEditor() {
 
   const refresh = useCallback(async () => {
     setError(null);
-    setSaved(false);
+    setNotice(null);
     try {
       await run('load', () => loadProfile({ authenticatedFetch }), (loaded) => {
         setProfile(loaded);
@@ -126,13 +141,13 @@ function ProfileEditor() {
     setDraft((current) => ({ ...current, [field]: value }));
     setFieldErrors((current) => ({ ...current, [field]: undefined }));
     setError(null);
-    setSaved(false);
+    setNotice(null);
   }
 
   function validate(): boolean {
     const next: Partial<Record<Field, string>> = {};
     const name = draft.fullName.trim();
-    if (name.length > 100) next.fullName = t('fullNameInvalid');
+    if (name.length > fullNameMaxLength) next.fullName = t('fullNameInvalid');
     const email = draft.email.trim().toLowerCase();
     if (email && !isProfileEmail(email)) next.email = t('emailInvalid');
     const dob = draft.dateOfBirth;
@@ -140,7 +155,8 @@ function ProfileEditor() {
       next.dateOfBirth = t('dateOfBirthInvalid');
     }
     setFieldErrors(next);
-    return Object.keys(next).length === 0;
+    focusField.current = (Object.keys(next) as Field[])[0] ?? null;
+    return focusField.current === null;
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -148,7 +164,7 @@ function ProfileEditor() {
     if (!profile || loadedGeneration !== session.generation || profile.accountState !== 'ACTIVE'
       || flight.current || !dirty || !validate()) return;
     setError(null);
-    setSaved(false);
+    setNotice(null);
     try {
       await run('save', () => saveProfile({ authenticatedFetch }, {
         fullName: draft.fullName.trim() || null,
@@ -158,7 +174,7 @@ function ProfileEditor() {
       }), (updated) => {
         setProfile(updated);
         setDraft(draftOf(updated));
-        setSaved(true);
+        setNotice('saved');
       });
     } catch { /* run displays a bounded error. */ }
   }
@@ -169,15 +185,18 @@ function ProfileEditor() {
       setProfile((current) => current && ({ ...current,
         mobile: updated.mobile, mobileVerified: updated.mobileVerified, pendingMobile: updated.pendingMobile,
       }));
+      setNotice(null);
     }, (reason) => { throw reason; });
   }
 
   async function cancel() {
     if (!profile || loadedGeneration !== session.generation || flight.current) return;
     setError(null);
+    setNotice(null);
     try {
       await run('cancel', () => cancelMobileChange({ authenticatedFetch }), () => {
         setProfile((current) => current && { ...current, pendingMobile: null });
+        setNotice('mobileChangeCancelled');
       });
     } catch { /* run displays a bounded error. */ }
   }
@@ -198,11 +217,12 @@ function ProfileEditor() {
     <section className="card card-pad stack profile-card" aria-labelledby="profile-title">
       <h1 ref={title} id="profile-title" tabIndex={-1}>{t('title')}</h1>
       {!shownProfile && !error && <p role="status" className="muted">{t('loading')}</p>}
-      {saved && <Alert tone="success" focusOnShow>{t('saved')}</Alert>}
+      {notice && <Alert tone="success" focusOnShow>{t(notice)}</Alert>}
       {closing && <Alert tone="warn">{tErrors('accountClosing')}</Alert>}
-      {error && !closing && <Alert tone="danger">{tErrors(error)}</Alert>}
+      {error && !closing && <Alert tone="danger" focusOnShow>{tErrors(error)}</Alert>}
       {(error === 'staleUpdate' || (!shownProfile && error)) &&
-        <button className="btn btn-secondary" type="button" onClick={() => void refresh()} disabled={busy !== null}>{t('reload')}</button>}
+        <button className="btn btn-secondary" type="button" disabled={busy !== null}
+          onClick={() => { title.current?.focus(); void refresh(); }}>{t('reload')}</button>}
       {shownProfile && <>
         <form className="stack" method="post" onSubmit={(event) => void submit(event)} noValidate>
           <div className="field">
@@ -211,7 +231,7 @@ function ProfileEditor() {
           </div>
           <div className="field">
             <label htmlFor="profile-full-name">{t('fullName')}</label>
-            <input className="input" id="profile-full-name" autoComplete="name" value={draft.fullName}
+            <input className="input" id="profile-full-name" autoComplete="name" maxLength={fullNameMaxLength} value={draft.fullName}
               disabled={closing || busy === 'save'} aria-invalid={fieldErrors.fullName ? true : undefined}
               aria-describedby={fieldErrors.fullName ? 'profile-full-name-error' : undefined}
               onChange={(event) => update('fullName', event.target.value)} />

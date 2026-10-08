@@ -16,3 +16,5 @@ Mounted tests exercise the public `ProfileForm` with an injected session source 
 The successful-stage focus assertion reproduced a real disabled-button timing bug (RED on 2026-10-06). Native close/focus now follows the closing render; the closing notice assertion uses the existing warning status role.
 
 The client-validation cases include a 102-unit trimmed name that would collapse to A B, proving the browser refuses it without issuing PUT. The accepted limit applies before internal-space collapse, matching the server validation rule.
+
+Focus regressions (2026-10-08) were 9 RED before the fix and pass after it. Each invalid-field case asserts the field is focused. One case checks that the first of two invalid fields (email before date of birth) is focused only after `aria-describedby` is set, and that Full name has `maxLength` 100. The stale save focuses its alert, and Reload focuses the `h1`. A failed Cancel change focuses its alert, and a successful one focuses the `Mobile change cancelled.` status. A held, refused stage, submitted from the focused button, returns focus to the re-enabled New mobile field, which is described by the error.

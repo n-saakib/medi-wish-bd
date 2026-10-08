@@ -15,3 +15,5 @@ Only one profile request runs at a time. The request runner returns true only af
 The exported ProfileForm guards the session and mounts a ProfileEditor keyed by generation. Changing or ending a session destroys every profile, draft, dialog and request marker; a failed new-session read cannot reveal retained fields from the previous User.
 
 Closing the mobile dialog restores focus to Change only when it is enabled; otherwise the programmatically focusable Profile heading provides an available destination, including after an account-closing error.
+
+Focus and announcements (2026-10-08): Full name has `maxLength` 100, the same `fullNameMaxLength` limit the validation uses. A refused save focuses the first invalid field, in page order, from an effect that runs after its error is linked and once the field is enabled. A save, cancel or load error alert (including the stale-update message) takes focus when shown. Reload moves focus to the Profile heading because the button disappears. A successful Cancel change shows and focuses a `Mobile change cancelled.` status; the notice clears on the next edit, save, reload, stage or cancel.

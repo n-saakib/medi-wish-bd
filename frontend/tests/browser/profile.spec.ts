@@ -173,6 +173,7 @@ test('E2E-11-33 a Customer edits the profile, stages a mobile change and cancels
     await ui.cancelChange.click();
     await expect(ui.main.getByText(copy.pendingNote(newMobile))).toHaveCount(0);
     await expect(ui.cancelChange).toHaveCount(0);
+    await expect(page.getByRole('status').filter({ hasText: 'Mobile change cancelled.' })).toBeFocused();
     const deletes = only(calls, 'DELETE');
     expect(deletes.map(({ status, body }) => [status, body])).toEqual([[204, null]]);
     await page.reload();
@@ -208,12 +209,13 @@ test('E2E-11-34 a save from an outdated tab shows the stale message, and Reload 
 
   await tabB.fullName.fill('Beta Tab');
   await tabB.save.click();
-  await expect(other.getByRole('alert').filter({ hasText: copy.staleUpdate })).toBeVisible();
+  await expect(other.getByRole('alert').filter({ hasText: copy.staleUpdate })).toBeFocused();
   expect(only(callsB, 'PUT').map(({ status }) => status)).toEqual([409]);
   expect(storedProfile(customer.username)).toMatchObject({ fullName: 'Alpha Tab', profileVersion: 1 });
 
   await other.getByRole('button', { name: 'Reload', exact: true }).click();
   await expect(tabB.fullName).toHaveValue('Alpha Tab');
+  await expect(other.getByRole('heading', { name: 'Profile', level: 1 })).toBeFocused();
   await expect(other.getByText(copy.staleUpdate)).toHaveCount(0);
 
   await tabB.fullName.fill('Beta Tab');
@@ -272,15 +274,16 @@ test('E2E-11-37 invalid values show field errors and send nothing; valid ones sa
     await ui.dateOfBirth.fill(dateOfBirth);
     await ui.save.click();
     await expectFieldError(ui.dateOfBirth, copy.dateOfBirthInvalid);
+    await expect(ui.dateOfBirth).toBeFocused();
   }
   await ui.dateOfBirth.fill(dhakaDate(0));
   await ui.email.fill('not-an-email');
   await ui.save.click();
   await expectFieldError(ui.email, copy.emailInvalid);
+  await expect(ui.email).toBeFocused();
   await ui.email.fill('');
-  await ui.fullName.fill('n'.repeat(101));
-  await ui.save.click();
-  await expectFieldError(ui.fullName, copy.fullNameInvalid);
+  // Full name accepts at most 100 characters; the over-length error itself is covered by the unit tests.
+  await expect(ui.fullName).toHaveAttribute('maxlength', '100');
   expect(only(calls, 'PUT')).toEqual([]);
 
   await ui.fullName.fill('n'.repeat(100));
@@ -393,6 +396,7 @@ test('E2E-11-41 the Change mobile dialog: keyboard, focus return, errors inside 
     await ui.saveForVerification.click();
     await expect(ui.dialog.getByRole('alert').filter({ hasText: copy.duplicateUser })).toBeVisible();
     await expect(ui.dialog).toBeVisible();
+    await expect(ui.newMobile).toBeFocused();
   });
 
   await test.step('the current number is refused inside the dialog; the API alone decides (P7)', async () => {

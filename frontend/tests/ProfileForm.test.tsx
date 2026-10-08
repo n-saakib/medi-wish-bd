@@ -97,21 +97,27 @@ describe('ProfileForm', () => {
   });
 
   it('keeps a native dialog open on API rejection and returns focus after Escape', async () => {
-    const { source: session } = source((_path, init) => init.method === 'POST'
-      ? Response.json({ code: 'DUPLICATE_USER', message: 'private detail' }, { status: 409 })
-      : Response.json(profile));
+    const held = deferred<Response>();
+    const { source: session } = source((_path, init) => init.method === 'POST' ? held.promise : Response.json(profile));
     const view = await renderWithSession(createElement(ProfileForm), session);
     const change = [...view.querySelectorAll('button')].find((button) => button.textContent === 'Change')!;
     await act(async () => change.click());
     expect(requiredElement<HTMLDialogElement>(view, 'dialog').open).toBe(true);
     expect(document.activeElement).toBe(requiredElement(view, '#new-mobile'));
     setInputValue(view, '#new-mobile', '01700000001');
+    // A click on the submit button focuses it; it is disabled while the request is pending.
+    requiredElement<HTMLButtonElement>(view, 'dialog button[type="submit"]').focus();
     await act(async () => {
       requiredElement<HTMLFormElement>(view, 'dialog form').dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
     });
+    const input = requiredElement<HTMLInputElement>(view, '#new-mobile');
+    expect(input.disabled).toBe(true);
+    await act(async () => held.resolve(Response.json({ code: 'DUPLICATE_USER', message: 'private detail' }, { status: 409 })));
     await settle();
     expect(requiredElement(view, 'dialog [role="alert"]').textContent).toContain('already in use');
+    expect(input.getAttribute('aria-describedby')).toContain('new-mobile-error');
     expect(requiredElement<HTMLDialogElement>(view, 'dialog').open).toBe(true);
+    expect(document.activeElement).toBe(input);
     await act(async () => {
       requiredElement<HTMLDialogElement>(view, 'dialog').dispatchEvent(new Event('cancel', { bubbles: false, cancelable: true }));
     });
@@ -289,8 +295,10 @@ describe('ProfileForm', () => {
     setInputValue(view, '#profile-full-name', 'Old Draft');
     await submitForm(view);
     await settle();
+    expect(document.activeElement).toBe(requiredElement(view, '[role="alert"]'));
     await act(async () => [...view.querySelectorAll('button')].find((button) => button.textContent === 'Reload')?.click());
     await settle();
+    expect(document.activeElement).toBe(requiredElement(view, 'h1'));
     expect(requiredElement<HTMLInputElement>(view, '#profile-full-name').value).toBe('Other Tab');
     expect(view.querySelector('[role="alert"]')).toBeNull();
     expect(requiredElement<HTMLButtonElement>(view, 'button[type="submit"]').disabled).toBe(true);
@@ -317,7 +325,44 @@ describe('ProfileForm', () => {
     const input = requiredElement<HTMLInputElement>(view, selector);
     expect(input.getAttribute('aria-invalid')).toBe('true');
     expect(requiredElement(view, `#${input.getAttribute('aria-describedby')}`).textContent).toBe(copy);
+    expect(document.activeElement).toBe(input);
     expect(calls.filter(({ init }) => init.method === 'PUT')).toHaveLength(0);
+  });
+
+  it('focuses the first invalid field after its error is linked, and limits Full name to 100 characters', async () => {
+    const { source: session } = source(() => Response.json(profile));
+    const view = await renderWithSession(createElement(ProfileForm), session);
+    expect(requiredElement<HTMLInputElement>(view, '#profile-full-name').maxLength).toBe(100);
+    setInputValue(view, '#profile-email', 'bad@');
+    setInputValue(view, '#profile-date-of-birth', '9999-12-31');
+    const email = requiredElement<HTMLInputElement>(view, '#profile-email');
+    let describedAtFocus: string | null = null;
+    email.addEventListener('focus', () => { describedAtFocus = email.getAttribute('aria-describedby'); });
+    await submitForm(view);
+    await settle();
+    expect(document.activeElement).toBe(email);
+    expect(describedAtFocus).toBe('profile-email-error');
+    expect(requiredElement(view, '#profile-date-of-birth').getAttribute('aria-invalid')).toBe('true');
+  });
+
+  it('announces a cancelled mobile change and focuses the notice; a failed cancel focuses its error', async () => {
+    let deletes = 0;
+    const { source: session } = source((_path, init) => init.method !== 'DELETE'
+      ? Response.json({ ...profile, pendingMobile: '01700000001' })
+      : ++deletes === 1 ? Response.json({ code: 'INTERNAL_ERROR', message: 'private detail' }, { status: 500 })
+        : new Response(null, { status: 204 }));
+    const view = await renderWithSession(createElement(ProfileForm), session);
+    const cancelChange = () => [...view.querySelectorAll('button')].find((button) => button.textContent === 'Cancel change');
+    await act(async () => cancelChange()?.click());
+    await settle();
+    expect(document.activeElement).toBe(requiredElement(view, '[role="alert"]'));
+    expect(view.textContent).toContain('New number 01700000001 is waiting for verification.');
+    await act(async () => cancelChange()?.click());
+    await settle();
+    expect(cancelChange()).toBeUndefined();
+    const notice = requiredElement(view, '[role="status"]');
+    expect(notice.textContent).toBe('Mobile change cancelled.');
+    expect(document.activeElement).toBe(notice);
   });
 
   it('keeps the verified current and pending mobile visible when a loaded account is closing', async () => {

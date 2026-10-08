@@ -109,6 +109,7 @@
     "change": "Change",
     "pendingNote": "New number {mobile} is waiting for verification.",
     "cancelChange": "Cancel change",
+    "mobileChangeCancelled": "Mobile change cancelled.",
     "email": "Email",
     "dateOfBirth": "Date of birth",
     "optional": "(optional)",
