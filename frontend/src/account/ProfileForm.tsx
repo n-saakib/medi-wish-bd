@@ -52,6 +52,7 @@ function ProfileEditor() {
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<Field, string>>>({});
   const [dialogOpen, setDialogOpen] = useState(false);
   const changeButton = useRef<HTMLButtonElement>(null);
+  const title = useRef<HTMLHeadingElement>(null);
   const active = useRef(true);
   const flight = useRef<object | null>(null);
   const currentSession = useRef({ generation: session.generation, signedIn: Boolean(session.profile) });
@@ -65,8 +66,8 @@ function ProfileEditor() {
   }, []);
 
   const run = useCallback(async <T,>(kind: Exclude<Busy, null>, action: () => Promise<T>,
-    apply: (result: T) => void, onError?: (reason: unknown) => void): Promise<void> => {
-    if (flight.current || !currentSession.current.signedIn) return;
+    apply: (result: T) => void, onError?: (reason: unknown) => void): Promise<boolean> => {
+    if (flight.current || !currentSession.current.signedIn) return false;
     const owner = currentSession.current.generation;
     const marker = {};
     flight.current = marker;
@@ -74,7 +75,11 @@ function ProfileEditor() {
     try {
       const result = await action();
       if (active.current && flight.current === marker && currentSession.current.signedIn
-        && currentSession.current.generation === owner) apply(result);
+        && currentSession.current.generation === owner) {
+        apply(result);
+        return true;
+      }
+      return false;
     } catch (reason) {
       if (active.current && flight.current === marker && currentSession.current.signedIn
         && currentSession.current.generation === owner) {
@@ -159,7 +164,7 @@ function ProfileEditor() {
   }
 
   async function stage(mobile: string) {
-    await run('stage', () => stageMobileChange({ authenticatedFetch }, mobile), (updated) => {
+    return run('stage', () => stageMobileChange({ authenticatedFetch }, mobile), (updated) => {
       // Mobile commands return a whole profile, but another tab may have saved its fields and version.
       setProfile((current) => current && ({ ...current,
         mobile: updated.mobile, mobileVerified: updated.mobileVerified, pendingMobile: updated.pendingMobile,
@@ -191,7 +196,7 @@ function ProfileEditor() {
 
   return (
     <section className="card card-pad stack profile-card" aria-labelledby="profile-title">
-      <h1 id="profile-title">{t('title')}</h1>
+      <h1 ref={title} id="profile-title" tabIndex={-1}>{t('title')}</h1>
       {!shownProfile && !error && <p role="status" className="muted">{t('loading')}</p>}
       {saved && <Alert tone="success" focusOnShow>{t('saved')}</Alert>}
       {closing && <Alert tone="warn">{tErrors('accountClosing')}</Alert>}
@@ -228,7 +233,7 @@ function ProfileEditor() {
             </div>}
           </div>
           <div className="field">
-            <label htmlFor="profile-email">{t('email')}</label>
+            <label htmlFor="profile-email">{t('email')} <span className="muted">{t('optional')}</span></label>
             <input className="input" id="profile-email" type="email" autoComplete="email" value={draft.email}
               disabled={closing || busy === 'save'} aria-invalid={fieldErrors.email ? true : undefined}
               aria-describedby={fieldErrors.email ? 'profile-email-error' : undefined}
@@ -236,7 +241,7 @@ function ProfileEditor() {
             {fieldErrors.email && <span id="profile-email-error" className="profile-field-error">{fieldErrors.email}</span>}
           </div>
           <div className="field">
-            <label htmlFor="profile-date-of-birth">{t('dateOfBirth')}</label>
+            <label htmlFor="profile-date-of-birth">{t('dateOfBirth')} <span className="muted">{t('optional')}</span></label>
             <input className="input" id="profile-date-of-birth" type="date" value={draft.dateOfBirth}
               disabled={closing || busy === 'save'} aria-invalid={fieldErrors.dateOfBirth ? true : undefined}
               aria-describedby={fieldErrors.dateOfBirth ? 'profile-date-of-birth-error' : undefined}
@@ -247,7 +252,10 @@ function ProfileEditor() {
             disabled={closing || busy !== null || !dirty}>{busy === 'save' ? t('saving') : t('saveChanges')}</button>
         </form>
         <MobileChangeDialog open={dialogOpen} disabled={closing || busy !== null}
-          returnFocus={() => changeButton.current?.focus()} onClose={() => setDialogOpen(false)} onSubmit={stage} />
+          returnFocus={() => {
+            if (changeButton.current && !changeButton.current.disabled) changeButton.current.focus();
+            else title.current?.focus();
+          }} onClose={() => setDialogOpen(false)} onSubmit={stage} />
       </>}
     </section>
   );

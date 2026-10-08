@@ -10,7 +10,7 @@ type Props = {
   disabled: boolean;
   returnFocus: () => void;
   onClose: () => void;
-  onSubmit: (mobile: string) => Promise<void>;
+  onSubmit: (mobile: string) => Promise<boolean>;
 };
 
 /** The number is sent to the API for validation; no OTP step is available in this ticket. */
@@ -53,8 +53,8 @@ export function MobileChangeDialog({ open, disabled, returnFocus, onClose, onSub
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit(mobile);
-      if (!mounted.current) return;
+      const staged = await onSubmit(mobile);
+      if (!mounted.current || !staged) return;
       setMobile('');
       onClose();
     } catch (reason) {
@@ -71,12 +71,14 @@ export function MobileChangeDialog({ open, disabled, returnFocus, onClose, onSub
       onClose={() => { if (open && !submittingRef.current) { onClose(); returnFocus(); } }}>
       <form method="post" onSubmit={(event) => void submit(event)} noValidate className="stack">
         <h2 id="mobile-dialog-title">{t('changeMobileTitle')}</h2>
-        {error && <Alert tone="danger">{tErrors(error)}</Alert>}
+        {error && <div id="new-mobile-error"><Alert tone="danger">{tErrors(error)}</Alert></div>}
         <div className="field">
           <label htmlFor="new-mobile">{t('newMobile')}</label>
           <input className="input" id="new-mobile" type="tel" inputMode="tel" autoComplete="tel"
+            aria-invalid={error ? true : undefined} aria-describedby={error ? 'new-mobile-hint new-mobile-error' : 'new-mobile-hint'}
             disabled={disabled || submitting} value={mobile} onChange={(event) => { setMobile(event.target.value); setError(null); }} />
         </div>
+        <p id="new-mobile-hint" className="small muted mb-0">{t('mobileHint')}</p>
         <p className="small muted mb-0">{t('mobileExplanation')}</p>
         <div className="profile-actions">
           <button className="btn btn-secondary" type="button" onClick={close} disabled={submitting}>{t('cancel')}</button>

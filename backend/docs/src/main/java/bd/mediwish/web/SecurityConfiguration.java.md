@@ -32,7 +32,7 @@ It is `@ConditionalOnWebApplication(SERVLET)`: a non-web context, such as the fi
   | `POST /api/auth/mfa/enrollment`, `/enrollment/verify` | authority `StaffAccessPolicy.MFA_ENROLLMENT` |
   | `POST /api/auth/mfa/verify` | authority `StaffAccessPolicy.MFA_CHALLENGE` |
   | `GET /api/staff/me` | role `ADMIN` or `MODERATOR` (only a verified staff session has them) |
-  | `GET /api/user/me` | any of the four roles (a restricted staff session has none) |
+  | `GET /api/user/me`, `GET /api/user/me/profile`, `PUT /api/user/me/profile`, `POST /api/user/me/mobile-change`, `DELETE /api/user/me/mobile-change` | any of the four roles (a restricted staff session has none) |
   | anything else | denied |
 
 - **Errors:** the authentication entry point always writes `401 AUTHENTICATION_REQUIRED` with `WWW-Authenticate: Bearer`. The access-denied handler writes `403 MFA_REQUIRED` when the current authentication holds one of `StaffAccessPolicy.MFA_AUTHORITIES` (a staff session that must still enroll or verify) and `403 ACCESS_DENIED` otherwise. A denied anonymous request, such as `POST` to a health probe with a valid CSRF token, gets `401`; an unsafe request without a valid CSRF token is rejected earlier by the CSRF filter through the access-denied handler with `403`.
@@ -41,7 +41,7 @@ Correlation and `no-store` headers come from `RequestCorrelationFilter`, which r
 
 ## Verification
 
-`SecurityConfigurationTest` covers the Secure-cookie profile rule, credentialed CORS limits, the local origin fallback, wildcard rejection and the hosted `XSRF-TOKEN` cookie attributes. `BoundedCorsFilterTest`, `AuthRequestBodyLimitFilterTest` and `BearerAccessTokenFilterTest` cover the installed filters. `SessionIT`, `HealthIT` and `ProfileIT` cover CSRF, route rules and error statuses over real HTTP. `RoleAuthorizationIT`, `StaffMfaIT` and `StaffMfaRegressionIT` cover the role and MFA rules, `MFA_REQUIRED`, the CSRF exemption and body limit of the MFA routes. `FirstAdminProvisioningIT` starts the non-web context without this configuration.
+`SecurityConfigurationTest` covers the Secure-cookie profile rule, credentialed CORS limits, the local origin fallback, wildcard rejection and the hosted `XSRF-TOKEN` cookie attributes. `BoundedCorsFilterTest`, `AuthRequestBodyLimitFilterTest` and `BearerAccessTokenFilterTest` cover the installed filters. `SessionIT`, `HealthIT` and `ProfileIT` cover CSRF, route rules and error statuses over real HTTP. `RoleAuthorizationIT`, `StaffMfaIT` and `StaffMfaRegressionIT` cover the role and MFA rules, `MFA_REQUIRED`, the CSRF exemption and body limit of the MFA routes. `UserProfilePermissionIT` covers all four profile routes for missing, malformed and revoked sessions, both restricted staff MFA states, and each sole role. `FirstAdminProvisioningIT` starts the non-web context without this configuration.
 
 ## Ticket 11 profile routes
 

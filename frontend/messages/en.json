@@ -108,6 +108,7 @@
     "cancelChange": "Cancel change",
     "email": "Email",
     "dateOfBirth": "Date of birth",
+    "optional": "(optional)",
     "saveChanges": "Save changes",
     "saving": "Saving…",
     "saved": "Profile saved.",
@@ -117,6 +118,7 @@
     "dateOfBirthInvalid": "Enter a date from 1 January 1900 to today.",
     "changeMobileTitle": "Change mobile",
     "newMobile": "New mobile",
+    "mobileHint": "Enter an 11-digit mobile number.",
     "mobileExplanation": "Your current number stays active until the new one is verified. Verification by text message is coming soon.",
     "cancel": "Cancel",
     "saveForVerification": "Save for verification"
