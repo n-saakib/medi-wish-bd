@@ -693,3 +693,17 @@ databaseChangeLog:
                 CHECK (selling_price <= 9999999.99);
               ALTER TABLE products ADD CONSTRAINT ck_products_mrp_finite
                 CHECK (mrp <= 9999999.99);
+
+  - changeSet:
+      id: 014-role-required-search-path
+      author: medi-wish
+      changes:
+        - sql:
+            splitStatements: false
+            sql: |-
+              DO $pin_role_required$
+              BEGIN
+                EXECUTE format('ALTER FUNCTION %I.user_role_required() SET search_path = %I, pg_temp',
+                  current_schema(), current_schema());
+              END;
+              $pin_role_required$;
