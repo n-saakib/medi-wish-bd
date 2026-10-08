@@ -143,6 +143,22 @@ describe('Product editor', () => {
     expect(requiredElement<HTMLInputElement>(page, '#catalog-sellingPrice').disabled).toBe(true);
     expect(page.textContent).toContain('Moderators can’t change prices.');
     expect(page.textContent).not.toContain('Save pricing');
+    for (const id of ['#catalog-mrp', '#catalog-sellingPrice']) {
+      expect(requiredElement(page, id).getAttribute('aria-describedby')).toBe('catalog-pricing-note');
+    }
+    expect(requiredElement(page, '#catalog-pricing-note').textContent).toBe('Moderators can’t change prices.');
+  });
+
+  it('tells a Moderator that an Admin must price a Product before it can be active', async () => {
+    const unpriced: Product = { ...product, active: false, status: 'NEEDS_PRICE', sellingPrice: null, mrp: null };
+    const { requests, session } = source(fixture('MODERATOR', unpriced));
+    const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
+    await act(async () => requiredElement<HTMLInputElement>(page, '#catalog-active').click());
+    await submitForm(page);
+    expect(requiredElement(page, '#catalog-active-error').textContent)
+      .toBe('An Admin must add a price before this product can be active.');
+    expect(document.activeElement).toBe(requiredElement(page, '#catalog-active'));
+    expect(requests.filter(({ init }) => init.method === 'PUT')).toEqual([]);
   });
 
   it('does not send a no-op catalog update', async () => {
@@ -150,6 +166,8 @@ describe('Product editor', () => {
     const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
     await submitForm(page);
     expect(requests.filter(({ init }) => init.method === 'PUT')).toEqual([]);
+    expect(document.activeElement).toBe(requiredElement(page, '[role="status"]'));
+    expect(document.activeElement?.textContent).toBe('Product saved.');
   });
 
   it('validates required Medicine fields without sending a create request', async () => {
@@ -294,7 +312,7 @@ describe('Product editor', () => {
     await submitForm(page);
     await settle();
     expect(page.textContent).toContain('Someone saved this product while you were editing.');
-    expect(page.querySelector('button')?.textContent).toBeDefined();
+    expect(document.activeElement).toBe(requiredElement(page, '[role="alert"]'));
     expect([...page.querySelectorAll('button')].some((button) => button.textContent === 'Reload')).toBe(true);
     await act(async () => [...page.querySelectorAll('button')].find((button) => button.textContent === 'Reload')!.click());
     await settle();
@@ -313,6 +331,26 @@ describe('Product editor', () => {
     await settle();
     expect(requiredElement(page, '#catalog-active-error').textContent).toBe('Add a price before activating this product.');
     expect(document.activeElement).toBe(requiredElement(page, '#catalog-active'));
+  });
+
+  it.each([
+    ['catalog', 'Product saved.'], ['pricing', 'Pricing saved.'],
+  ] as const)('keeps keyboard focus on the confirmation after a %s update re-enables the form', async (operation, copy) => {
+    const reply: Reply = (path, init) => init.method === 'PUT'
+      ? Response.json({ ...product, name: 'Napa updated', sellingPrice: '11.00', version: 3 }) : fixture()(path, init);
+    const { session } = source(reply);
+    const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
+    if (operation === 'catalog') {
+      setInputValue(page, '#catalog-name', 'Napa updated');
+      await submitForm(page);
+    } else {
+      setInputValue(page, '#catalog-sellingPrice', '11.00');
+      await submitForm(requiredElement(page, '[aria-label="Pricing"]'));
+    }
+    await settle();
+    expect(requiredElement<HTMLInputElement>(page, '#catalog-name').disabled).toBe(false);
+    expect(document.activeElement).toBe(requiredElement(page, '[role="status"]'));
+    expect(document.activeElement?.textContent).toBe(copy);
   });
 
   it('confirms a created Product once on its own page and focuses the confirmation', async () => {
@@ -513,6 +551,15 @@ describe('Product editor', () => {
     expect(prices).toEqual([{ sellingPrice: '9999999.99', mrp: null, version: 2 }]);
     expect(page.textContent).toContain('Pricing saved.');
   });
+
+  it('confirms unchanged pricing without a request and focuses the confirmation', async () => {
+    const { requests, session } = source(fixture());
+    const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
+    await submitForm(requiredElement(page, '[aria-label="Pricing"]'));
+    expect(requests.filter(({ path }) => path.endsWith('/pricing'))).toEqual([]);
+    expect(document.activeElement).toBe(requiredElement(page, '[role="status"]'));
+    expect(document.activeElement?.textContent).toBe('Pricing saved.');
+  });
 });
 
 describe('catalog lists', () => {
@@ -655,6 +702,30 @@ describe('catalog lists', () => {
     expect(page.textContent).toContain('No products match these filters.');
   });
 
+  it.each(['products', 'categories'] as const)('names the %s table', async (kind) => {
+    const { session } = source((path, init) => path.startsWith('/api/staff/categories?')
+      ? Response.json({ items: [category], page: 0, size: 20, totalItems: 1 }) : fixture()(path, init));
+    const page = await renderWithSession(createElement(kind === 'products' ? ProductList : CategoryManager), session);
+    expect(requiredElement(page, 'table').getAttribute('aria-label')).toBe(kind === 'products' ? 'Products' : 'Categories');
+  });
+
+  it.each(['Add category', 'Edit'])('focuses the name field after %s and returns focus to it on Cancel', async (label) => {
+    const { session } = source((path) => {
+      if (path.startsWith('/api/staff/categories?')) return Response.json({ items: [category], page: 0, size: 20, totalItems: 1 });
+      throw Error(path);
+    });
+    const page = await renderWithSession(createElement(CategoryManager), session);
+    const opener = () => [...page.querySelectorAll('button')].find((button) => button.textContent === label)!;
+    opener().focus();
+    await act(async () => opener().click());
+    expect(document.activeElement).toBe(requiredElement(page, '#category-name'));
+    // The editor sits above the table, never inside a row that scrolls sideways on narrow screens.
+    expect(page.querySelector('table #category-name')).toBeNull();
+    await act(async () => [...page.querySelectorAll('button')].find((button) => button.textContent === 'Cancel')!.click());
+    expect(page.querySelector('#category-name')).toBeNull();
+    expect(document.activeElement).toBe(opener());
+  });
+
   it('keeps a category name collision inline for correction', async () => {
     const reply: Reply = (path, init) => {
       if (path.startsWith('/api/staff/categories?')) return Response.json({ items: [category], page: 0, size: 20, totalItems: 1 });
@@ -782,6 +853,7 @@ describe('catalog lists', () => {
     setInputValue(page, '#category-name', 'Renamed');
     await submitForm(page);
     expect(page.textContent).toContain('Someone saved this category while you were editing.');
+    expect(document.activeElement).toBe(requiredElement(page, '[role="alert"]'));
     expect(requiredElement<HTMLInputElement>(page, '#category-name').value).toBe('Renamed');
     await act(async () => [...page.querySelectorAll('button')].find((button) => button.textContent === 'Reload')!.click());
     await settle();

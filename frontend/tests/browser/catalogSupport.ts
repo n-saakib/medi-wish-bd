@@ -31,6 +31,7 @@ export const copy = {
   pricingSaved: 'Pricing saved.',
   categorySaved: 'Category saved.',
   priceRequired: 'Add a price before activating this product.',
+  priceRequiredModerator: 'An Admin must add a price before this product can be active.',
   moderatorPricingNote: 'Moderators can’t change prices.',
   productStale: 'Someone saved this product while you were editing. Review their changes first.',
   categoryStale: 'Someone saved this category while you were editing. Review their changes first.',

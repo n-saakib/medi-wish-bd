@@ -56,6 +56,24 @@ describe('StaffHome', () => {
     expect(requiredElement(page, 'nav').getAttribute('aria-label')).toBe('Staff pages');
   });
 
+  it('focuses the heading when the page arrives with nothing focused, and leaves a focused control alone', async () => {
+    const access = deferred<Response>();
+    const { page } = await renderStaffHome({ '/api/staff/me': () => access.promise });
+    (document.activeElement as HTMLElement | null)?.blur();
+    await act(async () => access.resolve(Response.json(adminAccess)));
+    await settle();
+    expect(document.activeElement).toBe(requiredElement(page, 'h1'));
+
+    await unmountAll();
+    const later = deferred<Response>();
+    const { page: second } = await renderStaffHome({ '/api/staff/me': () => later.promise });
+    const signOut = requiredElement<HTMLButtonElement>(second, 'header button');
+    signOut.focus();
+    await act(async () => later.resolve(Response.json(adminAccess)));
+    await settle();
+    expect(document.activeElement).toBe(signOut);
+  });
+
   it('shows no Super Admin label for another staff member', async () => {
     const { page } = await renderStaffHome({
       '/api/staff/me': () => Response.json({ username: 'mod.one', roles: ['MODERATOR'], superAdmin: false }),

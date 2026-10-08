@@ -32,7 +32,11 @@ export function CategoryManager() {
   const createId = useRef<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  // The name field is disabled while a save is pending, so a refused name is focused once it is enabled again.
+  const staleRef = useRef<HTMLDivElement>(null);
+  // The control that opened the editor, which gets focus back when the editor closes without saving.
+  const opener = useRef<HTMLElement | null>(null);
+  // The name field is focused when the editor opens and, because it is disabled while a save is pending,
+  // after a refused name once it is enabled again.
   const focusName = useRef(false);
   const { pager, markTurn } = usePagerFocus(result);
 
@@ -50,7 +54,9 @@ export function CategoryManager() {
     if (pending || !focusName.current) return;
     focusName.current = false;
     nameRef.current?.focus();
-  }, [pending]);
+  }, [pending, editing]);
+
+  useEffect(() => { if (stale) staleRef.current?.focus(); }, [stale]);
 
   function open(category: Category | 'new') {
     if (pendingRef.current) return;
@@ -58,6 +64,13 @@ export function CategoryManager() {
     setActive(category === 'new' ? true : category.active);
     setFieldError(null); setStale(false); setSaved(false); setCreateConflict(false);
     createId.current = category === 'new' ? newId() : null;
+    opener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    focusName.current = true;
+  }
+
+  function close() {
+    setEditing(null);
+    opener.current?.focus();
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -66,7 +79,7 @@ export function CategoryManager() {
     const normalized = name.trim();
     if (!normalized) { setFieldError(t('required')); nameRef.current?.focus(); return; }
     if (editing !== 'new' && normalized === editing.name && active === editing.active) {
-      setEditing(null); return;
+      close(); return;
     }
     pendingRef.current = true; setPending(true); setFieldError(null); setStale(false); setFailure(null); setCreateConflict(false);
     try {
@@ -107,24 +120,25 @@ export function CategoryManager() {
       onChange={(event) => setActive(event.target.checked)} />{t('active')}</label>}
     <button className="btn btn-primary" type="submit" disabled={pending}>{t('save')}</button>
     <button className="btn btn-secondary" type="button" disabled={pending}
-      onClick={() => { if (!pendingRef.current) setEditing(null); }}>{t('cancel')}</button>
+      onClick={() => { if (!pendingRef.current) close(); }}>{t('cancel')}</button>
   </form>;
 
   return <main className="container page stack">
     <div className="catalog-heading"><h1 ref={headingRef} tabIndex={-1}>{t('title')}</h1>
       <button className="btn btn-primary" type="button" disabled={pending} onClick={() => open('new')}>{t('add')}</button></div>
     {saved && <Alert tone="success" focusOnShow>{t('saved')}</Alert>}
-    {stale && <div role="alert" className="alert alert-warn">{t('stale')}
+    {stale && <div ref={staleRef} tabIndex={-1} role="alert" className="alert alert-warn">{t('stale')}
       <button className="btn btn-secondary" type="button" onClick={reloadPage}>{t('reload')}</button></div>}
     {failure && <Alert tone="danger" focusOnShow>{errors(failure)}
       <button className="btn btn-secondary" type="button" onClick={reloadPage}>{t(createConflict ? 'reload' : 'retry')}</button></Alert>}
-    {editing === 'new' && <div className="card card-pad">{editor}</div>}
+    {/* Above the table rather than inside a row, which scrolls sideways on narrow screens and hid Save. */}
+    {editing && <div className="card card-pad">{editor}</div>}
     {ready && !result && !failure && <p role="status">{t('loading')}</p>}
     {result && <div className="card"><div className="catalog-table-scroll">
-      <table className="catalog-table"><thead><tr><th>{t('category')}</th><th>{t('products')}</th>
+      <table className="catalog-table" aria-label={t('title')}><thead><tr><th>{t('category')}</th><th>{t('products')}</th>
         <th>{t('status')}</th><th><span className="sr-only">{t('edit')}</span></th></tr></thead>
         <tbody>{result.items.map((category) => <tr key={category.id}>
-          <td>{category.name}{editing !== 'new' && editing?.id === category.id && editor}</td>
+          <td>{category.name}</td>
           <td>{category.productCount}</td>
           <td><span className={category.active ? 'chip chip-success' : 'chip'}>{t(category.active ? 'active' : 'inactive')}</span></td>
           <td><button className="btn btn-secondary" type="button" disabled={pending}

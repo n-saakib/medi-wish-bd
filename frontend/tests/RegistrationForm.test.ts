@@ -51,6 +51,8 @@ describe('RegistrationForm', () => {
     const password = requiredElement<HTMLInputElement>(form, '#register-password');
 
     expect(requiredElement(form, 'form').getAttribute('method')).toBe('post');
+    // The browser's own checks would stop at the first field before the form could name each one.
+    expect(requiredElement<HTMLFormElement>(form, 'form').noValidate).toBe(true);
     expect(requiredElement(form, 'label[for="register-email"]').textContent).toBe('Email (optional)');
     expect(password.minLength).toBe(6);
     expect(password.maxLength).toBe(30);
@@ -125,15 +127,76 @@ describe('RegistrationForm', () => {
     expect(source.signIn).not.toHaveBeenCalled();
   });
 
-  it('explains the username rule when the request is rejected as invalid', async () => {
+  it('shows the general check-your-details copy, focused, when the server refuses the request as invalid', async () => {
     stubRegistration(Promise.resolve(Response.json({ code: 'INVALID_REQUEST', message: 'The request is invalid.' }, { status: 400 })));
     const form = await renderWithSession(createElement(RegistrationForm));
 
     await fillAndSubmit(form);
     await settle();
 
-    expect(requiredElement(form, '[role="alert"]').textContent)
-      .toBe('Check your details. Usernames use 3–20 letters, numbers, dots, hyphens or underscores, with at least one letter.');
+    const alert = requiredElement(form, '[role="alert"]');
+    expect(alert.textContent).toBe('Check your details and try again.');
+    expect(document.activeElement).toBe(alert);
+  });
+
+  it.each([
+    ['username', 'username', 'ab', 'Use 3–20 letters, numbers, dots, hyphens or underscores, with at least one letter.'],
+    ['digits-only username', 'username', '12345', 'Use 3–20 letters, numbers, dots, hyphens or underscores, with at least one letter.'],
+    ['mobile', 'mobile', '0170000', 'Enter an 11-digit mobile number.'],
+    ['email', 'email', 'not-an-email', 'Enter a valid email address, or leave it empty.'],
+    ['password', 'password', 'short', 'Enter a password of 6–30 characters.'],
+    ['blank password', 'password', '       ', 'Enter a password of 6–30 characters.'],
+  ])('names an invalid %s next to its field, focuses it and sends nothing', async (_, field, value, copy) => {
+    const fetch = stubRegistration(Promise.resolve(created()));
+    const form = await renderWithSession(createElement(RegistrationForm));
+
+    setInputValue(form, '#register-username', 'sana');
+    setInputValue(form, '#register-mobile', '01700000000');
+    setInputValue(form, '#register-password', 'synthetic-password');
+    setInputValue(form, `#register-${field}`, value);
+    await submitForm(form);
+    await settle();
+
+    const input = requiredElement(form, `#register-${field}`);
+    expect(requiredElement(form, `#register-${field}-error`).textContent).toBe(copy);
+    expect(input.getAttribute('aria-invalid')).toBe('true');
+    expect(input.getAttribute('aria-describedby')?.split(' ')[0]).toBe(`register-${field}-error`);
+    expect(document.activeElement).toBe(input);
+    expect(fetch).not.toHaveBeenCalled();
+    expect(form.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  it('accepts details the API normalizes: mixed-case username and email with surrounding spaces', async () => {
+    const fetch = stubRegistration(Promise.resolve(created()));
+    const form = await renderWithSession(createElement(RegistrationForm));
+
+    setInputValue(form, '#register-username', ' Sana.K ');
+    setInputValue(form, '#register-mobile', '01700000000');
+    setInputValue(form, '#register-email', ' Sana@Example.test ');
+    setInputValue(form, '#register-password', 'synthetic-password');
+    await submitForm(form);
+    await settle();
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(form.querySelector('.field-error')).toBeNull();
+  });
+
+  it('focuses the first of several invalid fields and clears a field error once it is edited', async () => {
+    const fetch = stubRegistration(Promise.resolve(created()));
+    const form = await renderWithSession(createElement(RegistrationForm));
+
+    setInputValue(form, '#register-mobile', '123');
+    await submitForm(form);
+    await settle();
+
+    expect(document.activeElement).toBe(requiredElement(form, '#register-username'));
+    expect(form.querySelectorAll('.field-error')).toHaveLength(3);
+    expect(requiredElement(form, '#register-password').getAttribute('aria-describedby')).toBe('register-password-error');
+    expect(form.querySelector('#register-password-hint')).toBeNull();
+    setInputValue(form, '#register-mobile', '01700000000');
+    expect(form.querySelector('#register-mobile-error')).toBeNull();
+    expect(requiredElement(form, '#register-mobile').getAttribute('aria-invalid')).toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
   });
 
   it('keeps transport details out of the alert', async () => {

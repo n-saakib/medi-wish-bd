@@ -285,8 +285,9 @@ test.describe('product pages', () => {
       await test.step('Active → Save → the price-required message next to Active; nothing is saved', async () => {
         await editor.active.check();
         await editor.save.click();
-        await expect(page.getByText(copy.priceRequired)).toBeVisible();
-        await expect(editor.active).toHaveAccessibleDescription(literal(copy.priceRequired));
+        await expect(page.getByText(copy.priceRequiredModerator)).toBeVisible();
+        await expect(editor.active).toHaveAccessibleDescription(literal(copy.priceRequiredModerator));
+        await expect(editor.sellingPrice).toHaveAccessibleDescription(literal(copy.moderatorPricingNote));
         await page.reload();
         await expect(editor.statusChip('Needs price')).toBeVisible();
         await expect(editor.active).not.toBeChecked();

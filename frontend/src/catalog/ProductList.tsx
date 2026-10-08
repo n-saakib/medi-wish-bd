@@ -87,7 +87,7 @@ export function ProductList() {
       <p>{Object.values(filter).some((value) => value !== undefined && value !== 0) ? t('noMatches') : t('noProducts')}</p>
       <Link className="btn btn-primary" href="/staff/products/new">{t('newProduct')}</Link></div>}
     {result && result.totalItems > 0 && <div className="card">
-      <div className="catalog-table-scroll"><table className="catalog-table"><thead><tr>
+      <div className="catalog-table-scroll"><table className="catalog-table" aria-label={t('products')}><thead><tr>
         <th>{t('product')}</th><th>{t('category')}</th><th>{t('saleUnitColumn')}</th><th className="num">{t('mrp')}</th>
         <th className="num">{t('price')}</th><th>{t('flags')}</th><th>{t('status')}</th><th><span className="sr-only">{t('edit')}</span></th>
       </tr></thead><tbody>{result.items.map((item) => <tr key={item.id}>

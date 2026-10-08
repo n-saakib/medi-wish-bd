@@ -85,10 +85,11 @@ export function ProductEditor({ productId }: { productId?: string }) {
   const malformed = productId !== undefined && !isUuid(productId);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const savedRef = useRef<HTMLParagraphElement>(null);
+  const staleRef = useRef<HTMLDivElement>(null);
   // Fields are disabled while saving, so a field error is focused once its field is enabled again.
   const focusField = useRef<Field | null>(null);
-  // What to focus once the loaded page has rendered: the saved message after creating, or the heading after a retry.
-  const focusAfterLoad = useRef<'saved' | 'heading' | null>(null);
+  // What to focus once the page has rendered: the saved message after a save, or the heading after a retry.
+  const focusNext = useRef<'saved' | 'heading' | null>(null);
 
   useEffect(() => {
     if (!ready || malformed) return;
@@ -104,7 +105,7 @@ export function ProductEditor({ productId }: { productId?: string }) {
       setProduct(loaded); setDraft(loaded ? fromProduct(loaded) : empty);
       setSellingPrice(loaded?.sellingPrice ?? ''); setMrp(loaded?.mrp ?? '');
       setLoading(false); setLoadFailure(null); setFailure(null); setNotFound(false); setStale(false); setFieldErrors({}); setSaved(null);
-      if (loaded && loaded.id === justCreated) { justCreated = null; setSaved('product'); focusAfterLoad.current = 'saved'; }
+      if (loaded && loaded.id === justCreated) { justCreated = null; setSaved('product'); focusNext.current = 'saved'; }
     };
     void load().catch((reason: unknown) => {
       if (!current) return;
@@ -122,12 +123,15 @@ export function ProductEditor({ productId }: { productId?: string }) {
   }, [fieldErrors, saving]);
 
   useEffect(() => {
-    const target = focusAfterLoad.current === 'saved' ? savedRef.current
-      : focusAfterLoad.current === 'heading' ? headingRef.current : null;
+    const target = focusNext.current === 'saved' ? savedRef.current
+      : focusNext.current === 'heading' ? headingRef.current : null;
     if (!target) return;
-    focusAfterLoad.current = null;
+    focusNext.current = null;
     target.focus();
   });
+
+  // A refused stale save leaves the form in place, so its message takes focus to be read and acted on.
+  useEffect(() => { if (stale) staleRef.current?.focus(); }, [stale]);
 
   function change<K extends keyof Draft>(key: K, value: Draft[K]) {
     setDraft((before) => ({ ...before, [key]: value }));
@@ -150,9 +154,13 @@ export function ProductEditor({ productId }: { productId?: string }) {
     if (clean.kind === 'MEDICINE' && !clean.dosageForm) invalid.dosageForm = t('dosageRequired');
     if (!clean.saleUnit) invalid.saleUnit = t('saleUnitRequired');
     if (!clean.categoryId) invalid.categoryId = t('categoryRequired');
-    if (product && clean.active && !product.sellingPrice) invalid.active = errors('priceRequired');
+    // Only an Admin can price, so a Moderator is told who must add the price.
+    const priceRequired = admin ? errors('priceRequired') : t('priceRequiredModerator');
+    if (product && clean.active && !product.sellingPrice) invalid.active = priceRequired;
     if (Object.keys(invalid).length) { showErrors(invalid); return; }
-    if (product && JSON.stringify(clean) === JSON.stringify(fromProduct(product))) { setSaved('product'); return; }
+    if (product && JSON.stringify(clean) === JSON.stringify(fromProduct(product))) {
+      setSaved('product'); focusNext.current = 'saved'; return;
+    }
     pendingRef.current = true; setPending(true); setFailure(null); setConflictingCreateId(null); setStale(false); setSaved(null);
     const client = createCatalogClient({ authenticatedFetch });
     try {
@@ -162,6 +170,8 @@ export function ProductEditor({ productId }: { productId?: string }) {
         const body: ProductUpdate = { ...fields, active, version: product.version };
         const updated = await client.updateProduct(product.id, body);
         setProduct(updated); setDraft(fromProduct(updated));
+        // The form was disabled while saving, so the confirmation takes focus.
+        focusNext.current = 'saved';
       } else {
         createId.current ??= newId();
         const { active: _active, ...fields } = clean;
@@ -175,7 +185,7 @@ export function ProductEditor({ productId }: { productId?: string }) {
       if (!product && reason instanceof ApiError && reason.code === 'ID_CONFLICT') {
         setConflictingCreateId(createId.current); setFailure(errorMessageKey(reason));
       } else if (reason instanceof ApiError && reason.code === 'STALE_UPDATE') setStale(true);
-      else if (reason instanceof ApiError && reason.code === 'PRICE_REQUIRED') showErrors({ active: errors('priceRequired') });
+      else if (reason instanceof ApiError && reason.code === 'PRICE_REQUIRED') showErrors({ active: priceRequired });
       else if (reason instanceof ApiError && reason.status === 404) setNotFound(true);
       else setFailure(errorMessageKey(reason));
     } finally { pendingRef.current = false; setPending(false); }
@@ -197,12 +207,15 @@ export function ProductEditor({ productId }: { productId?: string }) {
       invalid.sellingPrice = t('priceAboveMrp');
     if (Object.keys(invalid).length) { showErrors(invalid); return; }
     setFieldErrors((before) => ({ ...before, sellingPrice: undefined, mrp: undefined }));
-    if (product.sellingPrice === selling && (product.mrp ?? '') === listed) { setSaved('pricing'); return; }
+    if (product.sellingPrice === selling && (product.mrp ?? '') === listed) {
+      setSaved('pricing'); focusNext.current = 'saved'; return;
+    }
     pricingPendingRef.current = true; setPricingPending(true); setFailure(null); setStale(false); setSaved(null);
     try {
       const updated = await createCatalogClient({ authenticatedFetch }).updatePricing(product.id,
         { sellingPrice: selling, mrp: listed || null, version: product.version });
       setProduct(updated); setSellingPrice(updated.sellingPrice ?? ''); setMrp(updated.mrp ?? ''); setSaved('pricing');
+      focusNext.current = 'saved';
       setFieldErrors((before) => ({ ...before, active: undefined }));
     } catch (reason) {
       if (reason instanceof ApiError && reason.code === 'STALE_UPDATE') setStale(true);
@@ -231,7 +244,7 @@ export function ProductEditor({ productId }: { productId?: string }) {
   if (malformed || notFound) return <main className="container page">{back}<h1>{t('productNotFound')}</h1></main>;
   if (loading) return <main className="container page"><p role="status">{t('loading')}</p></main>;
   if (loadFailure) return <main className="container page">{back}<Alert tone="danger">{errors(loadFailure)}
-    <button className="btn btn-secondary" onClick={() => { focusAfterLoad.current = 'heading'; setReload((value) => value + 1); }}>
+    <button className="btn btn-secondary" onClick={() => { focusNext.current = 'heading'; setReload((value) => value + 1); }}>
       {t('retry')}</button></Alert></main>;
 
   const categoryChoices = [...categories];
@@ -246,7 +259,7 @@ export function ProductEditor({ productId }: { productId?: string }) {
       {product && <span className={product.status === 'ACTIVE' ? 'chip chip-success' : product.status === 'NEEDS_PRICE' ? 'chip chip-warn' : 'chip'}>{t(status)}</span>}</div>
     {saved && <p ref={savedRef} tabIndex={-1} className="alert alert-success" role="status">
       {t(saved === 'pricing' ? 'pricingSaved' : 'saved')}</p>}
-    {stale && <div className="alert alert-warn" role="alert">{t('productStale')}
+    {stale && <div ref={staleRef} tabIndex={-1} className="alert alert-warn" role="alert">{t('productStale')}
       <button className="btn btn-secondary" onClick={() => { headingRef.current?.focus(); setReload((value) => value + 1); }}>
         {t('reload')}</button></div>}
     {failure && <Alert tone="danger" focusOnShow>{errors(failure)}
@@ -296,16 +309,17 @@ export function ProductEditor({ productId }: { productId?: string }) {
       <h2>{t('pricing')}</h2><form className="catalog-form-grid" onSubmit={(event) => void savePricing(event)} aria-busy={pricingPending}>
         <div className="field"><label htmlFor="catalog-mrp">{t('mrpInput', { currency: t('currency') })}</label>
           <input id="catalog-mrp" className="input" inputMode="decimal" value={mrp} disabled={!admin || saving}
-            aria-invalid={!!fieldErrors.mrp} aria-describedby={fieldErrors.mrp ? 'catalog-mrp-error' : undefined}
+            aria-invalid={!!fieldErrors.mrp} aria-describedby={fieldErrors.mrp ? 'catalog-mrp-error' : admin ? undefined : 'catalog-pricing-note'}
             onChange={(event) => { setMrp(event.target.value); setFieldErrors((before) => ({ ...before, mrp: undefined })); }} />
           {fieldErrors.mrp && <span className="field-error" id="catalog-mrp-error">{fieldErrors.mrp}</span>}</div>
         <div className="field"><label htmlFor="catalog-sellingPrice">{t('sellingPrice', { currency: t('currency') })}</label>
           <input id="catalog-sellingPrice" className="input" inputMode="decimal" value={sellingPrice} disabled={!admin || saving}
-            aria-invalid={!!fieldErrors.sellingPrice} aria-describedby={fieldErrors.sellingPrice ? 'catalog-sellingPrice-error' : undefined}
+            aria-invalid={!!fieldErrors.sellingPrice}
+            aria-describedby={fieldErrors.sellingPrice ? 'catalog-sellingPrice-error' : admin ? undefined : 'catalog-pricing-note'}
             onChange={(event) => { setSellingPrice(event.target.value); setFieldErrors((before) => ({ ...before, sellingPrice: undefined })); }} />
           {fieldErrors.sellingPrice && <span className="field-error" id="catalog-sellingPrice-error">{fieldErrors.sellingPrice}</span>}</div>
         {admin && <button className="btn btn-primary" type="submit" disabled={saving}>{t('savePricing')}</button>}
-      </form>{!admin && <p>{t('moderatorPricingNote')}</p>}
+      </form>{!admin && <p id="catalog-pricing-note">{t('moderatorPricingNote')}</p>}
     </section>}
     {product && <section className="card card-pad stack"><h2>{t('changeHistory')}</h2>
       <ol aria-label={t('changeHistory')} className="catalog-history">{product.history.map((change, index) => {

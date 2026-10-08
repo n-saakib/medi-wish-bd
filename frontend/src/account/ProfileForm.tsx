@@ -57,6 +57,8 @@ function ProfileEditor() {
   const [notice, setNotice] = useState<Notice | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<Field, string>>>({});
   const [dialogOpen, setDialogOpen] = useState(false);
+  // A command refused because the account is closing focuses the warning; a closing account's page load does not.
+  const [closingRefused, setClosingRefused] = useState(false);
   const changeButton = useRef<HTMLButtonElement>(null);
   const title = useRef<HTMLHeadingElement>(null);
   const focusField = useRef<Field | null>(null);
@@ -101,6 +103,7 @@ function ProfileEditor() {
         if (reason instanceof ApiError && reason.code === 'ACCOUNT_CLOSING') {
           setProfile((current) => current && { ...current, accountState: 'CLOSURE_REQUESTED' });
           setDialogOpen(false);
+          setClosingRefused(true);
         }
         if (onError) onError(reason);
         else setError(errorMessageKey(reason));
@@ -218,7 +221,7 @@ function ProfileEditor() {
       <h1 ref={title} id="profile-title" tabIndex={-1}>{t('title')}</h1>
       {!shownProfile && !error && <p role="status" className="muted">{t('loading')}</p>}
       {notice && <Alert tone="success" focusOnShow>{t(notice)}</Alert>}
-      {closing && <Alert tone="warn">{tErrors('accountClosing')}</Alert>}
+      {closing && <Alert tone="warn" focusOnShow={closingRefused}>{tErrors('accountClosing')}</Alert>}
       {error && !closing && <Alert tone="danger" focusOnShow>{tErrors(error)}</Alert>}
       {(error === 'staleUpdate' || (!shownProfile && error)) &&
         <button className="btn btn-secondary" type="button" disabled={busy !== null}
@@ -246,11 +249,13 @@ function ProfileEditor() {
               <button ref={changeButton} className="btn btn-ghost" type="button"
                 onClick={() => setDialogOpen(true)} disabled={closing || busy !== null}>{t('change')}</button>
             </div>
-            {shownProfile.pendingMobile && <div className="profile-pending">
-              <p>{t('pendingNote', { mobile: shownProfile.pendingMobile })}</p>
-              <button className="btn btn-ghost" type="button" onClick={() => void cancel()}
-                disabled={closing || busy !== null}>{t('cancelChange')}</button>
-            </div>}
+            {/* The note's status region is rendered before a number is staged, so staging one is announced. */}
+            <div className={shownProfile.pendingMobile ? 'profile-pending' : undefined}>
+              <p role="status" className="profile-pending-note">
+                {shownProfile.pendingMobile && t('pendingNote', { mobile: shownProfile.pendingMobile })}</p>
+              {shownProfile.pendingMobile && <button className="btn btn-ghost" type="button" onClick={() => void cancel()}
+                disabled={closing || busy !== null}>{t('cancelChange')}</button>}
+            </div>
           </div>
           <div className="field">
             <label htmlFor="profile-email">{t('email')} <span className="muted">{t('optional')}</span></label>

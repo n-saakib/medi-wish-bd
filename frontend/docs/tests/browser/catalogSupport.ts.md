@@ -9,7 +9,7 @@ These are the shared helpers of the Ticket 14 (staff Product catalog) browser sp
 ## Contract strings
 
 - `apiMessages` holds the exact error envelope messages the catalog routes return, by code: the existing `AUTHENTICATION_REQUIRED`, `ACCESS_DENIED`, `MFA_REQUIRED`, `INVALID_REQUEST` and `NOT_FOUND`, and the new `STALE_UPDATE` (`This record changed after you opened it. Reload and try again.`), `PRICE_REQUIRED`, `CATEGORY_NAME_TAKEN` and `ID_CONFLICT`.
-- `copy` holds the English page copy the catalog screens must show: the saved, stale, not-found, empty and no-match states, the Moderator pricing note, each required-field and money message, and the Sale Unit hint. The Ticket 14 plan's §10 lists the same strings as its contract.
+- `copy` holds the English page copy the catalog screens must show: the saved, stale, not-found, empty and no-match states, the Moderator pricing note, each required-field and money message, and the Sale Unit hint. The Ticket 14 plan's §10 lists the same strings as its contract. `priceRequiredModerator` (“An Admin must add a price before this product can be active.”) is the closing-pass copy (2026-10-08) a Moderator sees in place of `priceRequired`, since only an Admin can price.
 
 ## Types and builders
 

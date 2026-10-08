@@ -12,7 +12,7 @@ The shared HTTP boundary supports session, user, staff, Admin user, editable-pro
 
 ## Error copy
 
-`errorMessageKey` selects externalized English copy for authentication, duplicate identifiers, MFA, rate limits and invalid responses. The shared keys are `STALE_UPDATE → staleUpdate`, `ROLE_CHANGE_REFUSED → roleChangeRefused`, `ACCESS_DENIED → accessDenied` and `NOT_FOUND → notFound` (Ticket 08); Ticket 11 adds `ACCOUNT_CLOSING → accountClosing` and `INVALID_REQUEST → checkDetails`; Ticket 14 adds `PRICE_REQUIRED → priceRequired` and `CATEGORY_NAME_TAKEN → categoryNameTaken`. Unknown codes and non-API failures use `genericError`. Registration retains its more specific username-rule message for INVALID_REQUEST.
+`errorMessageKey` selects externalized English copy for authentication, duplicate identifiers, MFA, rate limits and invalid responses. The shared keys are `STALE_UPDATE → staleUpdate`, `ROLE_CHANGE_REFUSED → roleChangeRefused`, `ACCESS_DENIED → accessDenied` and `NOT_FOUND → notFound` (Ticket 08); Ticket 11 adds `ACCOUNT_CLOSING → accountClosing` and `INVALID_REQUEST → checkDetails`; Ticket 14 adds `PRICE_REQUIRED → priceRequired` and `CATEGORY_NAME_TAKEN → categoryNameTaken`. Unknown codes and non-API failures use `genericError`. Registration uses the same `checkDetails` copy for INVALID_REQUEST and names refused fields itself before sending.
 
 ## Verification
 

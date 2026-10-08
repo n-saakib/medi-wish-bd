@@ -10,7 +10,7 @@ Client component for `/staff`, the verified staff landing page. It loads [`fetch
 
 ### `StaffHome()`
 
-Uses `useSessionRedirect('staff')`. It shows `Checking your staff access…` until the API answers, then a card with `Staff access verified`, the username, the translated one-role summary and, when applicable, a `Super Admin` text label. One navigation landmark named `Staff pages` follows in the plan §8.2 order: Users and roles (Admin only), then Products and Categories (Admin and Moderator). API authorization remains authoritative. A failure shows one focused danger alert with mapped `errors` copy.
+Uses `useSessionRedirect('staff')`. It shows `Checking your staff access…` until the API answers, then a card with `Staff access verified`, the username, the translated one-role summary and, when applicable, a `Super Admin` text label. One navigation landmark named `Staff pages` follows in the plan §8.2 order: Users and roles (Admin only), then Products and Categories (Admin and Moderator). API authorization remains authoritative. A failure shows one focused danger alert with mapped `errors` copy. When the page arrives with nothing focused (after MFA sign-in or the backup codes' “I’ve saved them”), the heading takes focus; a control the user already focused keeps it (closing-pass fix I7, 2026-10-08).
 
 ## Design deviation
 

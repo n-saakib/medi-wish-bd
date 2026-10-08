@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSession } from '../auth/SessionProvider';
 import { useSessionRedirect } from '../auth/sessionRedirect';
@@ -22,6 +22,7 @@ export function StaffHome() {
   const verified = session.profile !== null && session.mfa === 'VERIFIED';
   const [access, setAccess] = useState<StaffAccess | null>(null);
   const [failure, setFailure] = useState<ErrorMessageKey | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
 
   useEffect(() => {
     if (!verified) return;
@@ -39,6 +40,11 @@ export function StaffHome() {
     };
   }, [verified, authenticatedFetch]);
 
+  // Arriving from MFA sign-in or enrollment replaces the page and leaves nothing focused; the heading takes focus then.
+  useEffect(() => {
+    if (access && (document.activeElement === null || document.activeElement === document.body)) headingRef.current?.focus();
+  }, [access]);
+
   if (!verified || (!access && !failure)) {
     return verified || session.restoring || session.profile
       ? <p className="muted" role="status">{t('checking')}</p>
@@ -49,7 +55,7 @@ export function StaffHome() {
 
   return (
     <section className="card card-pad stack" aria-labelledby="staff-home-title">
-      <h1 id="staff-home-title">{t('title')}</h1>
+      <h1 ref={headingRef} id="staff-home-title" tabIndex={-1}>{t('title')}</h1>
       <dl className="dl">
         <dt>{t('username')}</dt>
         <dd>{access.username}</dd>

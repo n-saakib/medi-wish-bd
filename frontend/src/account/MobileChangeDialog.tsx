@@ -81,7 +81,8 @@ export function MobileChangeDialog({ open, disabled, returnFocus, onClose, onSub
   return (
     <dialog ref={dialog} className="profile-dialog" aria-labelledby="mobile-dialog-title"
       onCancel={(event) => { event.preventDefault(); close(); }}
-      onClose={() => { if (open && !submittingRef.current) { onClose(); returnFocus(); } }}>
+      // A close event queued by an earlier close can arrive after Change reopened the dialog; only a closed dialog closes the state.
+      onClose={() => { if (open && !submittingRef.current && !dialog.current?.open) { onClose(); returnFocus(); } }}>
       <form method="post" onSubmit={(event) => void submit(event)} noValidate className="stack">
         <h2 id="mobile-dialog-title">{t('changeMobileTitle')}</h2>
         {error && <div id="new-mobile-error"><Alert tone="danger">{tErrors(error)}</Alert></div>}

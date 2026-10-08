@@ -41,7 +41,10 @@
     "submitting": "Creating account…",
     "haveAccount": "Have an account?",
     "signIn": "Sign in",
-    "invalid": "Check your details. Usernames use 3–20 letters, numbers, dots, hyphens or underscores, with at least one letter."
+    "usernameInvalid": "Use 3–20 letters, numbers, dots, hyphens or underscores, with at least one letter.",
+    "mobileInvalid": "Enter an 11-digit mobile number.",
+    "emailInvalid": "Enter a valid email address, or leave it empty.",
+    "passwordInvalid": "Enter a password of 6–30 characters."
   },
   "account": {
     "title": "Your account",
@@ -168,6 +171,7 @@
     "saved": "Product saved.", "pricingSaved": "Pricing saved.",
     "mrpInput": "MRP ({currency})", "sellingPrice": "Selling price ({currency})", "savePricing": "Save pricing",
     "moderatorPricingNote": "Moderators can’t change prices.",
+    "priceRequiredModerator": "An Admin must add a price before this product can be active.",
     "lastEdited": "Last edited by {username} · version {version}",
     "changeHistory": "Change history", "createdBy": "Created by {username}",
     "activatedBy": "Activated by {username}", "deactivatedBy": "Deactivated by {username}",

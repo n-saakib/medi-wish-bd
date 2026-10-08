@@ -13,3 +13,5 @@ Status labels use the static design tones: Active uses the success green chip, N
 Money headers and cells use the design numeric style for right alignment and tabular figures. Nonempty page ranges count the rows actually returned. An empty page with a positive total says No products on this page instead of displaying an inverted range; Previous remains available to return to existing results.
 
 Accessibility correction (2026-10-08): Previous and Next keep the current rows and pager mounted while the next page loads, and [`usePagerFocus`](../shell/usePagerFocus.ts.md) keeps keyboard focus in the pager when the pressed button becomes disabled on the first or last page. The range text is a polite live region, and each Edit link is named `Edit {product}`.
+
+Closing-pass fixes (2026-10-08): the table is named `Products`.

@@ -134,6 +134,7 @@ describe('ProfileForm', () => {
     await submitForm(view);
     await settle();
     expect(view.textContent).toContain('Your account is closing.');
+    expect(document.activeElement?.textContent).toBe('Your account is closing.');
     for (const input of view.querySelectorAll('input')) expect(input.disabled).toBe(true);
     expect(requiredElement<HTMLButtonElement>(view, 'button[type="submit"]').disabled).toBe(true);
   });
@@ -373,16 +374,36 @@ describe('ProfileForm', () => {
     expect(view.textContent).toContain('01700000000');
     expect(view.textContent).toContain('New number 01700000001 is waiting for verification.');
     expect(requiredElement(view, '[role="status"]').textContent).toBe('Your account is closing.');
+    expect(document.activeElement?.textContent).not.toBe('Your account is closing.');
     for (const input of view.querySelectorAll('input')) expect(input.disabled).toBe(true);
     for (const button of view.querySelectorAll('button')) {
       if (!button.closest('dialog')) expect(button.disabled).toBe(true);
     }
   });
 
+  it('keeps a reopened dialog open when the close event from the previous close arrives late', async () => {
+    const { source: session } = source(() => Response.json(profile));
+    const view = await renderWithSession(createElement(ProfileForm), session);
+    const change = [...view.querySelectorAll('button')].find((button) => button.textContent === 'Change')!;
+    const dialog = requiredElement<HTMLDialogElement>(view, 'dialog');
+    await act(async () => change.click());
+    await act(async () => requiredElement<HTMLButtonElement>(view, 'dialog button[type="button"]').click());
+    expect(dialog.open).toBe(false);
+    await act(async () => change.click());
+    expect(dialog.open).toBe(true);
+    // The native close event of the first close, delivered only now.
+    await act(async () => dialog.dispatchEvent(new Event('close')));
+    expect(dialog.open).toBe(true);
+    expect(document.activeElement).toBe(requiredElement(view, '#new-mobile'));
+  });
+
   it('cancels a dialog without POST, then closes a successful stage and returns focus to Change', async () => {
     const { calls, source: session } = source((_path, init) => init.method === 'POST'
       ? Response.json({ ...profile, pendingMobile: '01700000001' }, { status: 202 }) : Response.json(profile));
     const view = await renderWithSession(createElement(ProfileForm), session);
+    const note = requiredElement(view, '.profile-pending-note');
+    expect(note.getAttribute('role')).toBe('status');
+    expect(note.textContent).toBe('');
     const change = [...view.querySelectorAll('button')].find((button) => button.textContent === 'Change')!;
     await act(async () => change.click());
     setInputValue(view, '#new-mobile', '01700000001');
@@ -399,6 +420,10 @@ describe('ProfileForm', () => {
     expect(requiredElement<HTMLDialogElement>(view, 'dialog').open).toBe(false);
     expect(document.activeElement).toBe(change);
     expect(view.textContent).toContain('New number 01700000001 is waiting for verification.');
+    // The note's live region exists before staging, so the note is announced when it appears, without Cancel change.
+    expect(note.textContent).toBe('New number 01700000001 is waiting for verification.');
+    expect(note.closest('.profile-pending')).not.toBeNull();
+    expect(note.querySelector('button')).toBeNull();
     expect(calls.filter(({ init }) => init.method === 'POST')).toHaveLength(1);
   });
 });

@@ -9,7 +9,7 @@ The English catalog supplies all user-visible text through `next-intl`. Server r
 ## Namespaces
 
 - `metadata`, `header` and `home`: document titles, shell navigation, store preparation and sign-out notices.
-- `signIn` and `register`: authentication fields, notices and submit states. Registration states the 3–20 character username rule and the 6–30 character password hint.
+- `signIn` and `register`: authentication fields, notices and submit states. Registration states the 6–30 character password hint and one message per refused field: `usernameInvalid`, `mobileInvalid`, `emailInvalid` and `passwordInvalid`; a server `INVALID_REQUEST` uses `errors.checkDetails`.
 - `account`: current account labels, session loading, sign-out and **Edit profile** navigation.
 - `profile`: profile metadata title, loading, editable field labels with the Email/Date of birth optional marker, the 11-digit New mobile hint, mobile verification chips, pending-number interpolation, stage/cancel controls, save, reload and mobile-change-cancelled notices and client field errors. The mobile dialog explains that the current number stays active and text-message verification is coming later.
 - `staffMfa` and `staffHome`: authenticator enrollment/challenge, once-only backup-code presentation, verified staff identity and the Users and roles, Products and Categories link names.
@@ -30,3 +30,5 @@ Product and Category stale-edit banners keep their feature-specific guidance nex
 Accessibility additions (2026-10-08): `staffHome.staffPages` names the staff link landmark; `catalog.editProduct` titles the Product edit page; `catalog.editNamed` and `categories.editNamed` (`Edit {name}`) give each row's Edit control a distinct accessible name.
 
 UX additions (2026-10-08): `catalog.moneyRange` (“Enter an amount from 0.01 to 9,999,999.99.”), `catalog.priceSetMrpRemoved` (“Price set to {price} (MRP removed) by {username}”) and `catalog.breadcrumb` for the Product editor's link back to Products. The user chose this copy on 2026-10-08.
+
+Closing-pass additions (2026-10-08): `register.usernameInvalid`, `register.mobileInvalid`, `register.emailInvalid` and `register.passwordInvalid` replace the removed `register.invalid`; `catalog.priceRequiredModerator` (“An Admin must add a price before this product can be active.”) tells a Moderator who must price a Product.
