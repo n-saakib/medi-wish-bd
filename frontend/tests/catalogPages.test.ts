@@ -468,6 +468,45 @@ describe('catalog lists', () => {
     ]);
   });
 
+  it.each([
+    ['STALE_UPDATE', 409, 'This record changed after you opened it. Reload and try again.'],
+    ['ACCESS_DENIED', 403, 'You don’t have permission to do that.'],
+    ['NOT_FOUND', 404, 'This could not be found.'],
+  ] as const)('uses the shared plan copy for %s', async (code, status, message) => {
+    const { session } = source((path) => path.startsWith('/api/staff/categories?')
+      ? Response.json({ items: [category], page: 0, size: 50, totalItems: 1 })
+      : Response.json({ code }, { status }));
+    const page = await renderWithSession(createElement(ProductList), session);
+    expect(requiredElement(page, '[role="alert"]').textContent).toContain(message);
+  });
+
+  it.each(['products', 'categories'] as const)('keeps Previous available on an empty %s page after the total shrinks', async (kind) => {
+    const { session } = source((path, init) => {
+      if (path.startsWith(`/api/staff/${kind}?`)) {
+        const page = Number(new URL(path, 'http://test').searchParams.get('page'));
+        return Response.json({ items: page === 2 ? [] : [kind === 'products' ? product : category],
+          page, size: 20, totalItems: page === 2 ? 40 : 41 });
+      }
+      return fixture()(path, init);
+    });
+    const page = await renderWithSession(createElement(kind === 'products' ? ProductList : CategoryManager), session);
+    const button = (label: string) => [...page.querySelectorAll<HTMLButtonElement>('button')].find((item) => item.textContent === label)!;
+    for (let count = 0; count < 2; count++) { await act(async () => button('Next').click()); await settle(); }
+    expect(page.textContent).toContain(kind === 'products' ? 'No products on this page.' : 'No categories on this page.');
+    expect(page.textContent).not.toContain('Showing');
+    expect(button('Previous').disabled).toBe(false);
+    expect(button('Next').disabled).toBe(true);
+    await act(async () => button('Previous').click()); await settle();
+    expect(page.textContent).toContain('Showing 21–21 of 41');
+  });
+
+  it('aligns product money headings and values with the design numeric columns', async () => {
+    const { session } = source(fixture());
+    const page = await renderWithSession(createElement(ProductList), session);
+    expect([...page.querySelectorAll('thead th.num')].map((item) => item.textContent)).toEqual(['MRP', 'Price']);
+    expect([...page.querySelectorAll('tbody td.num')].map((item) => item.textContent)).toEqual(['৳12.00', '৳11.50']);
+  });
+
   it('renders the paged product table and price strings', async () => {
     const { session } = source(fixture());
     const page = await renderWithSession(createElement(ProductList), session);
@@ -677,7 +716,7 @@ describe('catalog lists', () => {
     const page = await renderWithSession(createElement(CategoryManager), session);
     await act(async () => [...page.querySelectorAll('button')].find((button) => button.textContent === 'Next')!.click());
     await settle();
-    expect(page.textContent).toContain('Showing 21–40 of 41');
+    expect(page.textContent).toContain('Showing 21–21 of 41');
     await act(async () => [...page.querySelectorAll('button')].find((button) => button.textContent === 'Edit')!.click());
     setInputValue(page, '#category-name', 'Renamed');
     await submitForm(page);
@@ -695,7 +734,7 @@ describe('catalog lists', () => {
     };
     const { session } = source(reply);
     const page = await renderWithSession(createElement(CategoryManager), session);
-    const button = (label: string) => [...page.querySelectorAll('button')].find((item) => item.textContent === label)!;
+    const button = (label: string) => [...page.querySelectorAll<HTMLButtonElement>('button')].find((item) => item.textContent === label)!;
     await act(async () => button('Edit').click());
     setInputValue(page, '#category-name', 'Pain and fever');
     await submitForm(page);

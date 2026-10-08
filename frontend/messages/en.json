@@ -105,18 +105,18 @@
     "mfaCodeInvalid": "The code is invalid or has already been used.",
     "mfaEnrollmentStale": "This setup has expired. Start again.",
     "tooManyAttempts": "Too many attempts. Try again later.",
-    "staleUpdate": "Someone saved this record while you were editing. Review their changes first.",
+    "staleUpdate": "This record changed after you opened it. Reload and try again.",
     "priceRequired": "Add a price before activating this product.",
     "categoryNameTaken": "A category with this name already exists.",
-    "accessDenied": "Access is denied.",
-    "notFound": "The record was not found."
+    "accessDenied": "You don’t have permission to do that.",
+    "notFound": "This could not be found."
   },
   "catalog": {
     "currency": "৳",
     "products": "Products", "newProduct": "New product", "edit": "Edit",
     "searchProducts": "Search products", "category": "Category", "allCategories": "All categories",
     "status": "Status", "allStatuses": "Any status", "reviewOnly": "Review required only",
-    "apply": "Apply", "previous": "Previous", "next": "Next", "showing": "Showing {start}–{end} of {total}",
+    "emptyPage": "No products on this page.", "apply": "Apply", "previous": "Previous", "next": "Next", "showing": "Showing {start}–{end} of {total}",
     "product": "Product", "saleUnitColumn": "Sale unit", "mrp": "MRP", "price": "Price", "flags": "Flags",
     "review": "Review", "activeStatus": "Active", "inactiveStatus": "Inactive", "needsPrice": "Needs price",
     "needsPriceFilter": "Needs price (not purchasable)", "notSet": "Not set",
@@ -155,7 +155,7 @@
     "saved": "Category saved.", "required": "Enter a category name.",
     "nameTaken": "A category with this name already exists.",
     "stale": "Someone saved this category while you were editing. Review their changes first.",
-    "loading": "Loading categories…", "empty": "No categories yet.", "retry": "Try again",
+    "emptyPage": "No categories on this page.", "loading": "Loading categories…", "empty": "No categories yet.", "retry": "Try again",
     "showing": "Showing {start}–{end} of {total}", "next": "Next", "previous": "Previous"
   }
 }

@@ -13,3 +13,7 @@ Category-create response-loss regressions similarly commit a synthetic category 
 Mounted design regressions verify status text and chip tones for all three Product list and editor states, Review information tone and both Category states. These assertions preserve readable text alongside color.
 
 On 2026-10-07 the focused file passed 43/43 tests after the new list and editor/category tone regressions demonstrated failures against the old chip-brand rendering. The complete frontend verify gate passed 354 units in 17 files, lint, types and production build; browser checks remain separate.
+
+On 2026-10-08, mounted shared-error copy regressions protect the exact plan strings. Pager regressions simulate the total shrinking while navigating: both lists show truthful empty-page copy, preserve Previous, disable Next, and display the actual row range after going back. A numeric-column regression checks the MRP and Price headings and cells use the design alignment style. Pager and numeric regressions failed before their fixes; all 49 catalog component tests then passed.
+
+The complete frontend verification also passed on 2026-10-08: lint, TypeScript, 360 unit tests in 17 files, and the production build. Browser and live integration evidence are recorded separately.

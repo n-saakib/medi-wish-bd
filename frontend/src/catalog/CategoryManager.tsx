@@ -119,8 +119,8 @@ export function CategoryManager() {
         </tr>)}</tbody></table></div>
       {result.totalItems === 0 && <p className="card-pad">{t('empty')}</p>}
       {result.totalItems > 0 && <div className="catalog-pager">
-        <span>{t('showing', { start: result.page * result.size + 1,
-          end: Math.min((result.page + 1) * result.size, result.totalItems), total: result.totalItems })}</span>
+        <span>{result.items.length === 0 ? t('emptyPage') : t('showing', { start: result.page * result.size + 1,
+          end: Math.min(result.page * result.size + result.items.length, result.totalItems), total: result.totalItems })}</span>
         <div><button className="btn btn-secondary" disabled={pending || page === 0} onClick={() => turnPage(page - 1)}>{t('previous')}</button>
           <button className="btn btn-secondary" disabled={pending || (page + 1) * result.size >= result.totalItems}
             onClick={() => turnPage(page + 1)}>{t('next')}</button></div>

@@ -9,3 +9,5 @@ The table scrolls within its card at narrow widths. Buttons and links use the sh
 Unset amounts show the accepted “Not set” copy. Status choices distinguish “Any status” and “Needs price (not purchasable)” from the shorter row status chips; all copy comes from messages.
 
 Status labels use the static design tones: Active uses the success green chip, Needs price uses warning amber, Inactive uses the neutral base chip, and Review uses the information blue chip. Text remains present in every chip.
+
+Money headers and cells use the design numeric style for right alignment and tabular figures. Nonempty page ranges count the rows actually returned. An empty page with a positive total says No products on this page instead of displaying an inverted range; Previous remains available to return to existing results.

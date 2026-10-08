@@ -7,3 +7,5 @@ The verified staff Categories page. It lists 20 categories per page with product
 After a successful save or stale Reload, the outdated table is replaced by the loading state until the refreshed page arrives, so stale rows and paging controls cannot imply that the new category is missing. The table scrolls internally on narrow screens. `tests/catalogPages.test.ts` checks inline duplicate-name responses and a held post-save reload; Ticket 14 browser tests cover create, rename, deactivate and paging.
 
 Category status chips use success green for Active and the neutral base chip for Inactive, retaining their readable labels.
+
+Nonempty page ranges count the categories actually returned. If concurrent changes leave the current page empty while earlier pages still exist, it says No categories on this page and preserves Previous navigation instead of displaying an inverted range.

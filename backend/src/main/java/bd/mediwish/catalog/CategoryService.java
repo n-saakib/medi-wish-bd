@@ -1,5 +1,6 @@
 package bd.mediwish.catalog;
 
+import bd.mediwish.web.StaleUpdateException;
 import bd.mediwish.auth.CurrentUserAuthentication.CurrentUser;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;

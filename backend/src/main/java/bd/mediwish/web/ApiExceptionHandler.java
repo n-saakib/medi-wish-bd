@@ -11,7 +11,6 @@ import bd.mediwish.catalog.InvalidCatalogException;
 import bd.mediwish.catalog.InvalidMoneyException;
 import bd.mediwish.catalog.CatalogAccessDeniedException;
 import bd.mediwish.catalog.CatalogNotFoundException;
-import bd.mediwish.catalog.StaleUpdateException;
 import bd.mediwish.catalog.PriceRequiredException;
 import bd.mediwish.catalog.CategoryNameTakenException;
 import bd.mediwish.catalog.IdConflictException;

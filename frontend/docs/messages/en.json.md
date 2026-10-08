@@ -30,3 +30,7 @@ Only English is configured. The message file contains static presentation copy, 
 ## Verification
 
 The unit tests render components with this catalog and assert the exact English strings for labels, hints, notices and alerts. `npm run build` also confirms every key used by the server pages resolves.
+
+The shared errors use the exact coordinated plan wording for stale updates, access denied and not found; page-specific stale explanations remain available.
+
+The shared stale-update, access-denied and not-found messages match the exact Ticket 14 shared contract. Product and Category stale-edit banners retain their feature-specific guidance. Empty-page messages distinguish a page with no returned rows from an entirely empty catalog.

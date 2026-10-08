@@ -57,9 +57,9 @@ export function ProductList() {
       status: (status || undefined) as ProductStatus | undefined, reviewRequired: reviewOnly || undefined, page: 0 });
   }
 
-  const showing = result && result.totalItems > 0 ? t('showing', {
+  const showing = result && result.items.length > 0 ? t('showing', {
     start: result.page * result.size + 1,
-    end: Math.min((result.page + 1) * result.size, result.totalItems), total: result.totalItems,
+    end: Math.min(result.page * result.size + result.items.length, result.totalItems), total: result.totalItems,
   }) : null;
   return <main className="container page stack">
     <div className="catalog-heading"><h1>{t('products')}</h1><Link className="btn btn-primary" href="/staff/products/new">{t('newProduct')}</Link></div>
@@ -86,18 +86,18 @@ export function ProductList() {
       <Link className="btn btn-primary" href="/staff/products/new">{t('newProduct')}</Link></div>}
     {result && result.totalItems > 0 && <div className="card">
       <div className="catalog-table-scroll"><table className="catalog-table"><thead><tr>
-        <th>{t('product')}</th><th>{t('category')}</th><th>{t('saleUnitColumn')}</th><th>{t('mrp')}</th>
-        <th>{t('price')}</th><th>{t('flags')}</th><th>{t('status')}</th><th><span className="sr-only">{t('edit')}</span></th>
+        <th>{t('product')}</th><th>{t('category')}</th><th>{t('saleUnitColumn')}</th><th className="num">{t('mrp')}</th>
+        <th className="num">{t('price')}</th><th>{t('flags')}</th><th>{t('status')}</th><th><span className="sr-only">{t('edit')}</span></th>
       </tr></thead><tbody>{result.items.map((item) => <tr key={item.id}>
         <td><strong>{item.name}</strong><span className="catalog-secondary">{[item.genericName, item.dosageForm, item.manufacturer].filter(Boolean).join(' · ')}</span></td>
         <td>{item.categoryName}</td><td>{item.saleUnit}</td>
-        <td>{item.mrp ? formatTaka(item.mrp, t('currency')) : t('notSet')}</td>
-        <td>{item.sellingPrice ? formatTaka(item.sellingPrice, t('currency')) : t('notSet')}</td>
+        <td className="num">{item.mrp ? formatTaka(item.mrp, t('currency')) : t('notSet')}</td>
+        <td className="num">{item.sellingPrice ? formatTaka(item.sellingPrice, t('currency')) : t('notSet')}</td>
         <td>{item.requireValidation && <span className="chip chip-info">{t('review')}</span>}</td>
         <td><span className={item.status === 'ACTIVE' ? 'chip chip-success' : item.status === 'NEEDS_PRICE' ? 'chip chip-warn' : 'chip'}>{t(item.status === 'ACTIVE' ? 'activeStatus' : item.status === 'INACTIVE' ? 'inactiveStatus' : 'needsPrice')}</span></td>
         <td><Link className="btn btn-secondary" href={`/staff/products/${item.id}`}>{t('edit')}</Link></td>
       </tr>)}</tbody></table></div>
-      <div className="catalog-pager"><span>{showing}</span><div>
+      <div className="catalog-pager"><span>{showing ?? t('emptyPage')}</span><div>
         <button className="btn btn-secondary" disabled={result.page === 0} onClick={() => { setResult(null); setFilter({ ...filter, page: result.page - 1 }); }}>{t('previous')}</button>
         <button className="btn btn-secondary" disabled={(result.page + 1) * result.size >= result.totalItems}
           onClick={() => { setResult(null); setFilter({ ...filter, page: result.page + 1 }); }}>{t('next')}</button>

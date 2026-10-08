@@ -31,7 +31,7 @@ Makes `ADMIN`, `MODERATOR` or `DELIVERY_PERSON` (`GrantableRole`) the only role 
 
 ## Shared SQL helpers
 
-These helpers are shared by Tickets 08, 11 and 14, and changes to this file must be coordinated across their open branches so that their merges do not conflict. This documents the coordination requirement, not proof of current cross-branch parity. They touch only tables that already exist on `dev`. A helper that reads a table a ticket adds lives in that ticket's own support file (for example `roleChangeRows` in `apiSession.ts`, `storedProfile` and `setAccountState` in `profileSupport.ts`), and it uses `psql` and `checkedTarget` from here.
+These helpers are shared by Tickets 08, 11 and 14, and the file is kept byte-identical on their branches so that their merges do not conflict. They touch only tables that already exist on `dev`. A helper that reads a table a ticket adds lives in that ticket's own support file (for example `roleChangeRows` in `apiSession.ts`, `storedProfile` and `setAccountState` in `profileSupport.ts`), and it uses `psql` and `checkedTarget` from here.
 
 - **`psql(sql)`** runs SQL as the cluster administrator on `medi_wish_test` and returns the trimmed output. Build SQL only after `checkedTarget` has checked the names in it.
 - **`checkedTarget(helper, username?)`** returns this run's schema after checking it is `mw_browser_<12 hex>`, and that `username` (when given) is synthetic (`[a-z0-9._]{3,50}`). `helper` names the caller in the error, so `grantRole`'s messages are unchanged.

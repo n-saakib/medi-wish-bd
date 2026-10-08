@@ -89,6 +89,7 @@ p { margin: 0 0 .75rem; }
 .catalog-table-scroll { width: 100%; overflow-x: auto; }
 .catalog-table { width: 100%; min-width: 720px; border-collapse: collapse; text-align: left; }
 .catalog-table th, .catalog-table td { padding: 12px 16px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.catalog-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .catalog-table th { position: relative; font-size: .82rem; color: var(--muted); }
 .catalog-table tr:last-child td { border-bottom: 0; }
 .catalog-secondary { display: block; color: var(--muted); font-size: .85rem; }

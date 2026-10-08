@@ -2,6 +2,7 @@ package bd.mediwish.catalog;
 
 import bd.mediwish.auth.CurrentUserAuthentication.CurrentUser;
 import bd.mediwish.auth.MfaStatus;
+import bd.mediwish.web.StaleUpdateException;
 import bd.mediwish.user.UserProfile;
 import bd.mediwish.user.UserRepository;
 import bd.mediwish.user.UserRole;

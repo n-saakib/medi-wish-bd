@@ -1,5 +1,6 @@
 package bd.mediwish.catalog;
 
+import bd.mediwish.web.StaleUpdateException;
 import bd.mediwish.auth.CurrentUserAuthentication.CurrentUser;
 import bd.mediwish.user.UserRepository;
 import org.slf4j.MDC;

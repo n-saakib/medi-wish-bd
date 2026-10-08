@@ -30,3 +30,5 @@ Catalog field grids use a zero minimum track so a native select with an accepted
 [`src/app/layout.tsx`](layout.tsx.md) imports this file once. On 2026-09-26 `npm run lint` and `npm run build` passed with this stylesheet, and again on 2026-09-27 with the staff MFA additions. Responsive and focus appearance is a browser concern; baseline verification is recorded in the Ticket 03.01 evidence and the catalog keyboard/mobile checks in Ticket 14 evidence.
 
 Catalog chips now port the exact design information, success and warning text/background/border tokens. The base chip supplies neutral background, muted text and line border; chip-brand remains the existing brand variant. Only variants used by delivered pages are included.
+
+Product MRP and price headers/cells use .num for right alignment and tabular numerals, matching the staff-products design.
