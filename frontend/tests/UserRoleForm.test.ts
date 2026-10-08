@@ -161,7 +161,7 @@ describe('UserRoleForm permissions and failures', () => {
     const page = await renderWithSession(createElement(UserRoleForm, { userId: detail.id }), createSessionClient({ fetch: api.fetch }));
     await settle();
     expect(requiredElement(page, '[aria-label="Change history"]').textContent)
-      .toMatch(/^Changed from Customer to Moderator by a deleted account · \d{1,2} [A-Z][a-z]{2} \d{4}, \d{1,2}:\d{2}$/);
+      .toMatch(/^Changed from Customer to Moderator by a deleted account · \d{1,2} [A-Z][a-z]{2} \d{4}, \d{1,2}:\d{2} [ap]m$/);
   });
   it.each([
     ['NOT_FOUND', 404, 'This user could not be found.'],

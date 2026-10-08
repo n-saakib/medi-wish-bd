@@ -90,7 +90,28 @@ describe('Product editor', () => {
     const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
     const time = requiredElement<HTMLTimeElement>(page, 'ol[aria-label="Change history"] time');
     expect(time.dateTime).toBe('2026-09-27T11:00:00Z');
-    expect(time.textContent?.replace(/\u202f/g, ' ')).toContain('Sep 27, 2026, 5:00 PM');
+    expect(time.textContent).toBe('27 Sep 2026, 5:00 pm');
+  });
+
+  it('says when a pricing change removed the MRP', async () => {
+    const withHistory: Product = { ...product, mrp: null, history: [{
+      occurredAt: '2026-09-27T11:00:00Z', actorUsername: 'owner.admin', changeType: 'PRICE_CHANGED',
+      oldSellingPrice: '11.50', newSellingPrice: '12.50', oldMrp: '12.00', newMrp: null,
+      oldRequireValidation: null, newRequireValidation: null,
+    }] };
+    const { session } = source(fixture('ADMIN', withHistory));
+    const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
+    expect(requiredElement(page, 'ol[aria-label="Change history"] strong').textContent)
+      .toBe('Price set to ৳12.50 (MRP removed) by owner.admin');
+  });
+
+  it.each([['malformed', 'not-a-product-id'], ['edit', product.id]])('links the %s product page back to Products', async (_, productId) => {
+    const { session } = source(fixture());
+    const page = await renderWithSession(createElement(ProductEditor, { productId }), session);
+    const back = requiredElement<HTMLAnchorElement>(page, 'nav[aria-label="Breadcrumb"] a');
+    expect(back.getAttribute('href')).toBe('/staff/products');
+    expect(back.textContent).toBe('Products');
+    if (productId !== product.id) expect(requiredElement(page, 'h1').textContent).toBe('Product not found.');
   });
 
   it('shows retry instead of an incomplete new form when categories cannot load', async () => {
@@ -275,6 +296,47 @@ describe('Product editor', () => {
     expect(page.textContent).toContain('Someone saved this product while you were editing.');
     expect(page.querySelector('button')?.textContent).toBeDefined();
     expect([...page.querySelectorAll('button')].some((button) => button.textContent === 'Reload')).toBe(true);
+    await act(async () => [...page.querySelectorAll('button')].find((button) => button.textContent === 'Reload')!.click());
+    await settle();
+    expect(page.textContent).not.toContain('Someone saved this product while you were editing.');
+    expect(document.activeElement).toBe(requiredElement(page, 'h1'));
+  });
+
+  it('focuses the activation field once a server price refusal re-enables the form', async () => {
+    const inactive: Product = { ...product, active: false, status: 'INACTIVE' };
+    const reply: Reply = (path, init) => init.method === 'PUT'
+      ? Response.json({ code: 'PRICE_REQUIRED' }, { status: 409 }) : fixture('ADMIN', inactive)(path, init);
+    const { session } = source(reply);
+    const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
+    await act(async () => requiredElement<HTMLInputElement>(page, '#catalog-active').click());
+    await submitForm(page);
+    await settle();
+    expect(requiredElement(page, '#catalog-active-error').textContent).toBe('Add a price before activating this product.');
+    expect(document.activeElement).toBe(requiredElement(page, '#catalog-active'));
+  });
+
+  it('confirms a created Product once on its own page and focuses the confirmation', async () => {
+    const reply: Reply = (path, init) => path === '/api/staff/products' && init.method === 'POST'
+      ? Response.json({ ...product, kind: 'EQUIPMENT', genericName: null, dosageForm: null }) : fixture()(path, init);
+    const { session } = source(reply);
+    const created = await renderWithSession(createElement(ProductEditor), session);
+    await act(async () => requiredElement<HTMLInputElement>(created, '#catalog-kind-equipment').click());
+    setInputValue(created, '#catalog-name', 'Nebulizer');
+    setInputValue(created, '#catalog-saleUnit', 'One device');
+    await act(async () => {
+      const select = requiredElement<HTMLSelectElement>(created, '#catalog-categoryId');
+      select.value = category.id;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+    await submitForm(created);
+    expect(router.replace).toHaveBeenCalledWith(`/staff/products/${product.id}`);
+    await unmountAll();
+    const opened = await renderWithSession(createElement(ProductEditor, { productId: product.id }), source(fixture()).session);
+    expect(requiredElement(opened, '[role="status"]').textContent).toBe('Product saved.');
+    expect(document.activeElement).toBe(requiredElement(opened, '[role="status"]'));
+    await unmountAll();
+    const reopened = await renderWithSession(createElement(ProductEditor, { productId: product.id }), source(fixture()).session);
+    expect(reopened.textContent).not.toContain('Product saved.');
   });
 
   it.each([
@@ -419,16 +481,37 @@ describe('Product editor', () => {
     expect(page.textContent).toContain('Product saved.');
     expect(requests.filter(({ init }) => init.method === 'PUT')).toHaveLength(2);
   });
-  it('rejects a zero selling price and zero MRP before sending pricing', async () => {
+  it.each([
+    ['0.00', '0', 'Enter an amount from 0.01 to 9,999,999.99.', 'Enter an amount from 0.01 to 9,999,999.99.'],
+    ['10000000', '1.234', 'Enter an amount from 0.01 to 9,999,999.99.', 'Enter an amount like 125.50.'],
+    ['00000001', '12,00', 'Enter an amount like 125.50.', 'Enter an amount like 125.50.'],
+  ])('refuses selling price %s and MRP %s before sending pricing', async (selling, mrp, sellingError, mrpError) => {
     const { requests, session } = source(fixture());
     const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
-    setInputValue(page, '#catalog-sellingPrice', '0.00');
-    setInputValue(page, '#catalog-mrp', '0');
+    setInputValue(page, '#catalog-sellingPrice', selling);
+    setInputValue(page, '#catalog-mrp', mrp);
     await act(async () => requiredElement<HTMLFormElement>(page, '[aria-label="Pricing"] form')
       .dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })));
-    expect(requiredElement(page, '#catalog-sellingPrice-error').textContent).toBe('Enter an amount like 125.50.');
-    expect(requiredElement(page, '#catalog-mrp-error').textContent).toBe('Enter an amount like 125.50.');
+    expect(requiredElement(page, '#catalog-sellingPrice-error').textContent).toBe(sellingError);
+    expect(requiredElement(page, '#catalog-mrp-error').textContent).toBe(mrpError);
     expect(requests.filter(({ path }) => path.endsWith('/pricing'))).toEqual([]);
+  });
+
+  it('trims spaces around amounts before checking and sending pricing', async () => {
+    const prices: unknown[] = [];
+    const reply: Reply = (path, init) => {
+      if (!path.endsWith('/pricing')) return fixture()(path, init);
+      prices.push(JSON.parse(String(init.body)));
+      return Response.json({ ...product, sellingPrice: '9999999.99', mrp: null, version: 3 });
+    };
+    const { session } = source(reply);
+    const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
+    setInputValue(page, '#catalog-sellingPrice', ' 9999999.99 ');
+    setInputValue(page, '#catalog-mrp', '  ');
+    await submitForm(requiredElement(page, '[aria-label="Pricing"]'));
+    await settle();
+    expect(prices).toEqual([{ sellingPrice: '9999999.99', mrp: null, version: 2 }]);
+    expect(page.textContent).toContain('Pricing saved.');
   });
 });
 
@@ -512,7 +595,9 @@ describe('catalog lists', () => {
     const page = await renderWithSession(createElement(ProductList), session);
     expect(requiredElement(page, 'tbody tr').textContent).toContain('৳11.50');
     expect(page.textContent).toContain('Showing 1–1 of 1');
-    expect(requiredElement<HTMLAnchorElement>(page, `a[href="/staff/products/${product.id}"]`).textContent).toBe('Edit');
+    const edit = requiredElement<HTMLAnchorElement>(page, `a[href="/staff/products/${product.id}"]`);
+    expect(edit.textContent).toBe('Edit');
+    expect(edit.getAttribute('aria-label')).toBe('Edit Napa 500');
   });
 
   it('applies filters then pages without putting search data in the URL', async () => {
@@ -585,6 +670,7 @@ describe('catalog lists', () => {
     await settle();
     expect(page.textContent).toContain('A category with this name already exists.');
     expect(requiredElement(page, '#category-name').getAttribute('aria-describedby')).toBe('category-name-error');
+    expect(document.activeElement).toBe(requiredElement(page, '#category-name'));
   });
 
   it.each(['identical', 'edited'] as const)('recovers a %s category create retry after its committed response is lost without duplication', async (retry) => {
@@ -673,6 +759,8 @@ describe('catalog lists', () => {
     await submitForm(page);
     await settle();
     expect(page.textContent).toContain('Category saved.');
+    expect(document.activeElement?.getAttribute('role')).toBe('status');
+    expect(document.activeElement?.textContent).toBe('Category saved.');
     expect(page.querySelector('table')).toBeNull();
     await act(async () => refreshed.resolve(Response.json({ items: [{ ...category, name: 'Renamed', version: 1 }],
       page: 0, size: 20, totalItems: 1 })));
@@ -699,6 +787,34 @@ describe('catalog lists', () => {
     await settle();
     expect(reads).toBe(2);
     expect(page.querySelector('#category-name')).toBeNull();
+    expect(document.activeElement).toBe(requiredElement(page, 'h1'));
+    expect([...page.querySelectorAll('button')].find((button) => button.textContent === 'Edit')!.getAttribute('aria-label'))
+      .toBe('Edit Pain relief');
+  });
+
+  it.each(['products', 'categories'] as const)('keeps the %s page and keyboard focus in the pager while Next loads the last page', async (kind) => {
+    const next = deferred<Response>();
+    const { session } = source((path, init) => {
+      if (path.startsWith(`/api/staff/${kind}?`)) {
+        const page = Number(new URL(path, 'http://test').searchParams.get('page'));
+        const items = [kind === 'products' ? product : category];
+        return page === 0 ? Response.json({ items, page, size: 20, totalItems: 21 }) : next.promise.then(() =>
+          Response.json({ items, page, size: 20, totalItems: 21 }));
+      }
+      return fixture()(path, init);
+    });
+    const page = await renderWithSession(createElement(kind === 'products' ? ProductList : CategoryManager), session);
+    const button = (label: string) => [...page.querySelectorAll<HTMLButtonElement>('button')].find((item) => item.textContent === label)!;
+    button('Next').focus();
+    await act(async () => button('Next').click());
+    expect(page.querySelector('tbody tr')).not.toBeNull();
+    expect(page.textContent).toContain('Showing 1–1 of 21');
+    await act(async () => next.resolve(new Response()));
+    await settle();
+    const range = [...page.querySelectorAll('span')].find((item) => item.textContent === 'Showing 21–21 of 21')!;
+    expect(range.getAttribute('aria-live')).toBe('polite');
+    expect(button('Next').disabled).toBe(true);
+    expect(document.activeElement).toBe(button('Previous'));
   });
 
   it('pages categories and refreshes the current page after a save', async () => {

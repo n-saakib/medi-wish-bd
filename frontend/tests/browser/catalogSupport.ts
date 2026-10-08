@@ -46,6 +46,7 @@ export const copy = {
   categoryRequired: 'Choose a category.',
   sellingPriceRequired: 'Enter a selling price.',
   moneyFormat: 'Enter an amount like 125.50.',
+  moneyRange: 'Enter an amount from 0.01 to 9,999,999.99.',
   priceAboveMrp: 'The selling price can’t be more than the MRP.',
   saleUnitHint: 'Customers buy this exact unit. No pack conversions are calculated. To sell singles and strips, create two products.',
 } as const;

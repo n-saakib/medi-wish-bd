@@ -260,6 +260,7 @@ substitute.
 | `010-staff-mfa` | Creates `staff_mfa_factors`, `staff_mfa_backup_codes`, `staff_mfa_throttle`, `staff_bootstrap` and `security_audit_events` with their checks, partial unique indexes, foreign keys and indexes; adds nullable `mfa_factor_id` and `mfa_verified_at` to `user_sessions`. | Implements staff MFA, the one-time first-Admin bootstrap and the security audit trail. Existing sessions keep `NULL` evidence and continue to refresh. |
 | `011-staff-role-changes` | Converts legacy multi-role rows to each highest role, enforces exactly one role at commit, adds roles_version and user_role_changes. | Conversion preserves sessions; an actual assignment atomically versions, audits and revokes sessions. |
 | `012-user-profile` | Adds optional name/DOB, version and constrained account state to `users`; creates `user_mobile_changes` with a unique User FK and cascading delete. | Existing accounts default to active/version zero. The pending replacement is separate from the active mobile until verified activation. |
+| `014-role-required-search-path` | Pins the `user_role_required()` trigger function's `search_path` to the schema it was migrated into, then `pg_temp`. | The one-role check reads this schema's `users` and `user_roles` whatever the writing session's search path, so operator SQL neither fails nor checks same-named tables elsewhere. Fixes 011 forward without editing it. |
 
 When a later ticket changes persistence, add a new append-only changeset and
 update this page in the same change. Do not rewrite an applied changeset to

@@ -9,6 +9,7 @@ import { errorMessageKey, type ErrorMessageKey } from '../lib/api';
 import { createCatalogClient, formatTaka, type Category, type Page, type ProductFilter, type ProductSummary,
   type ProductStatus } from '../lib/catalog';
 import { Alert } from '../shell/Alert';
+import { usePagerFocus } from '../shell/usePagerFocus';
 
 export function ProductList() {
   const t = useTranslations('catalog');
@@ -29,6 +30,7 @@ export function ProductList() {
   const failure = categoryFailure ?? productFailure;
   const [retry, setRetry] = useState(0);
   const reload = useCallback(() => setRetry((value) => value + 1), []);
+  const { pager, markTurn } = usePagerFocus(result);
 
   useEffect(() => {
     if (!ready) return;
@@ -95,12 +97,13 @@ export function ProductList() {
         <td className="num">{item.sellingPrice ? formatTaka(item.sellingPrice, t('currency')) : t('notSet')}</td>
         <td>{item.requireValidation && <span className="chip chip-info">{t('review')}</span>}</td>
         <td><span className={item.status === 'ACTIVE' ? 'chip chip-success' : item.status === 'NEEDS_PRICE' ? 'chip chip-warn' : 'chip'}>{t(item.status === 'ACTIVE' ? 'activeStatus' : item.status === 'INACTIVE' ? 'inactiveStatus' : 'needsPrice')}</span></td>
-        <td><Link className="btn btn-secondary" href={`/staff/products/${item.id}`}>{t('edit')}</Link></td>
+        <td><Link className="btn btn-secondary" href={`/staff/products/${item.id}`}
+          aria-label={t('editNamed', { name: item.name })}>{t('edit')}</Link></td>
       </tr>)}</tbody></table></div>
-      <div className="catalog-pager"><span>{showing ?? t('emptyPage')}</span><div>
-        <button className="btn btn-secondary" disabled={result.page === 0} onClick={() => { setResult(null); setFilter({ ...filter, page: result.page - 1 }); }}>{t('previous')}</button>
+      <div className="catalog-pager" ref={pager}><span aria-live="polite">{showing ?? t('emptyPage')}</span><div>
+        <button className="btn btn-secondary" disabled={result.page === 0} onClick={() => { markTurn(); setFilter({ ...filter, page: result.page - 1 }); }}>{t('previous')}</button>
         <button className="btn btn-secondary" disabled={(result.page + 1) * result.size >= result.totalItems}
-          onClick={() => { setResult(null); setFilter({ ...filter, page: result.page + 1 }); }}>{t('next')}</button>
+          onClick={() => { markTurn(); setFilter({ ...filter, page: result.page + 1 }); }}>{t('next')}</button>
       </div></div>
     </div>}
   </main>;
