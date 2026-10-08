@@ -130,12 +130,12 @@ function historyItems(page: Page): Locator {
 }
 
 /**
- * One Change history line: "Changed from Customer to Moderator by owner.admin · 27 Sep 2026, 9:02". A null actor (their
+ * One Change history line: "Changed from Customer to Moderator by owner.admin · 27 Sep 2026, 9:02 am" (Asia/Dhaka). A null actor (their
  * User no longer exists) reads "by a deleted account".
  */
 function historyLine(from: RoleOption, to: RoleOption, actor: string | null): RegExp {
   return new RegExp(`^Changed from ${from} to ${to} by ${actor === null ? deletedActor : escapeRegExp(actor)}`
-    + ' · \\d{1,2} [A-Z][a-z]{2} \\d{4}, \\d{1,2}:\\d{2}$');
+    + ' · \\d{1,2} [A-Z][a-z]{2} \\d{4}, \\d{1,2}:\\d{2} [ap]m$');
 }
 
 /** The target's open browser: the next page load finds the session revoked and lands on sign-in. */

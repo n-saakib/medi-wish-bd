@@ -89,6 +89,26 @@ describe('UserList states and filters', () => {
     expect(await api.requests.at(-1)?.clone().json()).toEqual({ username: 'other', role: 'MODERATOR', page: 0 });
     expect(api.requests.every((request) => !request.url.includes('demo'))).toBe(true);
   });
+  it('keeps the page and keyboard focus in the pager while Next loads the last page', async () => {
+    const next = deferred<Response>();
+    const api = listApi(async (request) => {
+      const body = await request.clone().json() as { page?: number };
+      return body.page ? next.promise : Response.json({ ...firstPage, totalItems: 21 });
+    });
+    const page = await renderWithSession(createElement(UserList), createSessionClient({ fetch: api.fetch }));
+    await settle();
+    const button = (label: string) => [...page.querySelectorAll<HTMLButtonElement>('button')].find((item) => item.textContent === label)!;
+    button('Next').focus();
+    await act(async () => button('Next').click());
+    await settle();
+    expect(requiredElement(page, 'tbody').textContent).toContain(user.username);
+    await act(async () => next.resolve(Response.json({ ...firstPage, page: 1, totalItems: 21 })));
+    await settle();
+    const range = [...page.querySelectorAll('span')].find((item) => item.textContent === 'Showing 21–21 of 21')!;
+    expect(range.getAttribute('aria-live')).toBe('polite');
+    expect(button('Next').disabled).toBe(true);
+    expect(document.activeElement).toBe(button('Previous'));
+  });
   it('ignores an old search response once a newer search finished', async () => {
     const old = deferred<Response>();
     const api = listApi(async (request) => {

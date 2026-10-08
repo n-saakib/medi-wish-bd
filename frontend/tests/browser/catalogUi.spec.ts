@@ -97,6 +97,11 @@ test.describe('pages without the catalog API', () => {
           .allInnerTexts()).toEqual(expected);
       };
       await expectLinks(page, ['Users and roles', 'Products', 'Categories']);
+      await expect(page.getByRole('navigation', { name: 'Staff pages' })).toBeVisible();
+      await page.getByRole('link', { name: 'Products', exact: true }).click();
+      await expect(page).toHaveTitle('Products · Medi Wish');
+      await page.getByRole('link', { name: 'New product' }).first().click();
+      await expect(page).toHaveTitle('New product · Medi Wish');
 
       const moderator = await browser.newContext();
       try {
@@ -106,6 +111,7 @@ test.describe('pages without the catalog API', () => {
         await moderatorPage.getByRole('link', { name: 'Categories', exact: true }).click();
         await expect(moderatorPage).toHaveURL('/staff/categories');
         await expect(moderatorPage.getByRole('heading', { level: 1, name: 'Categories' })).toBeVisible();
+        await expect(moderatorPage).toHaveTitle('Categories · Medi Wish');
       } finally {
         await moderator.close();
       }
@@ -147,6 +153,7 @@ test.describe('pages without the catalog API', () => {
       for (const id of ['not-a-uuid', '6C1D9A0E-2B7F-4E11-8D3A-5F0E9B2C7A14x', '1']) {
         await page.goto(`/staff/products/${id}`);
         await expect(page.getByText(copy.productNotFound)).toBeVisible();
+        await expect(page).toHaveTitle('Edit product · Medi Wish');
       }
       expect(requests.filter((request) => request.includes('/api/staff/products/'))).toEqual([]);
     });
@@ -171,10 +178,12 @@ test.describe('categories page', () => {
       await categories.name.fill(existing.name.toUpperCase());
       await categories.save.click();
       await expect(categories.name).toHaveAccessibleDescription(literal(copy.categoryNameTaken));
+      // The server's refusal returns focus to the re-enabled name field, which announces the description.
+      await expect(categories.name).toBeFocused();
 
       await categories.name.fill(name);
       await categories.save.click();
-      await expect(page.getByRole('status').filter({ hasText: copy.categorySaved })).toBeVisible();
+      await expect(page.getByRole('status').filter({ hasText: copy.categorySaved })).toBeFocused();
       // The run's schema is shared, so the new row may be on any page.
       const { row } = await showCategory(page, name);
       await expect(row.getByRole('cell', { name: '0', exact: true })).toBeVisible();
@@ -360,6 +369,8 @@ test.describe('product pages', () => {
       await editor.category.selectOption({ label: category.name });
       await editor.save.click();
       await expect(page.getByRole('heading', { level: 1, name })).toBeVisible();
+      // The new Product's page confirms the save and keeps keyboard focus on the confirmation.
+      await expect(editor.status(copy.productSaved)).toBeFocused();
       // The kind is fixed once created.
       await expect(page.getByRole('radio')).toHaveCount(0);
       await expect(page.getByText('Equipment', { exact: true })).toBeVisible();
@@ -423,6 +434,11 @@ test.describe('product pages', () => {
         await editor.sellingPrice.fill(value);
         await editor.savePricing.click();
         await expect(editor.sellingPrice, value).toHaveAccessibleDescription(literal(copy.moneyFormat));
+      }
+      for (const value of ['0', '0.00', '10000000']) {
+        await editor.sellingPrice.fill(value);
+        await editor.savePricing.click();
+        await expect(editor.sellingPrice, value).toHaveAccessibleDescription(literal(copy.moneyRange));
       }
       await editor.mrp.fill('12.00');
       await editor.sellingPrice.fill('12.01');
@@ -551,8 +567,11 @@ test.describe('product pages', () => {
       await expect(list.row(`List ${mark} 02`).getByText('Review', { exact: true })).toBeVisible();
       await expect(list.row(`List ${mark} 02`).getByText('Review', { exact: true }))
         .toHaveCSS('color', 'rgb(29, 95, 191)');
-      await list.next.click();
+      // Keyboard paging: the last page disables Next, so focus moves to Previous rather than the page body.
+      await list.next.focus();
+      await page.keyboard.press('Enter');
       await expect(page.getByText('Showing 21–22 of 22')).toBeVisible();
+      await expect(list.previous).toBeFocused();
       await expect(list.rows).toHaveCount(2);
       await expect(list.row(`List ${mark} 21`)).toContainText('৳9,999,999.99');
       await expect(list.row(`List ${mark} 21`)).toContainText('Inactive');
@@ -600,8 +619,10 @@ test.describe('product pages', () => {
     const requests = catalogRequests(page);
     const id = randomUUID();
     await page.goto(`/staff/products/${id}`);
-    await expect(page.getByText(copy.productNotFound)).toBeVisible();
+    await expect(page.getByRole('heading', { name: copy.productNotFound })).toBeVisible();
     expect(requests).toContain(`GET /api/staff/products/${id}`);
+    await page.getByRole('navigation', { name: 'Breadcrumb' }).getByRole('link', { name: 'Products' }).click();
+    await expect(page).toHaveURL('/staff/products');
   });
 
   test('E2E-14-41 keyboard only: an Admin creates, prices, activates and then edits Equipment; fields are labelled, targets 44 × 44 px',

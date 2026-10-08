@@ -7,6 +7,7 @@ import { useSession } from '../auth/SessionProvider';
 import { useSessionRedirect } from '../auth/sessionRedirect';
 import { isUserId, loadUserRoles, saveRole, userRoles, type UserRole, type UserRoles } from '../lib/adminUsers';
 import { errorMessageKey } from '../lib/api';
+import { formatDateTime } from '../lib/dateTime';
 import { Alert } from '../shell/Alert';
 
 type Failure = 'staleUpdate' | 'roleChangeRefused' | 'accessDenied' | 'notFound' | 'genericError';
@@ -78,13 +79,6 @@ export function UserRoleForm({ userId }: { userId: string }) {
   const loadFailure = !isUserId(userId) ? 'notFound' : loaded?.id === userId ? loaded.failure : undefined;
   const adminDisabled = data ? !data.assignableRoles.includes('ADMIN') : false;
   const note = data?.self ? 'selfNote' : data?.superAdmin ? 'superAdminNote' : adminDisabled ? 'adminNote' : null;
-  function date(instant: string) {
-    const parts = new Intl.DateTimeFormat('en', {
-      day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hourCycle: 'h23',
-    }).formatToParts(new Date(instant));
-    const part = (name: Intl.DateTimeFormatPartTypes) => parts.find((value) => value.type === name)?.value;
-    return `${part('day')} ${part('month')} ${part('year')}, ${part('hour')}:${part('minute')}`;
-  }
   return (
     <main className="container page stack admin-users">
       <nav className="breadcrumb" aria-label={t('breadcrumb')}><Link className="btn btn-ghost" href="/admin/users">{t('title')}</Link></nav>
@@ -124,7 +118,7 @@ export function UserRoleForm({ userId }: { userId: string }) {
             {data.roleChanges.length === 0 ? <p className="muted">{t('emptyHistory')}</p>
               : <ul className="role-history" aria-label={t('history')}>{data.roleChanges.map((change, index) => <li key={index}>
                 {t('change', { oldRole: roles(change.oldRole), newRole: roles(change.newRole),
-                  actor: change.actorUsername ?? t('deletedActor'), date: date(change.occurredAt) })}
+                  actor: change.actorUsername ?? t('deletedActor'), date: formatDateTime(change.occurredAt) })}
               </li>)}</ul>}
           </section>
         </>}

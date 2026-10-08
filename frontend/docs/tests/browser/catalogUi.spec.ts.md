@@ -30,3 +30,7 @@ The mobile fixture creates its own unique 80-character category, exercising the 
 Run the T3 and T5 gates with `npm run test:browser -- --grep @t14-T3` or `--grep @t14-T5`, including earlier Ticket 14 gates. Dated Ticket 14 evidence records the executed checks and the separate cumulative browser gate; this mirror does not treat a focused rerun as full-story completion.
 
 The existing product list/paging scenario also asserts computed text colors from the static design: Active rgb(23,122,59), Needs price rgb(154,91,0), Inactive rgb(90,110,103) and Review rgb(29,95,191), while retaining text visibility checks.
+
+Accessibility additions (2026-10-08): E2E-14-04 also checks the `Staff pages` navigation landmark and the Products, New product and Categories page titles; E2E-14-06 checks the `Edit product` title; E2E-14-31 checks focus on the name field after a duplicate and on the saved notice; E2E-14-34 checks the focused Product saved confirmation after create; the product paging scenario presses Enter on Next and expects focus on Previous.
+
+UX additions (2026-10-08): E2E-14-36 also checks that 0, 0.00 and 10000000 get the range message; E2E-14-40 checks that not-found is a heading and its Breadcrumb link returns to `/staff/products`.

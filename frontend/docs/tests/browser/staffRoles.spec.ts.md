@@ -16,3 +16,5 @@ Ticket 08's end-to-end browser tests: the **Users and roles** pages (`/admin/use
 ## Running
 
 Build the backend jar first, then run one gate at a time, for example `npm run test:browser -- --grep @t08-T5`. `npx playwright test --grep @smoke` runs `E2E-08-46` with the Ticket 06 smoke test.
+
+History lines now end with the shared Asia/Dhaka 12-hour time, such as `27 Sep 2026, 9:02 am` (2026-10-08).
