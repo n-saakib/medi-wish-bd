@@ -27,7 +27,8 @@ const maxJsonResponseBytes = 16 * 1024;
 const maxErrorCodeLength = 64;
 
 export type ErrorMessageKey = 'authenticationFailed' | 'duplicateUser' | 'mfaRequired' | 'mfaCodeInvalid'
-  | 'mfaEnrollmentStale' | 'tooManyAttempts' | 'invalidResponse' | 'genericError';
+  | 'mfaEnrollmentStale' | 'tooManyAttempts' | 'invalidResponse' | 'genericError'
+  | 'staleUpdate' | 'priceRequired' | 'categoryNameTaken' | 'accessDenied' | 'notFound';
 
 /** The `errors` message key for a failure. Codes the UI does not tell apart share the generic message. */
 export function errorMessageKey(reason: unknown): ErrorMessageKey {
@@ -46,6 +47,11 @@ export function errorMessageKey(reason: unknown): ErrorMessageKey {
       return 'tooManyAttempts';
     case 'INVALID_RESPONSE':
       return 'invalidResponse';
+    case 'STALE_UPDATE': return 'staleUpdate';
+    case 'PRICE_REQUIRED': return 'priceRequired';
+    case 'CATEGORY_NAME_TAKEN': return 'categoryNameTaken';
+    case 'ACCESS_DENIED': return 'accessDenied';
+    case 'NOT_FOUND': return 'notFound';
     default:
       return 'genericError';
   }
@@ -71,8 +77,8 @@ export function invalidResponse(status: number): ApiError {
   return new ApiError('INVALID_RESPONSE', status);
 }
 
-/** Reads at most 16 KiB of JSON, whatever `Content-Length` claims. */
-export async function readJsonResponse(response: Response): Promise<unknown> {
+/** Reads bounded JSON, whatever `Content-Length` claims. */
+export async function readJsonResponse(response: Response, maxBytes = maxJsonResponseBytes): Promise<unknown> {
   const reader = response.body?.getReader();
   if (!reader) throw invalidResponse(response.status);
 
@@ -83,7 +89,7 @@ export async function readJsonResponse(response: Response): Promise<unknown> {
       const { done, value } = await reader.read();
       if (done) break;
       byteLength += value.byteLength;
-      if (byteLength > maxJsonResponseBytes) {
+      if (byteLength > maxBytes) {
         void reader.cancel().catch(() => undefined);
         throw invalidResponse(response.status);
       }

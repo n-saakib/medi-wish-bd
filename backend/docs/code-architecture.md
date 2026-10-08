@@ -291,4 +291,8 @@ sequenceDiagram
 
 Update this page when a backend package, route, adapter, persistence boundary,
 authentication transport or authorization rule changes. Do not diagram planned
-OTP, recovery, catalog or order behavior as implemented.
+OTP, recovery or order behavior as implemented.
+
+## Ticket 14 catalog boundary
+
+`bd.mediwish.catalog` owns pure Product and money rules, Category/Product/history JPA mappings, repositories, and transactional services. Categories and Products are created with PostgreSQL `INSERT ... ON CONFLICT (id) DO NOTHING`; a matching normalized request receives the stored record and a changed payload conflicts. Mutations lock one Product or Category row, reject stale changed intent, and keep history in the same transaction. Product search is paged; history username projections avoid loading each actor's role collection. The shared `bd.mediwish.web` package enforces the staff catalog/pricing route matrix, current-role MFA access, bounded catalog errors and authorized JSON body limits. CatalogController delegates through strict catalog-local request shapes without changing authentication JSON binding.

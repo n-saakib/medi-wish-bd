@@ -7,6 +7,15 @@ import bd.mediwish.auth.MfaCodeInvalidException;
 import bd.mediwish.auth.MfaEnrollmentStaleException;
 import bd.mediwish.auth.TooManyAttemptsException;
 import bd.mediwish.user.UserService;
+import bd.mediwish.catalog.InvalidCatalogException;
+import bd.mediwish.catalog.InvalidMoneyException;
+import bd.mediwish.catalog.CatalogAccessDeniedException;
+import bd.mediwish.catalog.CatalogNotFoundException;
+import bd.mediwish.catalog.StaleUpdateException;
+import bd.mediwish.catalog.PriceRequiredException;
+import bd.mediwish.catalog.CategoryNameTakenException;
+import bd.mediwish.catalog.IdConflictException;
+import org.hibernate.exception.ConstraintViolationException;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.ResponseEntity;
@@ -28,7 +37,7 @@ class ApiExceptionHandler {
     }
 
     @ExceptionHandler({InvalidRequestException.class, UserService.InvalidRegistrationException.class,
-            HttpMessageNotReadableException.class})
+            HttpMessageNotReadableException.class, InvalidCatalogException.class, InvalidMoneyException.class})
     ResponseEntity<ApiErrors.Body> invalidRequest(HttpServletRequest request) {
         return error(ApiError.INVALID_REQUEST, request);
     }
@@ -63,8 +72,45 @@ class ApiExceptionHandler {
         return error(ApiError.TOO_MANY_ATTEMPTS, request);
     }
 
+    @ExceptionHandler(CatalogAccessDeniedException.class)
+    ResponseEntity<ApiErrors.Body> catalogAccessDenied(HttpServletRequest request) {
+        return error(ApiError.ACCESS_DENIED, request);
+    }
+
+    @ExceptionHandler(CatalogNotFoundException.class)
+    ResponseEntity<ApiErrors.Body> catalogNotFound(HttpServletRequest request) {
+        return error(ApiError.NOT_FOUND, request);
+    }
+
+    @ExceptionHandler(StaleUpdateException.class)
+    ResponseEntity<ApiErrors.Body> staleUpdate(HttpServletRequest request) {
+        return error(ApiError.STALE_UPDATE, request);
+    }
+
+    @ExceptionHandler(PriceRequiredException.class)
+    ResponseEntity<ApiErrors.Body> priceRequired(HttpServletRequest request) {
+        return error(ApiError.PRICE_REQUIRED, request);
+    }
+
+    @ExceptionHandler(CategoryNameTakenException.class)
+    ResponseEntity<ApiErrors.Body> categoryNameTaken(HttpServletRequest request) {
+        return error(ApiError.CATEGORY_NAME_TAKEN, request);
+    }
+
+    @ExceptionHandler(IdConflictException.class)
+    ResponseEntity<ApiErrors.Body> idConflict(HttpServletRequest request) {
+        return error(ApiError.ID_CONFLICT, request);
+    }
+
     @ExceptionHandler({DataAccessException.class, TransactionException.class})
-    ResponseEntity<ApiErrors.Body> persistenceFailure(HttpServletRequest request) {
+    ResponseEntity<ApiErrors.Body> persistenceFailure(Exception failure, HttpServletRequest request) {
+        for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ConstraintViolationException violation
+                    && "23505".equals(violation.getSQLState())
+                    && "uk_product_categories_name".equals(violation.getConstraintName())) {
+                return error(ApiError.CATEGORY_NAME_TAKEN, request);
+            }
+        }
         return error(ApiError.INTERNAL_ERROR, request);
     }
 

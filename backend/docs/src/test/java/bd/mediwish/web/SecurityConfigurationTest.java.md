@@ -2,10 +2,4 @@
 
 Source: [`src/test/java/bd/mediwish/web/SecurityConfigurationTest.java`](../../../../../../../src/test/java/bd/mediwish/web/SecurityConfigurationTest.java)
 
-## Purpose
-
-Unit tests for `SecurityConfiguration`, built through `WebTestFixtures` without starting the application or PostgreSQL.
-
-## Verification
-
-Insecure auth cookies fail startup unless every active profile is `local` or `test` (no profile, `production`, `staging` and mixed lists fail); Secure cookies are accepted under any profile. CORS is credentialed and limited to the configured origins, methods `GET`, `POST`, `HEAD`, `OPTIONS` and headers `Authorization`, `Content-Type`, `X-XSRF-TOKEN`; only a local profile falls back to the loopback frontend origins, and a wildcard origin fails. With Secure cookies and no active profile, the `XSRF-TOKEN` cookie is Secure, not HttpOnly, scoped to `/api` and `SameSite=Lax`.
+Tests configuration without PostgreSQL: insecure-cookie profile restrictions, credentialed explicit CORS origins and methods including PUT, local fallback, wildcard-origin rejection and hosted CSRF cookie attributes. The catalog PUT wildcard matches exactly one segment and never captures pricing; pricing belongs to protected Bearer and CSRF-exempt command matchers. CatalogSecurityTest executes the production security chain for actor admission and body-limit ordering.

@@ -18,6 +18,10 @@ Package-private enum that is the single owner of public API error codes, their H
 | `METHOD_NOT_ALLOWED` | 405 |
 | `DUPLICATE_USER` | 409 |
 | `MFA_ENROLLMENT_STALE` | 409 |
+| `STALE_UPDATE` | 409 |
+| `PRICE_REQUIRED` | 409 |
+| `CATEGORY_NAME_TAKEN` | 409 |
+| `ID_CONFLICT` | 409 |
 | `TOO_MANY_ATTEMPTS` | 429 |
 | `INTERNAL_ERROR` | 500 |
 
@@ -30,3 +34,5 @@ Package-private enum that is the single owner of public API error codes, their H
 ## Verification
 
 `ApiErrorsTest` checks that every constant has an externalized message and covers the status classification, including 429.
+
+Ticket 14 adds 409 STALE_UPDATE (changed stale intent), PRICE_REQUIRED (unpriced activation), CATEGORY_NAME_TAKEN (case-insensitive name collision) and ID_CONFLICT (different payload reusing a create UUID). Each has an externalized message.

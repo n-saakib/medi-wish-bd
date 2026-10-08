@@ -1,34 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
-import { readBackupCodes, readManualKey, register, signIn, syntheticCustomer, watchPage, type Customer } from './support';
-import { apiUrl, grantRole } from './testApi';
+import { enroll, readBackupCodes, register, registeredAdmin, signIn, syntheticCustomer, watchPage, type Customer } from './support';
+import { grantRole } from './testApi';
 import { totpCode, totpStep } from './totp';
-
-/** Registers through the API, as the shortest way to an existing User, and grants ADMIN as an operator would. */
-async function registeredAdmin(page: Page): Promise<Customer> {
-  const admin = syntheticCustomer();
-  const { username, mobile, email, password } = admin;
-  expect((await page.request.post(`${apiUrl}/api/auth/register`, { data: { username, mobile, email, password } })).status())
-    .toBe(201);
-  grantRole(admin.username, 'ADMIN');
-  return admin;
-}
-
-/** On the setup page: reads the manual key, verifies the current code and waits for the backup codes. */
-async function enroll(page: Page): Promise<{ key: string; step: number }> {
-  await expect(page).toHaveURL('/staff/mfa/enroll');
-  const key = await readManualKey(page);
-  const step = totpStep();
-  await page.getByLabel('Enter the 6-digit code').fill(totpCode(key, step));
-  await page.getByRole('button', { name: 'Verify' }).click();
-  await expect(page.getByRole('heading', { name: 'Backup codes (shown once)' })).toBeFocused();
-  return { key, step };
-}
 
 async function expectVerifiedAccess(page: Page, admin: Customer): Promise<void> {
   await expect(page).toHaveURL('/staff');
   const access = page.getByRole('region', { name: 'Staff access verified' });
   await expect(access.getByText(admin.username, { exact: true })).toBeVisible();
-  await expect(access.getByText('Admin, Customer', { exact: true })).toBeVisible();
+  await expect(access.getByText('Admin', { exact: true })).toBeVisible();
   // Only the provisioned first Admin is the Super Admin; a role granted in SQL is not.
   await expect(access.getByText('Super Admin')).toHaveCount(0);
 }

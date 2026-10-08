@@ -1,0 +1,15 @@
+# `tests/catalogPages.test.ts`
+
+Source: [`tests/catalogPages.test.ts`](../../tests/catalogPages.test.ts)
+
+Mounted jsdom coverage for staff catalog UI with synthetic session and API responses. It checks new-product loading failure/retry, failed-create draft preservation, field boundaries and required errors, Equipment create body, an existing inactive category, Moderator read-only pricing, no-op saves, stale update handling, a pending pricing submission, positive whole and mixed-scale decimal pricing, zero-money rejection, clearing a selling-price error after correcting only MRP, clearing the activation price error after pricing succeeds without losing the catalog draft, price-version reuse, the visible Dhaka-local history timestamp with its original API instant, product list formatting/paging/empty/error states, and category duplicate/rename/stale/paging/current-page refresh and held-save editor guards. Mounted copy regressions verify unset price/MRP and exact status choices, plus details history and both review-flag directions. These protect the fixed acceptance strings rather than changing the product policy. Held-response regressions check that both forms lock during catalog and pricing saves, then unlock with drafts preserved after either success or failure; a failed create also restores its kind and draft controls. The real browser suite covers navigation, access, keyboard and layout behavior.
+
+The post-save category reload is held pending in a mounted regression: the success notice remains while outdated rows/paging are replaced by loading, then the renamed row appears after the held response settles.
+
+Product-create response-loss regressions use a stateful API boundary: the first POST stores the Product before rejecting transport, an identical retry returns it, and an edited retry must retain the UUID, refuse duplication and preserve the entered draft until the operator selects Reload.
+
+Category-create response-loss regressions similarly commit a synthetic category before transport fails. Identical retry recovers it and refreshes the list; edited retry retains the UUID and entered name, shows bounded generic error copy, and offers Reload to close the editor and refresh the stored category without creating another one.
+
+Mounted design regressions verify status text and chip tones for all three Product list and editor states, Review information tone and both Category states. These assertions preserve readable text alongside color.
+
+On 2026-10-07 the focused file passed 43/43 tests after the new list and editor/category tone regressions demonstrated failures against the old chip-brand rendering. The complete frontend verify gate passed 354 units in 17 files, lint, types and production build; browser checks remain separate.

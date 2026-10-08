@@ -15,14 +15,17 @@ This is the English message catalog consumed by `next-intl`. All user-visible co
 - `register` — page title, field labels, the `(optional)` email marker, the `6–30 characters` password hint, submit/busy text, the link to sign-in, and `invalid`, which explains the username rule (3–50 allowed characters with at least one letter) when the API rejects a request as `INVALID_REQUEST`.
 - `account` — account page title, the `Checking your session…` status shown while the session restores and the profile loads, profile labels and sign-out button/busy text.
 - `staffMfa` — authenticator setup and code pages: page titles, step labels, the QR label, the `Can’t scan?` disclosure and key label, the code label and 6-digit format hint, verify/busy text, the preparing status and retry, the `enrollmentRestarted` notice after an expired setup, the challenge copy and `Sign out`, and the backup-code heading, once-only warning, list label, `Copy all`, `Copied`, copy-failure alert and `I’ve saved them`.
-- `staffHome` — staff landing page title, `Staff access verified` heading, checking status, username and roles labels, the `Super Admin` label and display names for the roles `ADMIN`, `MODERATOR`, `CUSTOMER` and `DELIVERY_PERSON`.
-- `errors` — copy for API failures, chosen by `errorMessageKey` from the error code: `authenticationFailed` (sign-in details do not match), `duplicateUser` (a taken username, mobile number or email), `mfaRequired`, `mfaCodeInvalid`, `mfaEnrollmentStale`, `tooManyAttempts`, `invalidResponse` and the fallback `genericError`. The API's own message text is never shown.
+- `staffHome` — verified staff summary and Products/Categories links for Admin and Moderator, plus role names.
+- `catalog` — Product list filters, row labels, editor fields, pricing, audit history, validation, stale/empty/loading/saved states and the BDT currency symbol used by `formatTaka`.
+  Unset money uses “Not set”; filter text is “Any status”/“Needs price (not purchasable),” while chips stay concise. History distinguishes details edits and each review-flag direction.
+- `categories` — category list, inline editor, paging and validation states.
+- `errors` — bounded copy selected by `errorMessageKey` for authentication/MFA, stale update, price required, duplicate category, access denied, not found, invalid response and the generic fallback. The API's own message text is never shown.
 
 Each namespace belongs to one feature; new text should be added under the owning namespace. The page-level `signIn.title`, `register.title` and `account.title` also serve as the route metadata titles.
 
 ## Current boundary
 
-Only English is configured. The catalog is static presentation copy: it contains no product data, prices, medical advice, user input or backend responses, and error messages describe outcomes without backend diagnostics. There is no copy for forgot-password, terms, privacy, OTP, backup-code sign-in, MFA recovery, search, cart or orders because those features are not part of this slice. Backup codes and setup keys are never message values; they are rendered from component state. The product name is a brand term, so spellcheck warnings for `Medi` do not indicate a typo.
+Only English is configured. The message file contains static presentation copy, including the BDT symbol, but no Product data, prices, medical advice, user input or backend response text. There is no copy for storefront search, cart or orders. Backup codes and setup keys remain component state.
 
 ## Verification
 

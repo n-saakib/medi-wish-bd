@@ -8,6 +8,8 @@ This directory mirrors the checked-in backend build and source tree. Each page d
 
 The source files remain the executable source of truth. A mirrored page records the current purpose, behavior, reasoning, use cases and test boundary for that file. When a source file changes, update its matching page in the same change. The Maven wrapper and generated `target/` output are build tooling or generated artifacts, so they are outside this source mirror.
 
+Catalog checks cover control characters before trimming, stable persisted timestamp precision, full pre-existing user/session migration snapshots, immutable audit timestamps and deterministic category coverage in query-count comparisons.
+
 ## Architecture maps
 
 | Map | Documentation |
@@ -54,3 +56,61 @@ The source files remain the executable source of truth. A mirrored page records 
 | Request correlation | [`RequestCorrelationFilterTest.java.md`](src/test/java/bd/mediwish/web/RequestCorrelationFilterTest.java.md) — one server-generated UUID across normal and ERROR dispatches; one final status event, no premature 200, and no caller-supplied ID reflection |
 
 Local commands, environment rules and dependency research are maintained in the repository's agent runbooks when those local-only files are present; the mirrored pages above document the behavior that the source tree itself guarantees.
+
+## Catalog
+
+Staff catalog routes use strict local request binding, typed public projections, current-role MFA authorization and bounded errors. The controller and security pages below document adapter checks; PostgreSQL journeys document transactions and durable behavior.
+
+| Source | Documentation |
+| --- | --- |
+| `src/main/java/bd/mediwish/catalog/Money.java` | [Money](src/main/java/bd/mediwish/catalog/Money.java.md) |
+| `src/main/java/bd/mediwish/catalog/InvalidMoneyException.java` | [Invalid money](src/main/java/bd/mediwish/catalog/InvalidMoneyException.java.md) |
+| `src/test/java/bd/mediwish/catalog/MoneyTest.java` | [Money tests](src/test/java/bd/mediwish/catalog/MoneyTest.java.md) |
+| `src/main/java/bd/mediwish/catalog/CatalogArea.java` | [CatalogArea](src/main/java/bd/mediwish/catalog/CatalogArea.java.md) |
+| `src/main/java/bd/mediwish/catalog/ProductKind.java` | [ProductKind](src/main/java/bd/mediwish/catalog/ProductKind.java.md) |
+| `src/main/java/bd/mediwish/catalog/ProductStatus.java` | [ProductStatus](src/main/java/bd/mediwish/catalog/ProductStatus.java.md) |
+| `src/main/java/bd/mediwish/catalog/ProductChangeType.java` | [ProductChangeType](src/main/java/bd/mediwish/catalog/ProductChangeType.java.md) |
+| `src/main/java/bd/mediwish/catalog/InvalidCatalogException.java` | [InvalidCatalogException](src/main/java/bd/mediwish/catalog/InvalidCatalogException.java.md) |
+| `src/main/java/bd/mediwish/catalog/PriceRequiredException.java` | [PriceRequiredException](src/main/java/bd/mediwish/catalog/PriceRequiredException.java.md) |
+| `src/main/java/bd/mediwish/catalog/IdConflictException.java` | [IdConflictException](src/main/java/bd/mediwish/catalog/IdConflictException.java.md) |
+| `src/main/java/bd/mediwish/catalog/StaleUpdateException.java` | [StaleUpdateException](src/main/java/bd/mediwish/catalog/StaleUpdateException.java.md) |
+| `src/main/java/bd/mediwish/catalog/CategoryNameTakenException.java` | [CategoryNameTakenException](src/main/java/bd/mediwish/catalog/CategoryNameTakenException.java.md) |
+| `src/main/java/bd/mediwish/catalog/CatalogNotFoundException.java` | [CatalogNotFoundException](src/main/java/bd/mediwish/catalog/CatalogNotFoundException.java.md) |
+| `src/main/java/bd/mediwish/catalog/CatalogAccessDeniedException.java` | [CatalogAccessDeniedException](src/main/java/bd/mediwish/catalog/CatalogAccessDeniedException.java.md) |
+| `src/main/java/bd/mediwish/catalog/CatalogAuthorization.java` | [CatalogAuthorization](src/main/java/bd/mediwish/catalog/CatalogAuthorization.java.md) |
+| `src/main/java/bd/mediwish/catalog/CatalogViews.java` | [CatalogViews](src/main/java/bd/mediwish/catalog/CatalogViews.java.md) |
+| `src/main/java/bd/mediwish/catalog/ProductRules.java` | [ProductRules](src/main/java/bd/mediwish/catalog/ProductRules.java.md) |
+| `src/main/java/bd/mediwish/catalog/Category.java` | [Category](src/main/java/bd/mediwish/catalog/Category.java.md) |
+| `src/main/java/bd/mediwish/catalog/CategoryRepository.java` | [CategoryRepository](src/main/java/bd/mediwish/catalog/CategoryRepository.java.md) |
+| `src/main/java/bd/mediwish/catalog/CategoryService.java` | [CategoryService](src/main/java/bd/mediwish/catalog/CategoryService.java.md) |
+| `src/main/java/bd/mediwish/catalog/Product.java` | [Product](src/main/java/bd/mediwish/catalog/Product.java.md) |
+| `src/main/java/bd/mediwish/catalog/ProductRepository.java` | [ProductRepository](src/main/java/bd/mediwish/catalog/ProductRepository.java.md) |
+| `src/main/java/bd/mediwish/catalog/ProductChange.java` | [ProductChange](src/main/java/bd/mediwish/catalog/ProductChange.java.md) |
+| `src/main/java/bd/mediwish/catalog/ProductChangeRepository.java` | [ProductChangeRepository](src/main/java/bd/mediwish/catalog/ProductChangeRepository.java.md) |
+| `src/main/java/bd/mediwish/catalog/ProductService.java` | [ProductService](src/main/java/bd/mediwish/catalog/ProductService.java.md) |
+| `src/test/java/bd/mediwish/catalog/ProductRulesTest.java` | [ProductRulesTest](src/test/java/bd/mediwish/catalog/ProductRulesTest.java.md) |
+| `src/test/java/bd/mediwish/catalog/CategoryServiceTest.java` | [CategoryServiceTest](src/test/java/bd/mediwish/catalog/CategoryServiceTest.java.md) |
+| `src/test/java/bd/mediwish/catalog/ProductServiceTest.java` | [ProductServiceTest](src/test/java/bd/mediwish/catalog/ProductServiceTest.java.md) |
+| `src/test/java/bd/mediwish/catalog/CatalogTestApi.java` | [CatalogTestApi](src/test/java/bd/mediwish/catalog/CatalogTestApi.java.md) |
+| `src/test/java/bd/mediwish/catalog/CatalogTestApiTest.java` | [CatalogTestApiTest](src/test/java/bd/mediwish/catalog/CatalogTestApiTest.java.md) |
+| `src/test/java/bd/mediwish/catalog/StaffCatalogIT.java` | [StaffCatalogIT](src/test/java/bd/mediwish/catalog/StaffCatalogIT.java.md) |
+| `src/test/java/bd/mediwish/catalog/StaffCategoryIT.java` | [StaffCategoryIT](src/test/java/bd/mediwish/catalog/StaffCategoryIT.java.md) |
+| `src/test/java/bd/mediwish/catalog/CatalogRegressionIT.java` | [CatalogRegressionIT](src/test/java/bd/mediwish/catalog/CatalogRegressionIT.java.md) |
+| `src/test/java/bd/mediwish/catalog/ConcurrentCatalogIT.java` | [ConcurrentCatalogIT](src/test/java/bd/mediwish/catalog/ConcurrentCatalogIT.java.md) |
+| `src/test/java/bd/mediwish/catalog/CatalogMigrationIT.java` | [CatalogMigrationIT](src/test/java/bd/mediwish/catalog/CatalogMigrationIT.java.md) |
+| `src/test/java/bd/mediwish/catalog/CatalogQueriesIT.java` | [CatalogQueriesIT](src/test/java/bd/mediwish/catalog/CatalogQueriesIT.java.md) |
+| `src/main/java/bd/mediwish/catalog/CatalogController.java` | [CatalogController](src/main/java/bd/mediwish/catalog/CatalogController.java.md) |
+| `src/main/java/bd/mediwish/catalog/CatalogRequests.java` | [CatalogRequests](src/main/java/bd/mediwish/catalog/CatalogRequests.java.md) |
+| `src/test/java/bd/mediwish/web/CatalogSecurityTest.java` | [CatalogSecurityTest](src/test/java/bd/mediwish/web/CatalogSecurityTest.java.md) |
+| `src/test/java/bd/mediwish/catalog/CatalogControllerTest.java` | [CatalogControllerTest](src/test/java/bd/mediwish/catalog/CatalogControllerTest.java.md) |
+
+The 2026-10-07 guarded catalog gate passed 739 units and all 11 regression, concurrency, occupied-schema migration and query integration tests at 10:26:58 Asia/Dhaka, revision `8b6924c` plus Ticket 14 working changes. Corrected transitive lock observation, Equipment dosage refusal, exact PostgreSQL RESTRICT assertions and forward finite-money constraints are covered. Product page counts remained 6 for sizes 5/20; detail counts remained 8 for one/twenty history rows. The informational execution plan establishes no latency SLA. Final full normal verification passed 739 units and 158 integration checks (one expected compatibility-only skip) at 15:27:47; full compatibility verification passed 739 units and all 159 integration checks at 15:34:26, with zero failures/errors. Logs: `final-backend-full-20261007.log` and `final-backend-compatibility-20261007.log` in the main checkout's ignored `.scratch/ticket14-verification/`. Disposable roles/schemas were released; final browser/manual completion is recorded separately in Ticket 14 evidence.
+
+Final cumulative verification on2026-10-07,8b6924c plus frozenWIP: normal verify passed739 units and158executed integration checks (one expected compatibility-only skip) at15:27:47; compatibility verify passed739 units and159integration checks with no skips at15:34:26. Logs: main-checkout `.scratch/ticket14-verification/final-backend-{full,compatibility}-20261007.log`. All136production class/resource payloads match the ordinary browser runtime; the compatibility profile adds optional dependency jars only.
+
+Ticket 14 review correction (2026-10-07): shared Product/Category pagination validates the signed integer JPA offset limit, with service boundary and real HTTP regressions preserving representable past-end empty pages. CatalogRegressionIT also characterizes pinned Jackson 3.1.5 duplicate-member last-value-wins and subsequent scalar validation; duplicate rejection remains excluded by T1. Current correction gates are recorded below after completion.
+
+Correction verification on 2026-10-07 at 22:06:45 Asia/Dhaka, revision `8b6924c` plus current WIP: guarded offline Maven `verify -Dit.test=CatalogRegressionIT` passed all 746 unit tests and all 5 catalog regression integration tests with zero failures/errors/skips. Disposable roles/schemas were released. Logs: main-checkout `.scratch/ticket14-verification/review-pagination-{red-units,green-units,focused-backend}-20261007.log`; red units had 4 expected overflow-refusal failures, green units passed 12/12. The full cumulative normal and compatibility gates are still pending for this corrected candidate.
+
+Final review-correction cumulative verification, revision `8b6924c` plus the unchanged 251-file candidate: full guarded offline Maven `verify` passed 746 units and 161 integration entries (160 executed, one expected compatibility-only skip) on 2026-10-07 at 22:14:00 Asia/Dhaka in 6:24. Full guarded offline Maven `-Pcompatibility verify` passed 746 units and all 161 integration tests with no skips on 2026-10-08 at 04:44:41 Asia/Dhaka in 8:47. Both finished with zero failures/errors and released disposable roles/schemas. Logs: main-checkout `.scratch/ticket14-verification/review-fixes-full-backend-20261007.log` and `review-fixes-full-compatibility-20261008.log`. The normal runtime jar is preserved as `review-fixes-normal-medi-wish.jar`; root evidence records production payload parity with the full-browser runtime. These results supersede the earlier pending correction-gate note; final manual accessibility acceptance remains separately tracked.
+Commit preparation normalized trailing blank lines in new catalog documentation and CatalogQueriesIT; executable test content is unchanged. The staged diff check is recorded with the authorized commit.

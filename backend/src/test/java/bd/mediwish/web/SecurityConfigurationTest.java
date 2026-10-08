@@ -40,7 +40,7 @@ class SecurityConfigurationTest {
         var cors = cors(securityConfiguration(true, "production"), " https://shop.example.test , https://www.example.test ");
 
         assertThat(cors.getAllowedOrigins()).containsExactly("https://shop.example.test", "https://www.example.test");
-        assertThat(cors.getAllowedMethods()).containsExactly("GET", "POST", "HEAD", "OPTIONS");
+        assertThat(cors.getAllowedMethods()).containsExactly("GET", "POST", "PUT", "HEAD", "OPTIONS");
         assertThat(cors.getAllowedHeaders()).containsExactly("Authorization", "Content-Type", "X-XSRF-TOKEN");
         assertThat(cors.getAllowCredentials()).isTrue();
     }
@@ -77,6 +77,17 @@ class SecurityConfigurationTest {
         assertThat(cookie.isHttpOnly()).isFalse();
         assertThat(cookie.getPath()).isEqualTo("/api");
         assertThat(cookie.getAttribute("SameSite")).isEqualTo("Lax");
+    }
+
+    @Test
+    void catalogPutMatchesOneSegmentAndNeverTheAdminOnlyPricingRoute() {
+        var catalog = new MockHttpServletRequest("PUT", "/api/staff/products/6c1d9a0e-2b7f-4e11-8d3a-5f0e9b2c7a14");
+        var pricing = new MockHttpServletRequest("PUT", catalog.getRequestURI() + "/pricing");
+        assertThat(SecurityConfiguration.STAFF_CATALOG_COMMANDS.matches(catalog)).isTrue();
+        assertThat(SecurityConfiguration.STAFF_CATALOG_COMMANDS.matches(pricing)).isFalse();
+        assertThat(SecurityConfiguration.STAFF_PRICING.matches(pricing)).isTrue();
+        assertThat(SecurityConfiguration.PROTECTED_ROUTES.matches(pricing)).isTrue();
+        assertThat(SecurityConfiguration.BEARER_COMMAND_ROUTES.matches(pricing)).isTrue();
     }
 
     private static CorsConfiguration cors(SecurityConfiguration configuration, String allowedOrigins) {

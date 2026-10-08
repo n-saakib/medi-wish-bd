@@ -31,6 +31,10 @@ The nullable email column is unique ignoring case since changeset 009 (Ticket 03
 
 Changeset 010 changes no existing row. Authenticator seeds are stored only as AES-256-GCM ciphertext and backup codes only as Argon2 verifiers; no plain seed, code or username is a schema field.
 
+Changeset `013-catalog` appends category, Product and Product-history tables with UUID keys. A case-insensitive category-name unique index and explicit CHECK constraints enforce Product kind, positive exact `NUMERIC(9,2)` amounts, medicine/equipment field shape and active-implies-priced. Category and history foreign keys restrict deletion; staff actor references become NULL if their User is removed. Category/name and recent-history indexes support bounded staff reads. No inventory schema is introduced.
+
 ## Verification
 
 `HealthIT` checks that the changelog is applied, survives an application restart and does not reapply when existing data is present. `LegacyUserMigrationIT` migrates legacy rows through 009 and proves that duplicate legacy emails halt 009 with the rows unchanged; `RegistrationIT` and `SignInIT` exercise the unique index. `StaffMfaMigrationIT` applies 001–009, refreshes an existing Customer session after 010 (`mfa: NOT_REQUIRED`, no evidence) and checks the status check, the one-active and one-pending indexes and the bootstrap singleton. `DependencyCompatibilityIT` repeats the migration and restart check with the optional integrations enabled.
+
+Appended `013-catalog-finite-money` preserves applied `013-catalog` history and adds upper bounds to nullable Product prices. Combined with the original positive checks, these guards permit finite `0.01`–`9999999.99` values and reject PostgreSQL numeric NaN; null remains permitted for unpriced Products. Keeping the lower-bound constraints preserves specific zero/negative refusal diagnostics. `CatalogMigrationIT` verified NaN refusals, the maximum finite positive control and unchanged pre-catalog User/session snapshots in the 2026-10-07 guarded gate; final cumulative verification remains pending.

@@ -4,7 +4,7 @@ Source: [`src/app/globals.css`](../../../src/app/globals.css)
 
 ## Purpose
 
-This is the global stylesheet loaded once by the root layout. It holds the design tokens and component styles ported from `agent-docs/ui-design/assets/styles.css`, limited to what the current home, account, sign-in, registration, staff MFA and staff landing pages use. There is no CSS framework or CSS-in-JS layer; components apply these class names directly.
+This is the global stylesheet loaded once by the root layout. It holds the design tokens and component styles ported from `agent-docs/ui-design/assets/styles.css`, limited to the pages now in use, including the staff catalog. There is no CSS framework or CSS-in-JS layer; components apply these class names directly.
 
 ## Rules
 
@@ -19,9 +19,14 @@ This is the global stylesheet loaded once by the root layout. It holds the desig
 - **Auth pages.** `.auth-header` is the 72 px sign-in/register header; at 480 px and below its button padding shrinks and the "Back to home" label is visually hidden in the same accessible way. `.auth-wrap` centers the form card below the header and `.auth-card` caps it at 440 px; the account and staff pages reuse `.auth-card` for its width.
 - **Staff MFA.** `.steps-mini` is the two-step progress bar; `.qr` frames the 176 px QR SVG on white for scanning contrast; `.disclosure` styles the `Can’t scan?` summary as a 44 px target and wraps the grouped key; `.code-input` enlarges and spaces the code field; `.secret` is the dashed amber backup-code panel and `.code-grid` its two-column code list.
 - **Staff header.** `.staff-top` is the 64 px white header with the logo and sign-out button.
+- **Staff catalog.** `.catalog-heading`, `.catalog-filters`, `.catalog-form-grid`, `.catalog-inline-form` and `.catalog-pager` lay out the list, editor and category forms. `.catalog-table-scroll` confines horizontal scrolling to its table card on mobile; `.catalog-check` makes checkbox/radio labels at least 44 px high. `.field-error` carries validation text, `.catalog-history` separates audit entries with a muted readable timestamp under each action, and `.sr-only` preserves accessible table column names. Status chips carry text, and all focused controls retain the amber ring.
 
-Search, cart, category navigation, footer, product and order styles from the design system are not included because those features are not implemented.
+Storefront search, cart, footer and order styles from the design system are not included because those features are not implemented.
+
+Catalog field grids use a zero minimum track so a native select with an accepted 80-character category option can shrink inside its filter/editor/inline form. Table header cells position their visually hidden column labels locally; otherwise an absolute label in the last column can escape the scrolling container and expand the page. These rules preserve internal table scrolling on 375 px pages; no page-level overflow is hidden.
 
 ## Use and verification
 
-[`src/app/layout.tsx`](layout.tsx.md) imports this file once. On 2026-09-26 `npm run lint` and `npm run build` passed with this stylesheet, and again on 2026-09-27 with the staff MFA additions. Responsive and focus appearance is a browser concern; its verification is recorded in the Ticket 03.01 evidence.
+[`src/app/layout.tsx`](layout.tsx.md) imports this file once. On 2026-09-26 `npm run lint` and `npm run build` passed with this stylesheet, and again on 2026-09-27 with the staff MFA additions. Responsive and focus appearance is a browser concern; baseline verification is recorded in the Ticket 03.01 evidence and the catalog keyboard/mobile checks in Ticket 14 evidence.
+
+Catalog chips now port the exact design information, success and warning text/background/border tokens. The base chip supplies neutral background, muted text and line border; chip-brand remains the existing brand variant. Only variants used by delivered pages are included.

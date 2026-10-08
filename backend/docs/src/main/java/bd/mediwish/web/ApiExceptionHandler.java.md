@@ -2,28 +2,21 @@
 
 Source: [`src/main/java/bd/mediwish/web/ApiExceptionHandler.java`](../../../../../../../src/main/java/bd/mediwish/web/ApiExceptionHandler.java)
 
-## Purpose
+Package-private production advice maps controller/domain failures to the shared externalized `{code, message, requestId}` envelope. It returns no submitted field, SQL diagnostic or exception text and logs nothing.
 
-Package-private `@RestControllerAdvice` that maps the domain exceptions of every controller to the bounded error envelope. Controllers throw; they do not build error responses.
-
-| Exception | Response |
+| Failure | Response |
 | --- | --- |
-| `InvalidRequestException`, `UserService.InvalidRegistrationException`, `HttpMessageNotReadableException` | `400 INVALID_REQUEST` |
-| `UserService.DuplicateUserException` | `409 DUPLICATE_USER` |
-| `AuthenticationFailedException` | `401 AUTHENTICATION_FAILED` |
-| `AuthenticationRequiredException` (including `SessionReplayException`) | `401 AUTHENTICATION_REQUIRED` |
-| `MfaCodeInvalidException` | `400 MFA_CODE_INVALID` |
-| `MfaEnrollmentStaleException` | `409 MFA_ENROLLMENT_STALE` |
-| `TooManyAttemptsException` | `429 TOO_MANY_ATTEMPTS` |
-| `DataAccessException`, `TransactionException` | `500 INTERNAL_ERROR` |
+| Invalid authentication/registration/catalog/money request or unreadable JSON | `400 INVALID_REQUEST` |
+| Duplicate User | `409 DUPLICATE_USER` |
+| Authentication failed/required | Matching `401` code |
+| Invalid MFA code, stale enrollment, throttle | `400 MFA_CODE_INVALID`, `409 MFA_ENROLLMENT_STALE`, `429 TOO_MANY_ATTEMPTS` |
+| Catalog command access denied | `403 ACCESS_DENIED` |
+| Missing catalog record | `404 NOT_FOUND` |
+| Stale changed intent, unpriced activation, category name collision, reused create id | `409 STALE_UPDATE`, `PRICE_REQUIRED`, `CATEGORY_NAME_TAKEN`, `ID_CONFLICT` |
+| Database/transaction failure | Named category uniqueness becomes `409 CATEGORY_NAME_TAKEN`; other failures remain `500 INTERNAL_ERROR` |
 
-## Boundaries
+`persistenceFailure` examines the exception cause chain only for Hibernate constraint `uk_product_categories_name` and SQL state `23505`. Translation happens after the service transaction has rolled back; it performs no read or retry in the aborted transaction. Other constraints and SQL states cannot become category name collisions.
 
-- Handling unreadable JSON and persistence failures here keeps their messages, which can echo request bodies or row values, out of both the response and the log; the handler logs nothing.
-- `AccessDeniedException` thrown by `StaffMfaService` (lost staff role, no active factor) is not handled here; Spring Security's exception translation answers it with the access-denied handler (`403`).
-- Exceptions not listed propagate to the container and reach `ApiErrorController` as a bounded `500`.
-- Filter-level failures (CORS, body limit, bearer, security entry point) never reach this advice; they use `ApiErrors.write` directly.
+Security exceptions from the chain use its bounded access handler. CORS, bearer and body-limit filters write through ApiErrors directly. RequestCorrelationFilter supplies server correlation and no-store to all responses; framework/container failures reach ApiErrorController.
 
-## Verification
-
-`ApiExceptionHandlerTest` (13 tests) maps each listed failure, including the three MFA failures, to its status and code and proves unreadable JSON is `400` without echoing the body. The auth integration tests cover these errors over real HTTP and PostgreSQL, including captured-log privacy.
+ApiExceptionHandlerTest proves each mapping, named constraint/state selectivity and unreadable JSON redaction. CatalogControllerTest uses this real advice for strict HTTP shape failures.

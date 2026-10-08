@@ -28,3 +28,5 @@ There is exactly one key per `ApiError` constant; add both together. Do not put 
 ## Verification
 
 `ApiErrorsTest` checks that every `ApiError` constant has a message and the exact English envelope. HTTP integration tests verify that only these safe messages appear in error responses.
+
+Ticket 14 adds the exact messages: STALE_UPDATE = This record changed after you opened it. Reload and try again.; PRICE_REQUIRED = Add a price before activating this product.; CATEGORY_NAME_TAKEN = A category with this name already exists.; ID_CONFLICT = This id is already used by a different record. No submitted field or database exception data is included.

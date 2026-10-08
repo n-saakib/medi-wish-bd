@@ -32,7 +32,7 @@ Failures report only the surface and the number of values found, never a value. 
 
 The second test registers a synthetic User, has ADMIN granted, signs in, reloads `/staff/mfa/enroll`, reads the manual key, verifies and reads the ten backup codes. It then:
 
-1. goes to `/` and back: the page lands on `/staff` with no backup code and no key on screen, because the setup page drops them on `pagehide` and the verified session is sent on;
+1. goes to `/`, waits for its signed-in username link (the destination session restore has settled), then goes back: the page lands on `/staff` with no backup code and no key on screen, because the setup page drops them on `pagehide` and the verified session is sent on;
 2. signs out, signs in, reloads `/staff/mfa` and verifies the next step's code, then reloads `/staff`.
 
 Storage is snapshotted along the way. The key and every backup code must not appear in the API log, console, URLs and history, or storage and history state, and no IndexedDB database may exist. The two 6-digit codes are matched as whole tokens in the console, URLs and storage, but not in the API log, where timestamps and ids would give false matches. Every `/staff*` document the browser loaded (all three routes are required) and a direct request to each route must carry `Cache-Control: no-store`.
@@ -49,3 +49,5 @@ Browser surfaces these tools cannot reach are not claimed:
 ## Verification
 
 On 2026-09-27 both tests passed on Chrome 154.0.8037.57 and Edge 154.0.4258.37 as part of `npm run test:browser`.
+
+The first full Ticket 14 run on 2026-10-06 failed the Chrome back-navigation assertion with an expired session. A diagnostic rerun observed navigation-aborted auth requests, but did not prove the precise cause of that failure. The test now waits for the signed-in home link before navigating back, so it checks the settled destination journey. Accepted session behavior revokes the session on replay of a consumed refresh token, including retry after a lost response; this check does not claim continuity through an interrupted refresh. No production auth policy or secret, storage or no-store assertion changed. Dated Ticket 14 evidence records current focused and cumulative results.

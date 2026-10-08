@@ -471,3 +471,77 @@ databaseChangeLog:
             referencedColumnNames: id
             constraintName: fk_user_sessions_mfa_factor
             onDelete: SET NULL
+  - changeSet:
+      id: 013-catalog
+      author: medi-wish
+      changes:
+        - sql:
+            splitStatements: true
+            sql: |-
+              CREATE TABLE product_categories (
+                id UUID PRIMARY KEY,
+                name VARCHAR(80) NOT NULL,
+                active BOOLEAN NOT NULL DEFAULT TRUE,
+                version BIGINT NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL,
+                created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                updated_by UUID REFERENCES users(id) ON DELETE SET NULL
+              );
+              CREATE UNIQUE INDEX uk_product_categories_name ON product_categories (lower(name));
+              CREATE TABLE products (
+                id UUID PRIMARY KEY,
+                kind VARCHAR(16) NOT NULL CONSTRAINT ck_products_kind CHECK (kind IN ('MEDICINE','EQUIPMENT')),
+                name VARCHAR(160) NOT NULL,
+                brand_name VARCHAR(120),
+                generic_name VARCHAR(200),
+                manufacturer VARCHAR(120),
+                dosage_form VARCHAR(120),
+                sale_unit VARCHAR(80) NOT NULL,
+                description VARCHAR(4000),
+                category_id UUID NOT NULL REFERENCES product_categories(id) ON DELETE RESTRICT,
+                selling_price NUMERIC(9,2) CONSTRAINT ck_products_selling_price_positive CHECK (selling_price > 0),
+                mrp NUMERIC(9,2) CONSTRAINT ck_products_mrp_positive CHECK (mrp > 0),
+                active BOOLEAN NOT NULL DEFAULT FALSE,
+                require_validation BOOLEAN NOT NULL DEFAULT FALSE,
+                version BIGINT NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL,
+                created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT ck_products_price_le_mrp CHECK (mrp IS NULL OR selling_price IS NULL OR selling_price <= mrp),
+                CONSTRAINT ck_products_active_priced CHECK (NOT active OR selling_price IS NOT NULL),
+                CONSTRAINT ck_products_mrp_needs_price CHECK (mrp IS NULL OR selling_price IS NOT NULL),
+                CONSTRAINT ck_products_medicine_fields CHECK (kind <> 'MEDICINE' OR (generic_name IS NOT NULL AND dosage_form IS NOT NULL)),
+                CONSTRAINT ck_products_equipment_fields CHECK (kind <> 'EQUIPMENT' OR (generic_name IS NULL AND dosage_form IS NULL))
+              );
+              CREATE INDEX ix_products_category ON products (category_id);
+              CREATE INDEX ix_products_name ON products (lower(name), id);
+              CREATE TABLE product_changes (
+                id UUID PRIMARY KEY,
+                product_id UUID NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+                occurred_at TIMESTAMPTZ NOT NULL,
+                actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                change_type VARCHAR(32) NOT NULL CONSTRAINT ck_product_changes_type CHECK (change_type IN
+                  ('CREATED','CATALOG_UPDATED','PRICE_CHANGED','REQUIRE_VALIDATION_CHANGED','ACTIVATED','DEACTIVATED')),
+                old_selling_price NUMERIC(9,2),
+                new_selling_price NUMERIC(9,2),
+                old_mrp NUMERIC(9,2),
+                new_mrp NUMERIC(9,2),
+                old_require_validation BOOLEAN,
+                new_require_validation BOOLEAN,
+                request_id VARCHAR(64)
+              );
+              CREATE INDEX ix_product_changes_product ON product_changes (product_id, occurred_at DESC);
+
+  - changeSet:
+      id: 013-catalog-finite-money
+      author: medi-wish
+      changes:
+        - sql:
+            splitStatements: true
+            sql: |-
+              ALTER TABLE products ADD CONSTRAINT ck_products_selling_price_finite
+                CHECK (selling_price <= 9999999.99);
+              ALTER TABLE products ADD CONSTRAINT ck_products_mrp_finite
+                CHECK (mrp <= 9999999.99);

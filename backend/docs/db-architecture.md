@@ -246,3 +246,11 @@ After editing, compare the ER diagram and invariant tables with the current
 changelog and entity mappings, then run the backend migration/integration
 checks. This page documents the current architecture; future tables should be
 added only when their ticket and migration exist.
+
+## Ticket 14 catalog data
+
+Changeset `013-catalog` adds `product_categories`, `products`, and `product_changes`. Categories have stable UUIDs, names unique under `lower(name)`, active flags, and manual edit versions. A Product stores immutable MEDICINE/EQUIPMENT kind, a staff-defined Sale Unit and category, optional BDT amounts as `NUMERIC(9,2)`, active and `require_validation` flags, and a manual version. The category foreign key restricts deletion so inactive categories remain linked to existing Products.
+
+Database checks enforce positive exact amounts, selling price no greater than MRP when present, no MRP without a selling price, and no active unpriced Product. Kind checks distinguish medicine-only attributes. History rows retain fixed change types, actor/time/request identity, and old/new price, MRP and validation values without free-text product content. The Product history foreign key restricts deletion. There are no stock, quantity, batch, expiry or pack-conversion columns.
+
+The forward `013-catalog-finite-money` changeset preserves applied catalog history and adds upper-bound checks to nullable Product prices. Combined with the original positive checks, only finite BDT values 0.01–9999999.99 can be stored; PostgreSQL numeric NaN is refused.

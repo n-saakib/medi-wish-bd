@@ -2,18 +2,8 @@
 
 Source: [`src/main/java/bd/mediwish/web/AuthRequestBodyLimitFilter.java`](../../../../../../../src/main/java/bd/mediwish/web/AuthRequestBodyLimitFilter.java)
 
-## Purpose
+Package-private filter bounds JSON bodies of the supplied route matcher at MAX_BODY_BYTES (16 KiB). SecurityConfiguration creates a credential/MFA instance immediately after CORS and a catalog-command/pricing instance after authorization. Denied catalog requests therefore retain authentication/authorization errors regardless of their body size or syntax.
 
-Package-private filter that bounds the JSON bodies of the routes it is given, which `SecurityConfiguration` sets to `CREDENTIAL_ROUTES` (`POST /api/auth/login` and `POST /api/auth/register`) and `MFA_ROUTES` (the three `POST /api/auth/mfa/...` routes), at `MAX_BODY_BYTES` (16 KiB) before MVC and Jackson read them. `SecurityConfiguration` constructs it and places it right after `BoundedCorsFilter`; it is not a Spring bean.
+It accepts application/json and application/*+json, including charset parameters. Other content types/methods/routes continue to normal handling. A declared oversized body is rejected before reading; otherwise at most one byte beyond the cap is read, bounding chunked and under-declared bodies too. Rejection writes 400 INVALID_REQUEST without request content. Accepted bytes are replayed intact through a cached input stream/reader with corrected content length; async reads are unsupported. The filter logs no body.
 
-## Behavior
-
-- It runs only for requests the matcher accepts, which matches paths as Spring MVC routes them (so `/api/auth/%6Cogin` is bounded like `/api/auth/login`), with an `application/json` or `application/*+json` content type. Other methods, paths, missing, malformed or non-JSON content types continue to normal MVC handling (for example `415`).
-- A declared `Content-Length` over the limit is rejected before reading. Otherwise it reads at most one byte beyond the limit, so chunked or under-declared bodies are also bounded.
-- A rejected body returns `400 INVALID_REQUEST` through `ApiErrors.write`. An accepted body is replayed through a request wrapper (`getInputStream`, `getReader` using the request charset or UTF-8, and corrected content length); asynchronous reads are unsupported.
-
-The filter never logs request bodies and does not buffer any other request.
-
-## Verification
-
-`AuthRequestBodyLimitFilterTest` covers a body exactly at the limit reaching the controller intact, oversized JSON rejection whatever `Content-Length` declares, and pass-through of other methods, paths and content types.
+AuthRequestBodyLimitFilterTest proves the exact boundary, dishonest Content-Length and pass-through behavior. CatalogSecurityTest proves 17 KiB rejection on every authorized catalog command and that Moderator pricing stays 403 before buffering.

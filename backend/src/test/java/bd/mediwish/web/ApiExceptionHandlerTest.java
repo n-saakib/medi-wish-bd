@@ -7,6 +7,10 @@ import bd.mediwish.auth.MfaCodeInvalidException;
 import bd.mediwish.auth.MfaEnrollmentStaleException;
 import bd.mediwish.auth.TooManyAttemptsException;
 import bd.mediwish.user.UserService;
+import bd.mediwish.catalog.*;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
+import java.sql.SQLException;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -34,6 +38,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class ApiExceptionHandlerTest {
     private static final Map<String, Supplier<RuntimeException>> FAILURES = Map.ofEntries(
+            Map.entry("invalid-catalog", () -> new InvalidCatalogException("PRIVATE_FIELD")),
+            Map.entry("invalid-money", InvalidMoneyException::new),
+            Map.entry("catalog-access", CatalogAccessDeniedException::new),
+            Map.entry("catalog-not-found", CatalogNotFoundException::new),
+            Map.entry("stale-update", StaleUpdateException::new),
+            Map.entry("price-required", PriceRequiredException::new),
+            Map.entry("category-name-taken", CategoryNameTakenException::new),
+            Map.entry("id-conflict", IdConflictException::new),
+            Map.entry("category-unique", () -> unique("uk_product_categories_name", "23505")),
+            Map.entry("other-unique", () -> unique("other_constraint", "23505")),
+            Map.entry("other-category-failure", () -> unique("uk_product_categories_name", "23514")),
             Map.entry("mfa-code-invalid", MfaCodeInvalidException::new),
             Map.entry("mfa-enrollment-stale", MfaEnrollmentStaleException::new),
             Map.entry("too-many-attempts", TooManyAttemptsException::new),
@@ -55,7 +70,13 @@ class ApiExceptionHandlerTest {
             "duplicate-user,409,DUPLICATE_USER", "authentication-failed,401,AUTHENTICATION_FAILED",
             "authentication-required,401,AUTHENTICATION_REQUIRED", "data-access,500,INTERNAL_ERROR",
             "transaction,500,INTERNAL_ERROR", "mfa-code-invalid,400,MFA_CODE_INVALID",
-            "mfa-enrollment-stale,409,MFA_ENROLLMENT_STALE", "too-many-attempts,429,TOO_MANY_ATTEMPTS"})
+            "mfa-enrollment-stale,409,MFA_ENROLLMENT_STALE", "too-many-attempts,429,TOO_MANY_ATTEMPTS",
+            "invalid-catalog,400,INVALID_REQUEST", "invalid-money,400,INVALID_REQUEST",
+            "catalog-access,403,ACCESS_DENIED", "catalog-not-found,404,NOT_FOUND",
+            "stale-update,409,STALE_UPDATE", "price-required,409,PRICE_REQUIRED",
+            "category-name-taken,409,CATEGORY_NAME_TAKEN", "id-conflict,409,ID_CONFLICT",
+            "category-unique,409,CATEGORY_NAME_TAKEN", "other-unique,500,INTERNAL_ERROR",
+            "other-category-failure,500,INTERNAL_ERROR"})
     void mapsEachDomainFailureToItsBoundedError(String failure, int status, String code) throws Exception {
         mvc.perform(post("/fail/" + failure).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().is(status))
@@ -71,6 +92,11 @@ class ApiExceptionHandlerTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
                 .andExpect(content().string(not(containsString("PRIVATE_BODY"))));
+    }
+
+    private static DataIntegrityViolationException unique(String constraint, String sqlState) {
+        return new DataIntegrityViolationException("PRIVATE_ROW", new ConstraintViolationException(
+                "PRIVATE_ROW", new SQLException("PRIVATE_ROW", sqlState), constraint));
     }
 
     @RestController

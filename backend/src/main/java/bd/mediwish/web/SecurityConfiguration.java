@@ -16,6 +16,7 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.logout.LogoutFilter;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import org.springframework.security.web.context.SecurityContextHolderFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
 import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
@@ -46,8 +47,21 @@ class SecurityConfiguration {
      * and body-limited like sign-in.
      */
     static final RequestMatcher MFA_ROUTES = new OrRequestMatcher(MFA_ENROLLMENT_ROUTES, MFA_CHALLENGE_ROUTE);
+    static final RequestMatcher STAFF_CATALOG_READS = new OrRequestMatcher(
+            route(HttpMethod.GET, "/api/staff/categories"),
+            route(HttpMethod.GET, "/api/staff/products"),
+            route(HttpMethod.GET, "/api/staff/products/*"));
+    static final RequestMatcher STAFF_CATALOG_COMMANDS = new OrRequestMatcher(
+            route(HttpMethod.POST, "/api/staff/categories"),
+            route(HttpMethod.PUT, "/api/staff/categories/*"),
+            route(HttpMethod.POST, "/api/staff/products"),
+            route(HttpMethod.PUT, "/api/staff/products/*"));
+    static final RequestMatcher STAFF_PRICING = route(HttpMethod.PUT, "/api/staff/products/*/pricing");
+    static final RequestMatcher BEARER_COMMAND_ROUTES = new OrRequestMatcher(
+            MFA_ROUTES, STAFF_CATALOG_COMMANDS, STAFF_PRICING);
     /** Every route that needs a Bearer access token; the filter and the authorization rules share it. */
-    static final RequestMatcher PROTECTED_ROUTES = new OrRequestMatcher(USER_PROFILE, STAFF_PROFILE, MFA_ROUTES);
+    static final RequestMatcher PROTECTED_ROUTES = new OrRequestMatcher(USER_PROFILE, STAFF_PROFILE, MFA_ROUTES,
+            STAFF_CATALOG_READS, STAFF_CATALOG_COMMANDS, STAFF_PRICING);
     /** Registration and sign-in: public, exempt from CSRF (no session exists yet) and body-limited. */
     static final RequestMatcher CREDENTIAL_ROUTES = new OrRequestMatcher(
             route(HttpMethod.POST, "/api/auth/register"),
@@ -74,7 +88,7 @@ class SecurityConfiguration {
         if (origins.contains("*")) throw new IllegalStateException("credentialed CORS requires explicit origins");
         var configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(origins);
-        configuration.setAllowedMethods(List.of("GET", "POST", "HEAD", "OPTIONS"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "HEAD", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-XSRF-TOKEN"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
@@ -90,11 +104,14 @@ class SecurityConfiguration {
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokenRepository())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-                        .ignoringRequestMatchers(CREDENTIAL_ROUTES, MFA_ROUTES))
+                        .ignoringRequestMatchers(CREDENTIAL_ROUTES, BEARER_COMMAND_ROUTES))
                 .cors(AbstractHttpConfigurer::disable)
                 .addFilterBefore(new BoundedCorsFilter(corsSource, errors), SecurityContextHolderFilter.class)
                 .addFilterAfter(new AuthRequestBodyLimitFilter(new OrRequestMatcher(CREDENTIAL_ROUTES, MFA_ROUTES), errors), BoundedCorsFilter.class)
                 .addFilterAfter(new BearerAccessTokenFilter(PROTECTED_ROUTES, currentUsers, errors), LogoutFilter.class)
+                // Catalog authorization precedes body reading: denied pricing stays 403 for every JSON body.
+                .addFilterAfter(new AuthRequestBodyLimitFilter(
+                        new OrRequestMatcher(STAFF_CATALOG_COMMANDS, STAFF_PRICING), errors), AuthorizationFilter.class)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .requestCache(cache -> cache.disable())
                 .authorizeHttpRequests(auth -> auth
@@ -108,6 +125,8 @@ class SecurityConfiguration {
                         // authority, and staff roles apply only to an MFA-verified session.
                         .requestMatchers(MFA_ENROLLMENT_ROUTES).hasAuthority(StaffAccessPolicy.MFA_ENROLLMENT)
                         .requestMatchers(MFA_CHALLENGE_ROUTE).hasAuthority(StaffAccessPolicy.MFA_CHALLENGE)
+                        .requestMatchers(STAFF_PRICING).hasRole("ADMIN")
+                        .requestMatchers(STAFF_CATALOG_READS, STAFF_CATALOG_COMMANDS).hasAnyRole("ADMIN", "MODERATOR")
                         .requestMatchers(STAFF_PROFILE).hasAnyRole("ADMIN", "MODERATOR")
                         .requestMatchers(USER_PROFILE).hasAnyRole("CUSTOMER", "ADMIN", "MODERATOR", "DELIVERY_PERSON")
                         .anyRequest().denyAll())
