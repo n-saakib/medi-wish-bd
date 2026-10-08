@@ -46,8 +46,20 @@ describe('UserList states and filters', () => {
     expect(page.textContent).toContain('No users match.');
     expect(page.querySelector('table')).toBeNull();
   });
+  it('shows a refused list only the focused denial, without the search form or a table', async () => {
+    const api = listApi(() => Response.json({ code: 'ACCESS_DENIED', message: 'private-server-text' }, { status: 403 }));
+    const page = await renderWithSession(createElement(UserList), createSessionClient({ fetch: api.fetch }));
+    await settle();
+    const alert = requiredElement(page, '[role="alert"]');
+    expect(alert.textContent).toBe('Only Admins can manage users.');
+    expect(document.activeElement).toBe(alert);
+    expect(requiredElement(page, 'h1').textContent).toBe('Users and roles');
+    expect(page.querySelector('form')).toBeNull();
+    expect(page.querySelector('#admin-user-search')).toBeNull();
+    expect(page.querySelector('table')).toBeNull();
+    expect(page.textContent).not.toContain('private-server-text');
+  });
   it.each([
-    ['ACCESS_DENIED', 403, 'Only Admins can manage users.'],
     ['INTERNAL_ERROR', 500, 'The request could not be completed.'],
   ])('announces %s without rendering backend text, and recovers on another search', async (code, status, copy) => {
     let fails = true;

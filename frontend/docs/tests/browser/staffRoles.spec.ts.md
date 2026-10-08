@@ -16,3 +16,5 @@ Ticket 08's end-to-end browser tests: the **Users and roles** pages (`/admin/use
 ## Running
 
 Build the backend jar first, then run one gate at a time, for example `npm run test:browser -- --grep @t08-T5`. `npx playwright test --grep @smoke` runs `E2E-08-46` with the Ticket 06 smoke test.
+
+Staff UI correction (2026-10-08): `E2E-08-31` also asserts that the Moderator sees no **Search users** field, and `E2E-08-36` that focus lands on the username heading after **Reload**.

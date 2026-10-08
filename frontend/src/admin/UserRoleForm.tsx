@@ -37,6 +37,9 @@ export function UserRoleForm({ userId }: { userId: string }) {
   const [success, setSuccess] = useState(false);
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  // Reload removes its own button, so focus moves to the heading once the fresh record shows.
+  const focusHeading = useRef(false);
 
   useEffect(() => {
     if (!verified || !isUserId(userId)) return;
@@ -49,12 +52,18 @@ export function UserRoleForm({ userId }: { userId: string }) {
   }, [authenticatedFetch, userId, verified, reloads]);
 
   function reload() {
+    focusHeading.current = true;
     setLoaded(null);
     setFailure(null);
     setSuccess(false);
     setReloads((value) => value + 1);
   }
   const data = loaded?.id === userId ? loaded.data : undefined;
+  useEffect(() => {
+    if (!data || !focusHeading.current) return;
+    focusHeading.current = false;
+    heading.current?.focus();
+  }, [data]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!data || !selected || saving.current || selected === data.role || !data.assignableRoles.includes(selected)) return;
@@ -91,7 +100,7 @@ export function UserRoleForm({ userId }: { userId: string }) {
       {loadFailure ? <Alert tone="danger" focusOnShow>{t(loadFailure)}</Alert>
         : !data ? <p role="status" className="muted">{t('checkingRole')}</p>
         : <>
-          <div><h1>{data.username}</h1><p className="muted">{t('joinedDate', {
+          <div><h1 ref={heading} tabIndex={-1}>{data.username}</h1><p className="muted">{t('joinedDate', {
             date: new Intl.DateTimeFormat('en', { month: 'short', year: 'numeric' }).format(new Date(data.createdAt)),
           })}</p>{data.superAdmin && <span className="chip chip-brand">{t('superAdmin')}</span>}</div>
           {failure && <Alert tone="danger" focusOnShow>{t(failure)}{failure === 'staleUpdate' && <>

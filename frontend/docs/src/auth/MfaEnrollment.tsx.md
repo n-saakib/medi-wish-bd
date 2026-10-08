@@ -28,3 +28,5 @@ The six digit boxes are one [code field](AuthenticatorCodeField.tsx.md), and the
 ## Verification
 
 [`tests/MfaEnrollment.test.ts`](../../tests/MfaEnrollment.test.ts.md).
+
+Staff UI correction (2026-10-08): the mount effect reuses a start that is still in flight, so React StrictMode re-running the effect in `next dev` sends one `POST /api/auth/mfa/enrollment`, not two whose first secret is already superseded. Genuine restarts (`Try again`, the `MFA_ENROLLMENT_STALE` restart and a back/forward-cache restore) always start a new setup. The heading is focusable, and `Try again` moves focus to it because the button is removed.

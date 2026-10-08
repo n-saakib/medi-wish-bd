@@ -308,6 +308,8 @@ test('E2E-08-31 a verified Moderator sees the access-denied state on both pages 
       await expect(page.getByRole('alert').filter({ hasText: deniedMessage })).toBeVisible();
       await expect(usersTable(page)).toHaveCount(0);
       await expect(roleCard(page)).toHaveCount(0);
+      // Only the denial remains: no search form above it.
+      await expect(searchField(page)).toHaveCount(0);
       await expect(page.getByText(customer.username)).toHaveCount(0);
     }
   });
@@ -489,6 +491,7 @@ test('E2E-08-36 a stale page shows the stale alert with Reload, and saving after
     await expect(page.getByRole('alert').filter({ hasText: staleMessage })).toHaveCount(0);
     await expect(roleOption(page, 'Delivery person')).toBeChecked();
     await expect(roleOption(page, 'Moderator')).not.toBeChecked();
+    await expect(page.getByRole('heading', { level: 1, name: customer.username })).toBeFocused();
 
     await saveRole(page, customer.username, 'Moderator');
     expect((await readUserRoles(other.session, id)).role).toBe('MODERATOR');

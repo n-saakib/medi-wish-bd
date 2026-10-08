@@ -44,6 +44,13 @@ export function UserList() {
     load({ ...(username.trim() ? { username: username.trim() } : {}), ...(role ? { role } : {}), page: 0 });
   }
   if (!verified) return null;
+  // Once the API refuses the list, the search cannot help, so only the denial remains.
+  if (failure === 'accessDenied') return (
+    <main className="container page stack admin-users">
+      <h1>{t('title')}</h1>
+      <Alert tone="danger" focusOnShow>{t(failure)}</Alert>
+    </main>
+  );
   return (
     <main className="container page stack admin-users">
       <div><h1>{t('title')}</h1><p className="muted">{t('intro')}</p></div>
