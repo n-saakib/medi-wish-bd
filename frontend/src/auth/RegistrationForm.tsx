@@ -63,19 +63,19 @@ export function RegistrationForm() {
         <div className="field">
           <label htmlFor="register-username">{t('username')}</label>
           <input className="input" id="register-username" name="username" autoComplete="username" required
-            minLength={3} maxLength={50} value={registration.username}
+            minLength={3} maxLength={20} value={registration.username}
             onChange={(event) => update('username', event.target.value)} />
         </div>
         <div className="field">
           <label htmlFor="register-mobile">{t('mobile')}</label>
-          <input className="input" id="register-mobile" name="mobile" type="tel" inputMode="tel" autoComplete="tel"
-            required maxLength={30} value={registration.mobile}
+          <input className="input" id="register-mobile" name="mobile" type="tel" inputMode="numeric" autoComplete="tel"
+            required maxLength={11} value={registration.mobile}
             onChange={(event) => update('mobile', event.target.value)} />
         </div>
         <div className="field">
           <label htmlFor="register-email">{t('email')} <span className="muted">{t('optional')}</span></label>
           <input className="input" id="register-email" name="email" type="email" autoComplete="email"
-            maxLength={320} value={registration.email}
+            maxLength={254} value={registration.email}
             onChange={(event) => update('email', event.target.value)} />
         </div>
         <div className="field">

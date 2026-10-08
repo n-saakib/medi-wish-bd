@@ -2,27 +2,18 @@
 
 Source: [`src/auth/RegistrationForm.tsx`](../../../src/auth/RegistrationForm.tsx)
 
-## Purpose
+## Purpose and export
 
-Client component for the `/register` page. It creates a customer account through [`registerUser`](../lib/user.ts.md) and then signs the new user in with the same credentials, following accepted decision D1. It follows `agent-docs/ui-design/register.html`.
-
-## Export
-
-### `RegistrationForm()`
-
-Renders the `Create an account` heading, an optional danger alert, a form with username, mobile, optional email and password fields, a full-width submit button and a `Sign in` link to `/sign-in`. It calls `useSessionRedirect('guest')`. Browser constraints are username 3–50 characters, mobile up to 30, email up to 320 and password 12–128 (the backend's password range), with the hint `At least 12 characters` linked to the password by `aria-describedby`. The API remains the authority for validation.
+`RegistrationForm()` creates an account through `registerUser`, then signs in with the same credentials under accepted decision D1. It follows the registration page design and uses the guest session guard.
 
 ## Observable behavior
 
-- **Submit.** The form has `method="post"`, so a submission before hydration never puts credentials in the URL. On submit the password is cleared from component state, the button is disabled and reads `Creating account…`, and a blank email is omitted from the request.
-- **Registration failure.** An `INVALID_REQUEST` response shows the translated username-rule message (`register.invalid`), including the rule that a username needs at least one letter. Other failures show the `errors` copy that [`errorMessageKey`](../lib/api.ts.md) picks for the code, such as the duplicate-user message for `DUPLICATE_USER`, or the generic message; the API's message text and transport details are never shown. The button is re-enabled; editing any field removes the alert.
-- **Registration success.** Any `201` counts; the response body is not needed. The form calls the provider's `signIn` with the submitted identifier (username) and password. On success the guest redirect opens `/account`.
-- **Follow-up sign-in failure.** The account exists, so the form sets the `accountCreated` notice and calls `router.replace('/sign-in')`, where the notice asks the visitor to sign in. No username, mobile, email or password is placed in the URL.
+The form labels username, mobile, optional email and password. Browser bounds are username 3–20 characters, mobile at most 11, email at most 254 and password 6–30. Mobile uses numeric input mode. The API decides the complete identifier formats and uniqueness; the form adds no separate format validator.
 
-## Design deviations
+Submission uses `method="post"` so credentials cannot enter a pre-hydration URL. It clears the password from component state, disables submission and omits a blank email. Any `201` triggers automatic sign-in. If sign-in then fails, an account-created notice sends the visitor to the fixed `/sign-in` path.
 
-The `+880` mobile prefix, the Terms/Privacy consent line and the OTP verification step are omitted; mobile verification is on hold. The password hint reads `6–30 characters` and the field enforces the same bounds, matching the API's registration rule.
+`INVALID_REQUEST` displays the translated 3–20 character username rule, including at least one letter. Other failures use bounded error-code copy. Editing clears the alert; server messages and transport details are never shown.
 
-## Verification
+## Design and verification
 
-[`tests/RegistrationForm.test.ts`](../../tests/RegistrationForm.test.ts.md) covers the fields and hint, the request body with and without email, busy state and password clearing, the automatic sign-in after a `201` with an empty body and both redirect outcomes, and the duplicate-user (while the API sends a different message), invalid-request and transport-failure alerts. Browser verification is recorded in the Ticket 03.01 evidence.
+The fixed `+880` prefix, consent line and OTP step remain omitted from the accepted slice. The password hint and bounds match the API's 6–30 character contract. [`tests/RegistrationForm.test.ts`](../../tests/RegistrationForm.test.ts.md) checks POST defaults, fields, password clearing, request bodies, automatic sign-in and bounded alerts. Ticket 11 API tests cover stricter identifiers and compatibility with existing accounts.

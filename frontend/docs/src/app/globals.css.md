@@ -1,12 +1,12 @@
 # `src/app/globals.css`
 
-Source: [`src/app/globals.css`](../../../src/app/globals.css)
+Source: [source](<../../../src/app/globals.css>).
 
 ## Purpose
 
-This is the global stylesheet loaded once by the root layout. It holds the design tokens and component styles ported from `agent-docs/ui-design/assets/styles.css`, limited to the pages now in use, including the staff catalog. There is no CSS framework or CSS-in-JS layer; components apply these class names directly.
+This is the global stylesheet loaded once by the root layout. It holds the design tokens and component styles ported from `agent-docs/ui-design/assets/styles.css`, limited to what the delivered home, account, editable profile, sign-in, registration, staff MFA, staff landing, Users and roles and staff catalog pages use. There is no CSS framework or CSS-in-JS layer; components apply these class names directly. The Admin additions port card sections, responsive filters, locally scrollable tables, pager, labelled radio choice rows, history wrapping and text MFA chips from the static designs.
 
-## Rules
+Every control has a 44 px target (radios use the full label); keyboard focus has the amber outline. Narrow filters and private headings wrap instead of overflowing the document. No prototype JavaScript, sample data or unused future styles are imported. Layout/focus evidence belongs to browser suites and manual QA.
 
 - **Tokens.** `:root` defines the brand greens, amber accent, ink/muted text, line, background and surface colors, tinted alert backgrounds, radii, a light shadow, the `--font` stack and the `1240px` content width, and sets `color-scheme: light`. `--brand-100` and `--accent-50` are the light brand border and amber tint used by the chip and backup-code panel. The font stack names Inter and Hind Siliguri first but no webfont is downloaded; browsers fall back to installed or system fonts.
 - **Base.** Border-box sizing, text-size-adjust, body font/color/background, link color, heading sizes, paragraph spacing and the helpers `.small`, `.muted`, `.center`, `.mt-8`, `.mt-16`, `.mt-24`, `.mb-0` and `.mono` (monospace stack). `:focus-visible` draws a 3 px amber outline on every focusable element.
@@ -18,6 +18,7 @@ This is the global stylesheet loaded once by the root layout. It holds the desig
 - **Home hero.** `.hero-main` is the green gradient panel for the home heading and preparation copy, with reduced padding at 860 px and below.
 - **Auth pages.** `.auth-header` is the 72 px sign-in/register header; at 480 px and below its button padding shrinks and the "Back to home" label is visually hidden in the same accessible way. `.auth-wrap` centers the form card below the header and `.auth-card` caps it at 440 px; the account and staff pages reuse `.auth-card` for its width.
 - **Staff MFA.** `.steps-mini` is the two-step progress bar; `.qr` frames the 176 px QR SVG on white for scanning contrast; `.disclosure` styles the `Can’t scan?` summary as a 44 px target and wraps the grouped key; `.code-input` enlarges and spaces the code field; `.secret` is the dashed amber backup-code panel and `.code-grid` its two-column code list.
+- **Account profile.** `.profile-card` caps the editor at 700 px; mobile, pending and action rows wrap on narrow screens. Verification chips include text for both states. Field errors use readable text, and the native dialog caps its width at 440 px with viewport gutters, a dimmed backdrop and the existing 44 px inputs/buttons and amber focus rings.
 - **Staff header.** `.staff-top` is the 64 px white header with the logo and sign-out button.
 - **Staff catalog.** `.catalog-heading`, `.catalog-filters`, `.catalog-form-grid`, `.catalog-inline-form` and `.catalog-pager` lay out the list, editor and category forms. `.catalog-table-scroll` confines horizontal scrolling to its table card on mobile; `.catalog-check` makes checkbox/radio labels at least 44 px high. `.field-error` carries validation text, `.catalog-history` separates audit entries with a muted readable timestamp under each action, and `.sr-only` preserves accessible table column names. Status chips carry text, and all focused controls retain the amber ring.
 
@@ -27,8 +28,11 @@ Catalog field grids use a zero minimum track so a native select with an accepted
 
 ## Use and verification
 
-[`src/app/layout.tsx`](layout.tsx.md) imports this file once. On 2026-09-26 `npm run lint` and `npm run build` passed with this stylesheet, and again on 2026-09-27 with the staff MFA additions. Responsive and focus appearance is a browser concern; baseline verification is recorded in the Ticket 03.01 evidence and the catalog keyboard/mobile checks in Ticket 14 evidence.
+[`src/app/layout.tsx`](layout.tsx.md) imports this file once. On 2026-09-26 `npm run lint` and `npm run build` passed with this stylesheet, and again on 2026-09-27 with the staff MFA additions. Responsive and focus appearance is a browser concern; its verification is recorded in the Ticket 03.01 evidence.
+The table wrapper is positioned so its absolutely positioned screen-reader-only column heading remains contained by the local horizontal scrollport. The 375 px manual review exposed a document width of 535 px before this fix; the mobile browser check protects document overflow.
 
 Catalog chips now port the exact design information, success and warning text/background/border tokens. The base chip supplies neutral background, muted text and line border; chip-brand remains the existing brand variant. Only variants used by delivered pages are included.
 
 Product MRP and price headers/cells use .num for right alignment and tabular numerals, matching the staff-products design.
+
+Tickets 08 and 14 each added `.sr-only`, `.chip-success` and `.chip-warn`; the merge keeps one shared rule per selector with the design's token values, next to the other chip variants.

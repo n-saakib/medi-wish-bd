@@ -8,7 +8,7 @@ Ticket 14's staff catalog pages in Chrome and Edge against the real test API: `/
 
 ## Tests
 
-- **E2E-14-04 (T3)** — the staff home links to Products and then Categories for Admins and Moderators.
+- **E2E-14-04 (T3)** — the staff home links, in order, to Users and roles, Products and Categories for an Admin, and to Products and Categories for a Moderator.
 - **E2E-14-05 (T3)** — signed-out visitors go to `/sign-in`, Customers to `/account` and unverified staff to `/staff/mfa/enroll` from every catalog page; each page is sent with `Cache-Control: no-store`.
 - **E2E-14-06 (T3)** — a malformed product id shows `Product not found.` without calling the API.
 - **E2E-14-31, 32** — rows are found with `showCategory`, since the shared schema may put them on any page; a Moderator adds, renames and deactivates a category with blank and duplicate names explained and no delete control; an Admin's stale category save shows the stale message and **Reload**.

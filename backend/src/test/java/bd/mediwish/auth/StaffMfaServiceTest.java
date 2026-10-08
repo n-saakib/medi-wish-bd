@@ -67,7 +67,7 @@ class StaffMfaServiceTest {
 
     @BeforeEach
     void setUp() {
-        admin.grantRole(UserRole.ADMIN);
+        admin.replaceRole(UserRole.ADMIN);
         throttle = new StaffMfaThrottle(admin.id(), NOW);
         when(users.findByIdForUpdate(admin.id())).thenReturn(Optional.of(admin));
         when(throttles.findById(admin.id())).thenReturn(Optional.of(throttle));

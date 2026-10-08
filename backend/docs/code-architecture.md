@@ -4,13 +4,15 @@ This is the living code map for the current Spring Boot backend. Source files
 remain authoritative; this page records package ownership, dependency
 direction and the observable request boundaries.
 
-**Last reviewed:** 2026-09-27
+**Last reviewed:** 2026-10-05
 **Current scope:** health baseline, shared User profile/roles, Ticket 03
 password sessions with Bearer, CSRF, CORS and refresh-cookie adapters, and
 Ticket 06 first-Admin provisioning, staff TOTP MFA, security audit events and
-the staff route.
+the staff route, and Ticket 11 profile editing with staged mobile changes.
 **Later boundaries:** OTP, password recovery, staff management beyond the
-first Admin, and deployment.
+recovery/reset workflows, and deployment.
+
+Ticket08 adds `bd.mediwish.admin.AdminUserController`: strict JSON commands and UUID reads. It calls `auth.RoleAssignmentService`, which owns the role policy, bounded projections, audit persistence and atomic revocation because it shares the package-private SessionService. The User aggregate exposes one role and rolesVersion over the retained private role collection; PostgreSQL enforces exactly-one at commit. The Spring role hierarchy expands the single authority only at authorization; restricted MFA sessions hold no role authority. Password session creation locks the User FOR SHARE before reading the role, then writes sessions; bearer authentication holds the same User share lock while reading current session evidence, role and factor in one transaction, releasing it before route handling; role commands lock actor/target in UUID order before sessions.
 
 ## Package and dependency diagram
 
@@ -49,6 +51,16 @@ flowchart LR
         AUD[SecurityAuditLog<br/>SecurityAuditEvent]
     end
 
+    ADMINHTTP[AdminUserController<br/>POST search, GET UUID detail, PUT role]
+    ROLECOMMAND[RoleAssignmentService<br/>policy, version, audit, revocation]
+    ROLEAUDIT[UserRoleChangeRepository<br/>latest20 actor-joined entries]
+    ADMINHTTP --> ROLECOMMAND
+    ROLECOMMAND --> UR
+    ROLECOMMAND --> SS
+    ROLECOMMAND --> POL
+    ROLECOMMAND --> ROLEAUDIT
+    ROLEAUDIT --> DB
+
     subgraph STAFF[bd.mediwish.staff — staff route]
         SC[StaffController<br/>GET /api/staff/me]
     end
@@ -57,7 +69,7 @@ flowchart LR
         SEC[SecurityConfiguration<br/>CSRF, credentialed CORS,<br/>PROTECTED_ROUTES, MFA_ROUTES,<br/>authorization]
         BF[BearerAccessTokenFilter<br/>CurrentUser principal + authorities]
         CORS[BoundedCorsFilter<br/>bounded CORS rejection]
-        BODY[AuthRequestBodyLimitFilter<br/>16 KiB credential and MFA JSON]
+        BODY[AuthRequestBodyLimitFilter<br/>16 KiB credential, MFA and Admin JSON]
         EXH[ApiExceptionHandler<br/>domain exceptions to envelope]
         ERR[ApiErrors + ApiError<br/>codes, statuses, envelope]
         ERRCTRL[ApiErrorController<br/>/error fallback]
@@ -169,7 +181,10 @@ flowchart LR
 - `CurrentUserAuthentication` is the only current-session/User handoff for
   the bearer filter. Roles are loaded from the current User, never from JWT
   claims, and a staff role becomes an authority only for a session carrying
-  evidence for the User's active factor.
+  evidence for the User's active factor. Its transaction locks the User FOR SHARE
+  before session evidence and factor reads, preventing an old active-session
+  read from being combined with a newly committed staff promotion. The lock
+  ends when authentication returns; route handling is outside that transaction.
 - `UserRepository.findByIdForUpdate` is the first lock of every MFA change
   (provisioning claims `staff_bootstrap` first); `SessionService.upgradeToMfa` and `SecurityAuditLog`
   require an existing transaction.
@@ -177,8 +192,7 @@ flowchart LR
   without hashing; sign-in, refresh and current-user loading fail closed on
   an unusable verifier.
 - `SessionService.revokeAllForUser` revokes every session of a User; the
-  first-Admin command calls it with `staff-provisioned`. No HTTP route calls
-  it.
+  first-Admin command calls it with `staff-provisioned`. The role-change HTTP command calls it with `role-changed` inside the role/audit/version transaction.
 - Liquibase owns schema evolution, including constraints and indexes; JPA
   validates the PostgreSQL schema.
 
@@ -187,10 +201,10 @@ flowchart LR
 ### Registration and password session
 
 `AuthController` exposes the fixed `/api/auth` routes. Registration and login
-are public and are the only CSRF-exempt requests. The CSRF bootstrap is a
+are public and CSRF-exempt. Bearer-only MFA POSTs, Admin search POST and role-change PUT are also CSRF-exempt. The CSRF bootstrap is a
 safe `GET`. Refresh and logout require the CSRF header and read only the
 scoped refresh cookie. The chain applies CORS, then the login/registration
-body limit, before controller deserialization.
+body limit (also applied to MFA and Admin JSON commands), before controller deserialization.
 
 Refresh without a cookie answers `204`: the browser is signed out. Every
 refresh `401` clears the cookie. Logout revokes all distinct refresh-cookie
@@ -247,7 +261,7 @@ refuses to run inside a web context. In one transaction the service finds the
 named User with a usable password verifier, claims the `staff_bootstrap`
 singleton (a concurrent run waits on that row), refuses and rolls back when it
 was already claimed, an `ADMIN` exists or no such User exists, and otherwise
-locks the User, adds `ADMIN`, revokes the User's sessions
+locks the User, replaces their role with `ADMIN`, revokes the User's sessions
 (`staff-provisioned`) and writes an audit event. It logs `provisioned` or
 `refused: <reason>` without the username and exits 0 or 1. The bootstrap is
 never reopened; the provisioned User is the Super Admin while they hold `ADMIN`.
@@ -264,8 +278,9 @@ sequenceDiagram
 
     B->>S: GET /api/user/me + Bearer access token
     S->>F: PROTECTED_ROUTES match, after LogoutFilter
-    F->>C: verify token and active session
-    C->>C: load current User, roles and StaffAccessPolicy result
+    F->>C: verify token
+    C->>C: transaction: lock User FOR SHARE, check session and current role/factor
+    C->>C: StaffAccessPolicy result; release User lock before route handling
     alt valid current session
         F-->>S: CurrentUser principal and granted authorities
         S-->>U: authenticated request
@@ -292,6 +307,10 @@ sequenceDiagram
 Update this page when a backend package, route, adapter, persistence boundary,
 authentication transport or authorization rule changes. Do not diagram planned
 OTP, recovery or order behavior as implemented.
+
+## Ticket 11 profile boundary
+
+ProfileController exposes only GET/PUT /api/user/me/profile and POST/DELETE /api/user/me/mobile-change, derives ownership from the current Bearer principal, and checks exact JSON keys/types. ProfileRules and IdentifierFormats own pure validation; ProfileService and MobileChangeService take the users row lock before mutations. ProfileService uses a constructor projection with a pending-mobile left join, avoiding an eager role fetch on reads. Changeset 012 adds the optional name/DOB, explicit edit version, closure state and one pending row per user. Bulk delete reaches the database before a replacement insert; activation catches uniqueness failure around the auto-flushing delete and rolls back the entire transaction. STALE_UPDATE and ACCOUNT_CLOSING use the shared bounded error envelope. The internal activation method belongs to the future OTP verifier; no HTTP handler invokes it.
 
 ## Ticket 14 catalog boundary
 

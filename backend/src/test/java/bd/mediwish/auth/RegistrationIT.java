@@ -96,12 +96,24 @@ class RegistrationIT {
         String password = "synthetic-registration";
         return Stream.of(
                 arguments("username shorter than three characters", valid.formatted("ab", "a@example.test", password)),
-                arguments("username longer than 50 characters",
-                        valid.formatted("a".repeat(51), "a@example.test", password)),
+                arguments("username longer than 20 characters",
+                        valid.formatted("a".repeat(21), "a@example.test", password)),
                 arguments("username with a space and punctuation",
                         valid.formatted("bad name!", "a@example.test", password)),
                 arguments("username without a letter", valid.formatted("01712345678", "a@example.test", password)),
+                arguments("mobile shorter than 11 digits", valid.formatted("valid_name", "a@example.test", password)
+                        .replace("01700000000", "0170000000")),
+                arguments("mobile longer than 11 digits", valid.formatted("valid_name", "a@example.test", password)
+                        .replace("01700000000", "017000000000")),
+                arguments("mobile with a separator", valid.formatted("valid_name", "a@example.test", password)
+                        .replace("01700000000", "01700-00000")),
                 arguments("email without an at sign", valid.formatted("valid_name", "not-an-email", password)),
+                arguments("email with a single domain label", valid.formatted("valid_name", "a@example", password)),
+                arguments("email with consecutive dots", valid.formatted("valid_name", "a..b@example.test", password)),
+                arguments("email with a 65-character local part", valid.formatted("valid_name",
+                        "a".repeat(65) + "@example.test", password)),
+                arguments("email with a 64-character domain label", valid.formatted("valid_name",
+                        "a@" + "b".repeat(64) + ".test", password)),
                 arguments("password shorter than 6 characters",
                         valid.formatted("valid_name", "a@example.test", "p".repeat(5))),
                 arguments("password longer than 30 characters",

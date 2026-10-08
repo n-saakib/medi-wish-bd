@@ -32,6 +32,8 @@ const noticePages: Record<SessionNotice, string> = {
 };
 
 export type SessionState = {
+  /** Changes when the signed-in session changes, but not on token refresh. */
+  generation: number;
   profile: SessionUser | null;
   /** The session's staff-MFA status; set whenever `profile` is. */
   mfa: MfaStatus | null;
@@ -42,6 +44,7 @@ export type SessionState = {
 };
 
 export const initialSessionState: SessionState = {
+  generation: 0,
   profile: null,
   mfa: null,
   restoring: true,
@@ -68,25 +71,25 @@ type SessionAction =
 export function sessionReducer(state: SessionState, action: SessionAction): SessionState {
   switch (action.type) {
     case 'restore-success':
-      return { ...state, profile: action.profile, mfa: action.mfa, restoring: false };
+      return { ...state, generation: state.generation + 1, profile: action.profile, mfa: action.mfa, restoring: false };
     case 'restore-empty':
       return { ...state, profile: null, mfa: null, restoring: false };
     case 'restore-error':
       // A restore that fails after, or while, the user signs in must not report a stale failure.
       return { ...state, restoring: false, notice: state.profile || state.signingIn ? state.notice : action.notice };
     case 'expire':
-      return { ...state, profile: null, mfa: null, notice: 'sessionExpired' };
+      return { ...state, generation: state.generation + 1, profile: null, mfa: null, notice: 'sessionExpired' };
     case 'signin-start':
       return { ...state, signingIn: true, notice: null };
     case 'signin-success':
-      return { ...state, profile: action.profile, mfa: action.mfa, restoring: false, signingIn: false, notice: null };
+      return { ...state, generation: state.generation + 1, profile: action.profile, mfa: action.mfa, restoring: false, signingIn: false, notice: null };
     case 'mfa-verified':
-      return { ...state, profile: action.profile, mfa: action.mfa };
+      return { ...state, generation: state.generation + 1, profile: action.profile, mfa: action.mfa };
     case 'signin-error':
       return { ...state, signingIn: false };
     case 'signout-start':
       // Only a failed sign-out's retry starts with a notice, and its alert stays until the retry settles.
-      return { ...state, signingOut: true };
+      return { ...state, generation: state.generation + 1, signingOut: true };
     case 'signout-success':
       return { ...state, profile: null, mfa: null, signingOut: false, notice: 'signedOut' };
     case 'signout-error':

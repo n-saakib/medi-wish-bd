@@ -16,3 +16,5 @@ Unit test of `StaffMfaService` with mocked repositories, session and authenticat
 8 tests.
 
 Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` passed all 238 unit tests.
+
+Ticket 08 fixtures replace CUSTOMER with ADMIN; granted role authorities contain only ROLE_ADMIN, expanded by the shared hierarchy at route authorization. Existing assurance/revocation behavior remains covered.

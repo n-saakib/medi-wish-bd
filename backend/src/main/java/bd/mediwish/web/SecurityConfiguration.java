@@ -11,6 +11,8 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchy;
+import org.springframework.security.access.hierarchicalroles.RoleHierarchyImpl;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -37,6 +39,11 @@ class SecurityConfiguration {
     private static final List<String> LOCAL_ALLOWED_ORIGINS =
             List.of("http://127.0.0.1:3000", "http://localhost:3000");
     private static final RequestMatcher USER_PROFILE = route(HttpMethod.GET, "/api/user/me");
+    static final RequestMatcher USER_PROFILE_READ = route(HttpMethod.GET, "/api/user/me/profile");
+    static final RequestMatcher USER_PROFILE_COMMANDS = new OrRequestMatcher(
+            route(HttpMethod.PUT, "/api/user/me/profile"),
+            route(HttpMethod.POST, "/api/user/me/mobile-change"),
+            route(HttpMethod.DELETE, "/api/user/me/mobile-change"));
     private static final RequestMatcher STAFF_PROFILE = route(HttpMethod.GET, "/api/staff/me");
     private static final RequestMatcher MFA_ENROLLMENT_ROUTES = new OrRequestMatcher(
             route(HttpMethod.POST, "/api/auth/mfa/enrollment"),
@@ -57,10 +64,15 @@ class SecurityConfiguration {
             route(HttpMethod.POST, "/api/staff/products"),
             route(HttpMethod.PUT, "/api/staff/products/*"));
     static final RequestMatcher STAFF_PRICING = route(HttpMethod.PUT, "/api/staff/products/*/pricing");
-    static final RequestMatcher BEARER_COMMAND_ROUTES = new OrRequestMatcher(
-            MFA_ROUTES, STAFF_CATALOG_COMMANDS, STAFF_PRICING);
+    static final RequestMatcher ADMIN_USER_SEARCH = route(HttpMethod.POST, "/api/admin/users/search");
+    static final RequestMatcher ADMIN_USER_DETAIL = route(HttpMethod.GET, "/api/admin/users/*");
+    static final RequestMatcher ADMIN_ROLE_CHANGE = route(HttpMethod.PUT, "/api/admin/users/*/roles");
+    /** Bearer-only commands need no CSRF cookie; their JSON bodies stay bounded. */
+    static final RequestMatcher BEARER_COMMAND_ROUTES = new OrRequestMatcher(ADMIN_USER_SEARCH, ADMIN_ROLE_CHANGE,
+            USER_PROFILE_COMMANDS, STAFF_CATALOG_COMMANDS, STAFF_PRICING);
     /** Every route that needs a Bearer access token; the filter and the authorization rules share it. */
-    static final RequestMatcher PROTECTED_ROUTES = new OrRequestMatcher(USER_PROFILE, STAFF_PROFILE, MFA_ROUTES,
+    static final RequestMatcher PROTECTED_ROUTES = new OrRequestMatcher(USER_PROFILE, USER_PROFILE_READ,
+            USER_PROFILE_COMMANDS, STAFF_PROFILE, MFA_ROUTES, ADMIN_USER_SEARCH, ADMIN_USER_DETAIL, ADMIN_ROLE_CHANGE,
             STAFF_CATALOG_READS, STAFF_CATALOG_COMMANDS, STAFF_PRICING);
     /** Registration and sign-in: public, exempt from CSRF (no session exists yet) and body-limited. */
     static final RequestMatcher CREDENTIAL_ROUTES = new OrRequestMatcher(
@@ -80,6 +92,12 @@ class SecurityConfiguration {
     }
 
     @Bean
+    static RoleHierarchy roleHierarchy() {
+        return RoleHierarchyImpl.withDefaultRolePrefix().role("ADMIN").implies("MODERATOR")
+                .role("MODERATOR").implies("DELIVERY_PERSON").role("DELIVERY_PERSON").implies("CUSTOMER").build();
+    }
+
+    @Bean
     CorsConfigurationSource corsConfigurationSource(@Value("${app.cors.allowed-origins:}") String allowedOrigins) {
         List<String> origins = Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim).filter(origin -> !origin.isEmpty()).toList();
@@ -88,7 +106,7 @@ class SecurityConfiguration {
         if (origins.contains("*")) throw new IllegalStateException("credentialed CORS requires explicit origins");
         var configuration = new CorsConfiguration();
         configuration.setAllowedOrigins(origins);
-        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "HEAD", "OPTIONS"));
+        configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "HEAD", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "X-XSRF-TOKEN"));
         configuration.setAllowCredentials(true);
         configuration.setMaxAge(3600L);
@@ -104,10 +122,12 @@ class SecurityConfiguration {
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(csrfTokenRepository())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())
-                        .ignoringRequestMatchers(CREDENTIAL_ROUTES, BEARER_COMMAND_ROUTES))
+                        .ignoringRequestMatchers(CREDENTIAL_ROUTES, MFA_ROUTES, BEARER_COMMAND_ROUTES))
                 .cors(AbstractHttpConfigurer::disable)
                 .addFilterBefore(new BoundedCorsFilter(corsSource, errors), SecurityContextHolderFilter.class)
-                .addFilterAfter(new AuthRequestBodyLimitFilter(new OrRequestMatcher(CREDENTIAL_ROUTES, MFA_ROUTES), errors), BoundedCorsFilter.class)
+                // Catalog commands are bounded after authorization below, not here.
+                .addFilterAfter(new AuthRequestBodyLimitFilter(new OrRequestMatcher(CREDENTIAL_ROUTES, MFA_ROUTES,
+                        ADMIN_USER_SEARCH, ADMIN_ROLE_CHANGE, USER_PROFILE_COMMANDS), errors), BoundedCorsFilter.class)
                 .addFilterAfter(new BearerAccessTokenFilter(PROTECTED_ROUTES, currentUsers, errors), LogoutFilter.class)
                 // Catalog authorization precedes body reading: denied pricing stays 403 for every JSON body.
                 .addFilterAfter(new AuthRequestBodyLimitFilter(
@@ -125,10 +145,12 @@ class SecurityConfiguration {
                         // authority, and staff roles apply only to an MFA-verified session.
                         .requestMatchers(MFA_ENROLLMENT_ROUTES).hasAuthority(StaffAccessPolicy.MFA_ENROLLMENT)
                         .requestMatchers(MFA_CHALLENGE_ROUTE).hasAuthority(StaffAccessPolicy.MFA_CHALLENGE)
+                        .requestMatchers(STAFF_PROFILE).hasRole("MODERATOR")
+                        .requestMatchers(USER_PROFILE).hasRole("CUSTOMER")
+                        .requestMatchers(USER_PROFILE_READ, USER_PROFILE_COMMANDS).hasAnyRole("CUSTOMER", "ADMIN", "MODERATOR", "DELIVERY_PERSON")
+                        .requestMatchers(ADMIN_USER_SEARCH, ADMIN_USER_DETAIL, ADMIN_ROLE_CHANGE).hasRole("ADMIN")
                         .requestMatchers(STAFF_PRICING).hasRole("ADMIN")
                         .requestMatchers(STAFF_CATALOG_READS, STAFF_CATALOG_COMMANDS).hasAnyRole("ADMIN", "MODERATOR")
-                        .requestMatchers(STAFF_PROFILE).hasAnyRole("ADMIN", "MODERATOR")
-                        .requestMatchers(USER_PROFILE).hasAnyRole("CUSTOMER", "ADMIN", "MODERATOR", "DELIVERY_PERSON")
                         .anyRequest().denyAll())
                 .exceptionHandling(handler -> handler
                         .authenticationEntryPoint((request, response, exception) -> {

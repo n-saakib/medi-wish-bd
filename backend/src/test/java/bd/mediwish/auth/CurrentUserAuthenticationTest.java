@@ -49,7 +49,7 @@ class CurrentUserAuthenticationTest {
     void resolvesTheProfileAndCurrentRolesOfAnActiveSession() {
         when(accessTokens.verify("access")).thenReturn(new AccessTokenCodec.AccessTokenClaims(USER_ID, SESSION_ID));
         when(sessions.requireActive(SESSION_ID, USER_ID, NOW)).thenReturn(PASSWORD_ONLY);
-        when(users.findById(USER_ID)).thenReturn(Optional.of(new User("alice_1", "01700000000", null, VALID_VERIFIER)));
+        when(users.findByIdForShare(USER_ID)).thenReturn(Optional.of(new User("alice_1", "01700000000", null, VALID_VERIFIER)));
 
         var current = currentUsers.authenticate("access");
 
@@ -62,10 +62,10 @@ class CurrentUserAuthenticationTest {
     @Test
     void aStaffSessionIsGrantedItsRolesOnlyWhileItCarriesEvidenceForTheActiveAuthenticator() {
         var admin = new User("owner_1", "01700000000", null, VALID_VERIFIER);
-        admin.grantRole(UserRole.ADMIN);
+        admin.replaceRole(UserRole.ADMIN);
         UUID factorId = UUID.randomUUID();
         when(accessTokens.verify("access")).thenReturn(new AccessTokenCodec.AccessTokenClaims(USER_ID, SESSION_ID));
-        when(users.findById(USER_ID)).thenReturn(Optional.of(admin));
+        when(users.findByIdForShare(USER_ID)).thenReturn(Optional.of(admin));
         when(factors.activeFactorIdOf(admin)).thenReturn(factorId);
 
         when(sessions.requireActive(SESSION_ID, USER_ID, NOW)).thenReturn(PASSWORD_ONLY);
@@ -75,16 +75,17 @@ class CurrentUserAuthenticationTest {
                 .thenReturn(new SessionService.MfaEvidence(factorId, NOW.minusSeconds(60)));
         var verified = currentUsers.authenticate("access");
         assertThat(verified.mfa()).isEqualTo(MfaStatus.VERIFIED);
-        assertThat(verified.authorities()).containsExactlyInAnyOrder("ROLE_CUSTOMER", "ROLE_ADMIN");
+        assertThat(verified.authorities()).containsExactly("ROLE_ADMIN");
     }
 
     @Test
-    void aRevokedOrExpiredSessionIsRejectedBeforeTheUserIsRead() {
+    void aRevokedOrExpiredSessionIsRejectedWithoutGrantingCurrentRoleAuthorities() {
         when(accessTokens.verify("access")).thenReturn(new AccessTokenCodec.AccessTokenClaims(USER_ID, SESSION_ID));
+        when(users.findByIdForShare(USER_ID)).thenReturn(Optional.of(new User("alice_1", "01700000000", null, VALID_VERIFIER)));
         doThrow(new AuthenticationRequiredException()).when(sessions).requireActive(SESSION_ID, USER_ID, NOW);
 
         assertThatThrownBy(() -> currentUsers.authenticate("access")).isInstanceOf(AuthenticationRequiredException.class);
-        verifyNoInteractions(users);
+        verifyNoInteractions(factors);
     }
 
     @Test
@@ -99,9 +100,9 @@ class CurrentUserAuthenticationTest {
     @ValueSource(strings = {"", "not-an-argon2-verifier"})
     void aUserWithAnUnusablePersistedVerifierIsUnauthenticated(String passwordHash) {
         when(accessTokens.verify("access")).thenReturn(new AccessTokenCodec.AccessTokenClaims(USER_ID, SESSION_ID));
-        when(sessions.requireActive(SESSION_ID, USER_ID, NOW)).thenReturn(PASSWORD_ONLY);
-        when(users.findById(USER_ID)).thenReturn(Optional.of(new User("alice_1", "01700000000", null, passwordHash)));
+        when(users.findByIdForShare(USER_ID)).thenReturn(Optional.of(new User("alice_1", "01700000000", null, passwordHash)));
 
         assertThatThrownBy(() -> currentUsers.authenticate("access")).isInstanceOf(AuthenticationRequiredException.class);
+        verifyNoInteractions(sessions, factors);
     }
 }

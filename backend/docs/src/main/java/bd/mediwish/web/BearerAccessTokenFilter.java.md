@@ -8,11 +8,11 @@ Package-private stateless adapter that turns one verified `Authorization: Bearer
 
 ## Behavior
 
-- Requests outside `PROTECTED_ROUTES` (`GET /api/user/me`, `GET /api/staff/me` and the three `POST /api/auth/mfa/...` routes) skip the filter, so public routes never read the header.
+- Requests outside `PROTECTED_ROUTES` (`GET /api/user/me`, `GET /api/staff/me`, the Admin search POST, UUID detail GET and role PUT, and the three `POST /api/auth/mfa/...` routes) skip the filter, so public routes never read the header.
 - No `Authorization` header, or a non-Bearer scheme such as Basic, continues unauthenticated; authorization then answers `401`.
 - More than one `Authorization` header is rejected before verification.
 - A Bearer value is passed to `CurrentUserAuthentication.authenticate`. `AuthenticationRequiredException` becomes `401 AUTHENTICATION_REQUIRED` with `WWW-Authenticate: Bearer`. `DataAccessException` or `TransactionException` becomes `500 INTERNAL_ERROR` without diagnostics; exceptions from the downstream chain are not caught.
-- On success the principal is the whole `CurrentUser` and the granted authorities are exactly its `authorities`, as `StaffAccessPolicy` decided them: `ROLE_<NAME>` for each persisted role, or only `MFA_ENROLLMENT` or `MFA_CHALLENGE` for a restricted staff session.
+- On success the principal is the whole `CurrentUser` and the granted authorities are exactly its `authorities`, as `StaffAccessPolicy` decided them: `ROLE_<NAME>` for the one persisted role (the hierarchy expands permissions during route authorization), or only `MFA_ENROLLMENT` or `MFA_CHALLENGE` for a restricted staff session.
 
 Query parameters, cookies and role claims are never authentication sources. The filter does not parse JWTs or touch session storage.
 

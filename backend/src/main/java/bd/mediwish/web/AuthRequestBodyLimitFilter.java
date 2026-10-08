@@ -20,7 +20,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
-/** Bounds the JSON bodies of the supplied credential, MFA or staff catalog command routes. */
+/** Bounds the JSON bodies of the supplied credential, staff MFA, Bearer command and staff catalog command routes. */
 final class AuthRequestBodyLimitFilter extends OncePerRequestFilter {
     static final int MAX_BODY_BYTES = 16 * 1024;
 

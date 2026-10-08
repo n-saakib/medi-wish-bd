@@ -28,15 +28,28 @@ const maxErrorCodeLength = 64;
 
 export type ErrorMessageKey = 'authenticationFailed' | 'duplicateUser' | 'mfaRequired' | 'mfaCodeInvalid'
   | 'mfaEnrollmentStale' | 'tooManyAttempts' | 'invalidResponse' | 'genericError'
-  | 'staleUpdate' | 'priceRequired' | 'categoryNameTaken' | 'accessDenied' | 'notFound';
+  | 'staleUpdate' | 'roleChangeRefused' | 'accessDenied' | 'notFound' | 'accountClosing' | 'checkDetails'
+  | 'priceRequired' | 'categoryNameTaken';
 
 /** The `errors` message key for a failure. Codes the UI does not tell apart share the generic message. */
 export function errorMessageKey(reason: unknown): ErrorMessageKey {
   switch (reason instanceof ApiError ? reason.code : undefined) {
+    case 'STALE_UPDATE':
+      return 'staleUpdate';
+    case 'ROLE_CHANGE_REFUSED':
+      return 'roleChangeRefused';
+    case 'ACCESS_DENIED':
+      return 'accessDenied';
+    case 'NOT_FOUND':
+      return 'notFound';
     case 'AUTHENTICATION_FAILED':
       return 'authenticationFailed';
     case 'DUPLICATE_USER':
       return 'duplicateUser';
+    case 'ACCOUNT_CLOSING':
+      return 'accountClosing';
+    case 'INVALID_REQUEST':
+      return 'checkDetails';
     case 'MFA_REQUIRED':
       return 'mfaRequired';
     case 'MFA_CODE_INVALID':
@@ -47,11 +60,10 @@ export function errorMessageKey(reason: unknown): ErrorMessageKey {
       return 'tooManyAttempts';
     case 'INVALID_RESPONSE':
       return 'invalidResponse';
-    case 'STALE_UPDATE': return 'staleUpdate';
-    case 'PRICE_REQUIRED': return 'priceRequired';
-    case 'CATEGORY_NAME_TAKEN': return 'categoryNameTaken';
-    case 'ACCESS_DENIED': return 'accessDenied';
-    case 'NOT_FOUND': return 'notFound';
+    case 'PRICE_REQUIRED':
+      return 'priceRequired';
+    case 'CATEGORY_NAME_TAKEN':
+      return 'categoryNameTaken';
     default:
       return 'genericError';
   }

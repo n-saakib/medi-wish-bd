@@ -53,6 +53,7 @@ describe('AccountSummary', () => {
     expect([...page.querySelectorAll('dd')].map((value) => value.textContent))
       .toEqual(['sana.updated', '01700000000', 'sana@example.test']);
     expect(api.requests.at(-1)?.headers.get('Authorization')).toBe('Bearer synthetic-access-token');
+    expect(requiredElement(page, 'a[href="/account/profile"]').textContent).toBe('Edit profile');
     expect(router.replace).not.toHaveBeenCalled();
   });
 

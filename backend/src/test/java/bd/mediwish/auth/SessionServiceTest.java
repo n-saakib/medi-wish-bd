@@ -2,6 +2,8 @@ package bd.mediwish.auth;
 
 import bd.mediwish.testsupport.TestAuthSettings;
 import bd.mediwish.user.User;
+import bd.mediwish.user.UserRepository;
+import bd.mediwish.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +36,7 @@ class SessionServiceTest {
     private static final Instant NOW = Instant.parse("2026-09-19T10:00:00Z");
     private static final String PRESENTED = "presented-refresh";
 
+    @Mock UserRepository users;
     @Mock UserSessionRepository sessions;
     @Mock UserSessionRefreshTokenRepository refreshTokens;
     private SessionService service;
@@ -49,12 +52,13 @@ class SessionServiceTest {
                 Arrays.fill(bytes, (byte) 7);
             }
         };
-        service = new SessionService(sessions, refreshTokens, properties, Clock.fixed(NOW, ZoneOffset.UTC), random);
+        service = new SessionService(users, sessions, refreshTokens, properties, Clock.fixed(NOW, ZoneOffset.UTC), random);
     }
 
     @Test
     void createsGenerationZeroStoringOnlyTheHashOfA32ByteRefreshValue() {
-        var result = service.create(user);
+        when(users.findByIdForShare(user.id())).thenReturn(Optional.of(user));
+        var result = service.create(user.id()).credential();
 
         assertThat(result.userId()).isEqualTo(user.id());
         assertThat(result.expiresAt()).isEqualTo(NOW.plusSeconds(1000));
@@ -65,13 +69,26 @@ class SessionServiceTest {
     }
 
     @Test
-    void aStaffPasswordSessionCanBeGivenTheShortRestrictedLifetime() {
-        var result = service.create(user, Duration.ofMinutes(10));
+    void passwordSessionLocksTheCurrentRoleBeforeSavingAndUsesItsRestrictedLifetime() {
+        user.replaceRole(UserRole.MODERATOR);
+        when(users.findByIdForShare(user.id())).thenReturn(Optional.of(user));
+        var created = service.create(user.id());
+        var result = created.credential();
+        assertThat(created.user()).isSameAs(user);
+        var ordered = org.mockito.Mockito.inOrder(users, sessions);
+        ordered.verify(users).findByIdForShare(user.id());
+        ordered.verify(sessions).save(any(UserSession.class));
 
         assertThat(result.expiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(10)));
         assertThat(result.mfa()).isEqualTo(new SessionService.MfaEvidence(null, null));
     }
 
+    @Test
+    void aDeletedUserCannotOpenAPasswordSession() {
+        when(users.findByIdForShare(user.id())).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.create(user.id())).isInstanceOf(AuthenticationRequiredException.class);
+        verifyNoInteractions(sessions, refreshTokens);
+    }
     @Test
     void mfaVerificationRevokesTheRestrictedSessionAndStartsAVerifiedOneWithTheFullLifetime() {
         var restricted = session(NOW.plusSeconds(60));

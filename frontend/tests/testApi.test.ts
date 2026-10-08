@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { createServer } from 'node:net';
+import { connect, Socket } from 'node:net';
 import { execFileSync, spawn } from 'node:child_process';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import startTestApi, {
@@ -9,6 +9,20 @@ import startTestApi, {
 
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn(), spawn: vi.fn() }));
 vi.mock('node:fs', () => ({ openSync: vi.fn(() => 99), closeSync: vi.fn() }));
+vi.mock('node:net', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:net')>();
+  return { ...actual, connect: vi.fn() };
+});
+
+/** Socket outcomes are controlled: setup units never depend on another ticket's occupied port. */
+function portProbe(answer: 'connect' | 'error') {
+  vi.mocked(connect).mockImplementation(() => {
+    const socket = new Socket();
+    queueMicrotask(() => answer === 'connect' ? socket.emit('connect')
+      : socket.emit('error', new Error('controlled connection refusal')));
+    return socket;
+  });
+}
 
 const psql = vi.mocked(execFileSync);
 const sqlSent = () => psql.mock.calls.map(([, , options]) => String((options as { input: string }).input));
@@ -32,6 +46,7 @@ function databaseAnswers(migrated: 't' | 'f') {
 }
 
 beforeEach(() => {
+  portProbe('error');
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
 });
 
@@ -65,13 +80,9 @@ describe('apiEnvironment', () => {
 
 describe('startTestApi', () => {
   it('refuses to start while another process holds the API port, before touching the database', async () => {
-    const occupant = createServer();
-    await new Promise<void>((resolve) => occupant.listen(Number(new URL(apiUrl).port), '127.0.0.1', resolve));
-    try {
-      await expect(startTestApi()).rejects.toThrow(`${apiUrl} is already in use`);
-    } finally {
-      await new Promise((resolve) => occupant.close(resolve));
-    }
+    portProbe('connect');
+    await expect(startTestApi()).rejects.toThrow(`${apiUrl} is already in use`);
+    expect(connect).toHaveBeenCalledWith(Number(new URL(apiUrl).port), new URL(apiUrl).hostname);
     expect(psql).not.toHaveBeenCalled();
     expect(spawn).not.toHaveBeenCalled();
   });

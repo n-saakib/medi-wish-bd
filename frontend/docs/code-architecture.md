@@ -5,11 +5,18 @@ remains authoritative; this page documents the route structure, the
 server/client boundary, the shared session state and the small API client
 seams.
 
-**Last reviewed:** 2026-10-07<br/>
-**Current scope:** application shell, English localization, health probe,
-home, sign-in, registration, account, staff MFA, verified staff landing and
-Ticket 14 staff Product and Category catalog pages. Storefront search, cart,
-orders, the staff dashboard, OTP, recovery and OAuth remain outside this slice.
+**Last reviewed:** 2026-10-08<br/>
+**Current scope:** application shell, English localization, health probe
+boundary, and the Ticket 03.01 designed storefront routes: home, sign-in,
+registration (Ticket 02), account with sign-out (Ticket 03 browser session),
+the staff authenticator setup, code and verified staff landing (Ticket 06),
+the editable customer profile with pending mobile changes (Ticket 11), the
+Admin Users and roles pages (Ticket 08) and the staff Product and Category
+catalog pages (Ticket 14). Storefront search, cart, orders, the staff
+dashboard, OTP, backup-code sign-in, recovery and OAuth screens are not
+implemented in this slice.
+
+Ticket08 adds `/admin/users` and `/admin/users/[userId]` in the staff route group. UserList and UserRoleForm use the shared session guard and `authenticatedFetch` through the bounded `lib/adminUsers` client; private username filters travel only in POST bodies and route IDs are UUIDs. The forms render one role, explicit disabled reasons, busy/error/retry states and the latest20 history entries. The session guard resolves in the browser; dynamic detail IDs are validated before any API call. Admin document responses carry no-store.
 
 ## Application dependency diagram
 
@@ -23,6 +30,7 @@ flowchart TD
         STORE["(store)/layout.tsx<br/>store group"]
         HOME["(store)/page.tsx<br/>/"]
         ACCOUNTPAGE["(store)/account/page.tsx<br/>/account"]
+        PROFILEPAGE["(store)/account/profile/page.tsx<br/>/account/profile"]
         AUTH["(auth)/layout.tsx<br/>auth group"]
         SIGNINPAGE["(auth)/sign-in/page.tsx<br/>/sign-in"]
         REGISTERPAGE["(auth)/register/page.tsx<br/>/register"]
@@ -48,6 +56,8 @@ flowchart TD
 
     subgraph ACCOUNTF[src/account - client]
         SUMMARY[AccountSummary.tsx]
+        PROFILEFORM[ProfileForm.tsx]
+        MOBILE[MobileChangeDialog.tsx]
     end
 
     subgraph STAFFF[src/staff - client]
@@ -59,6 +69,16 @@ flowchart TD
         PRODUCTEDITOR[ProductEditor.tsx]
         CATEGORYMANAGER[CategoryManager.tsx]
     end
+    ADMINPAGES[Admin user route wrappers]
+    ADMINCOMP[UserList / UserRoleForm]
+    ADMINLIB[adminUsers.ts<br/>bounded search/detail/role client]
+    STAFFGROUP --> ADMINPAGES
+    ADMINPAGES --> ADMINCOMP
+    ADMINCOMP --> REDIRECT
+    ADMINCOMP --> PROVIDER
+    ADMINCOMP --> ADMINLIB
+    ADMINLIB --> SESSION
+    ADMINLIB --> APIMOD
 
     subgraph SHELL[src/shell]
         SITEHEADER[SiteHeader.tsx<br/>client]
@@ -72,6 +92,8 @@ flowchart TD
         USER[user.ts<br/>registration + profile client]
         STAFF[staff.ts<br/>staff access client]
         CATALOG[catalog.ts<br/>staff Product and Category client]
+        PROFILE[profile.ts<br/>editable profile client]
+        IDENTIFIERS[identifiers.ts<br/>profile email format]
         APIMOD[api.ts<br/>request, timeout, bounded errors]
         HEALTH[health.ts<br/>health response probe]
     end
@@ -90,6 +112,16 @@ flowchart TD
     STORE --> SITEHEADER
     STORE --> HOME
     STORE --> ACCOUNTPAGE
+    STORE --> PROFILEPAGE
+    PROFILEPAGE --> PROFILEFORM
+    SUMMARY -->|Edit profile| PROFILEPAGE
+    PROFILEFORM --> MOBILE
+    PROFILEFORM --> REDIRECT
+    PROFILEFORM --> PROVIDER
+    PROFILEFORM --> IDENTIFIERS
+    PROFILEFORM --> PROFILE
+    PROFILE -->|authenticatedFetch| SESSION
+    PROFILE --> APIMOD
     AUTH --> AUTHHEADER
     AUTH --> SIGNINPAGE
     AUTH --> REGISTERPAGE
@@ -148,7 +180,7 @@ flowchart TD
     SIGNIN -->|errorMessageKey| APIMOD
     SESSION --> APIMOD
     USER --> APIMOD
-    SESSION -->|csrf/login/refresh/logout, MFA enrollment and verify<br/>GET /api/user/me and /api/staff/me with Bearer| API
+    SESSION -->|csrf/login/refresh/logout, MFA enrollment and verify<br/>user, staff and profile routes with Bearer| API
     USER -->|POST /api/auth/register| API
     HEALTH -->|GET /actuator/health/*| API
     TESTS --> PROVIDER
@@ -281,28 +313,36 @@ records only the new MFA status; the setup key, otpauth URI and backup codes
 are returned to the page component, which keeps them in state, clears them on
 `pagehide` and unmount, and draws the QR code locally with `qrcode`.
 
+## Editable profile seam
+
+The profile route loads GET `/api/user/me/profile`, then sends exactly full name, email, date of birth and the loaded version on PUT. A successful save replaces the baseline and focuses the success notice; STALE_UPDATE offers Reload. Username and current mobile are text. The native dialog stages a proposed mobile with POST `/api/user/me/mobile-change`; DELETE cancels it. Stage/cancel preserve the field draft, baseline and version so another tab's save remains detectable.
+
+One in-flight marker excludes competing profile commands. The provider publishes a reducer-owned generation on session transitions, while refresh leaves it stable. The form hides old data and drops late answers when that generation changes, including sign-out followed by sign-in with the same user object. ACCOUNT_CLOSING disables fields and commands while leaving existing pending-mobile information readable. SMS, OTP and activation remain later-ticket work.
+
 ## Module responsibilities
 
 | Module | Responsibility | Boundary |
 | --- | --- | --- |
 | `src/app/layout.tsx` | Root HTML shell, metadata title template, `NextIntlClientProvider` and the single `SessionProvider`. | Server component boundary. |
-| `src/app/(store)/*` | Store layout with `SiteHeader`; home page (`/`) and account page (`/account`). | Server route files composing client components. |
+| `src/app/(store)/*` | Store layout with `SiteHeader`; home page (`/`) account page (`/account`) and profile editor (`/account/profile`). | Server route files composing client components. |
 | `src/app/(auth)/*` | Auth layout with `AuthHeader` and centered card; sign-in (`/sign-in`), registration (`/register`), authenticator setup (`/staff/mfa/enroll`) and code (`/staff/mfa`) pages. | Server route files composing client components. |
 | `src/app/(staff)/*` | Staff layout with `StaffHeader`; `/staff`, Products list/new/edit and Categories routes. | Server route files compose client components; edit reads `useParams` in the browser. |
 | `src/app/globals.css` | Design tokens and component styles ported from `agent-docs/ui-design/assets/styles.css`, limited to the current pages. | Global stylesheet. |
 | `src/auth/` | Session provider and reducer, redirect rules, sign-in and registration forms, sign-out notice, authenticator setup, code entry, code field and backup-code panel. | Client UI and state; network only through `src/lib`. |
-| `src/account/` | Account summary: loads the current profile, shows loading, profile or generic error, and the sign-out button. | Client UI; the profile call goes through `user.ts` and the provider. |
-| `src/staff/` | Staff landing: loads `GET /api/staff/me`, shows verified access and role-appropriate catalog links. | Client UI; the call goes through `staff.ts` and the provider. |
+| `src/account/` | Account summary, editable profile and native mobile-change dialog; dirty drafts, optimistic version, stale reload and closure state. | Client UI; calls use `user.ts` or `profile.ts` through the provider. |
+| `src/staff/` | Staff landing: loads `GET /api/staff/me` for a verified session and shows the username, role, Super Admin label and role-appropriate links (Users and roles for Admins; Products and Categories for Admins and Moderators). | Client UI; the call goes through `staff.ts` and the provider. |
 | `src/catalog/` | Products table and filters, Product new/edit forms, separate Admin pricing form, and inline Categories manager. | Client UI; every route waits for verified MFA and uses `catalog.ts` through the provider. |
 | `src/shell/` | Store, auth and staff headers, logo, decorative icons and the alert component. | Presentation; `SiteHeader` reads session state. |
 | `src/lib/api.ts` | Base URL, request defaults, 10-second timeout, 16 KiB default JSON bound with a caller-specified larger success bound, `ApiError` and error-code-to-copy key. | Shared HTTP boundary for the API clients. |
 | `src/lib/session.ts` | Login, CSRF bootstrap, MFA status, enrollment start and verification with token replacement, memory-only access token, cross-tab cookie-mutation Web Lock, refresh single-flight, restore (`204` none, `401` expired), Bearer requests with one refresh and retry, epoch invalidation and logout. | Injectable browser session seam; refresh credentials remain cookie-backed. |
 | `src/lib/user.ts` | Registration (any `201` succeeds) and the `GET /api/user/me` profile through `authenticatedFetch`, with field projection. | Network seam to the backend; no credential persistence. |
+| `src/lib/profile.ts` | Nine-field profile projection and GET/PUT profile, POST/DELETE mobile-change commands with strict expected statuses. | Caller-owned authenticated network seam; no identifier URLs. |
+| `src/lib/identifiers.ts` | Accepted ASCII dot-atom email validation for new profile input. | Pure function; the backend remains authoritative. |
 | `src/lib/staff.ts` | `GET /api/staff/me` through `authenticatedFetch`, with bounded projection of username, roles and Super Admin flag. | Network seam to the backend. |
 | `src/lib/catalog.ts` | Staff Product/Category reads and commands through `authenticatedFetch`, strict response projections, BDT string formatting and client UUIDs. | Catalog and pricing routes are separate; valid 50-item success pages use a 256 KiB response bound. |
 | `src/lib/health.ts` | Parallel liveness/readiness probe with bounded result states and timeout. | Operational probe seam. |
 | `src/i18n/request.ts` | Selects the English locale and loads the message catalog. | Server localization boundary. |
-| `messages/en.json` | User-visible English strings by feature namespace, including `catalog`, `categories` and bounded `errors`. | Externalized message source, including the BDT symbol. |
+| `messages/en.json` | User-visible English strings by feature namespace (`metadata`, `header`, `home`, `signIn`, `register`, `account`, `profile`, `staffMfa`, `staffHome`, `adminUsers`, `catalog`, `categories`, `errors`). | Externalized message source, including the BDT symbol. |
 | `tests/` and `tools/` | Exercise the API seams, provider and redirect rules, mounted pages' components (with real session clients over the shared `fakeApi` routes), health integration and the supported probe path. | Verification boundary; synthetic data only. |
 
 ## Frontend safety rules

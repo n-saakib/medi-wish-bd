@@ -4,10 +4,10 @@ This is the living database architecture map for the backend. It describes the
 schema that is currently created by Liquibase and mapped by JPA; it is not a
 design claim for tables that belong to later tickets.
 
-**Last reviewed:** 2026-09-27<br/>
+**Last reviewed:** 2026-10-05<br/>
 **Current scope:** Ticket 01 health baseline, Ticket 02 shared User
 registration/RBAC foundation, Ticket 03 durable password sessions and Ticket 06
-staff MFA, first-Admin bootstrap and security audit events.<br/>
+staff MFA, first-Admin bootstrap and security audit events, plus Ticket 08 single-role assignment and audit and Ticket 11 Customer profile and staged mobile changes.<br/>
 **Schema source of truth:** [`src/main/resources/db/changelog/db.changelog-master.yaml`](../src/main/resources/db/changelog/db.changelog-master.yaml)<br/>
 **Runtime rule:** Liquibase owns schema changes; Hibernate runs with
 `ddl-auto: validate` and must not create or alter tables. Unique
@@ -18,7 +18,7 @@ JPA entities map tables and columns without repeating them.
 
 ```mermaid
 erDiagram
-    USERS ||--o{ USER_ROLES : "has persisted roles"
+    USERS ||--|| USER_ROLES : "has exactly one role"
     USERS ||--o{ USER_SESSIONS : "owns session families"
     USER_SESSIONS ||--o{ SESSION_REFRESH_TOKENS : "rotates generations"
     USERS ||--o{ STAFF_MFA_FACTORS : "enrolls authenticators"
@@ -27,20 +27,33 @@ erDiagram
     USERS ||--o| STAFF_MFA_THROTTLE : "counts failed codes"
     USERS |o--o| STAFF_BOOTSTRAP : "is the Super Admin"
     USERS |o--o{ SECURITY_AUDIT_EVENTS : "is the subject of"
+    USERS ||--o| USER_MOBILE_CHANGES : "stages one replacement"
 
     USERS {
         UUID id PK "Java-generated User identity"
         VARCHAR_50 username UK "trimmed, lowercase, immutable"
-        VARCHAR_30 mobile UK "trimmed; OTP normalization deferred"
+        VARCHAR_30 mobile UK "11 ASCII digits for new writes"
         VARCHAR_320 email "nullable; unique ignoring case"
+        VARCHAR_100 full_name "nullable; normalized Customer display name"
+        DATE date_of_birth "nullable; cannot be future in Dhaka"
+        BIGINT profile_version "non-null; starts at 0"
+        VARCHAR_24 account_state "ACTIVE or CLOSURE_REQUESTED"
         VARCHAR_255 password_hash "Argon2 verifier only"
         BOOLEAN mobile_verified "false until final OTP work"
         TIMESTAMPTZ created_at "Java-created Instant"
+        BIGINT roles_version "increments on actual role change"
     }
 
     USER_ROLES {
         UUID user_id PK, FK "references users.id; cascade delete"
-        VARCHAR_32 role PK "EnumType.STRING role value"
+        VARCHAR_32 role "one of four role names"
+    }
+
+    USER_MOBILE_CHANGES {
+        UUID id PK "pending change identity"
+        UUID user_id FK, UK "one pending row per User; cascade delete"
+        VARCHAR_11 new_mobile "staged replacement; not yet active"
+        TIMESTAMPTZ requested_at
     }
 
     USER_SESSIONS {
@@ -99,6 +112,17 @@ erDiagram
         TIMESTAMPTZ provisioned_at
     }
 
+    USERS |o--o{ USER_ROLE_CHANGES : "is actor or target"
+    USER_ROLE_CHANGES {
+        UUID id PK
+        TIMESTAMPTZ occurred_at
+        UUID actor_user_id FK "nullable on deletion"
+        UUID target_user_id FK "nullable on deletion"
+        VARCHAR_32 old_role
+        VARCHAR_32 new_role
+        VARCHAR_64 request_id
+    }
+
     SECURITY_AUDIT_EVENTS {
         UUID id PK
         TIMESTAMPTZ occurred_at
@@ -109,11 +133,7 @@ erDiagram
     }
 ```
 
-`USER_ROLES` has a composite primary key `(user_id, role)`. A User may have
-zero or more persisted roles in the database, although public registration
-currently creates exactly one `CUSTOMER` assignment. The current role enum is
-`CUSTOMER`, `ADMIN`, `MODERATOR`, and `DELIVERY_PERSON`; the database stores
-these as strings and the application owns the allowed vocabulary.
+`USER_ROLES` has primary key `user_id`, a check for the four names and deferred required-role triggers: every committed User has exactly one role. The permission order is CUSTOMER < DELIVERY_PERSON < MODERATOR < ADMIN. The migration keeps the highest legacy role, fills CUSTOMER for roleless legacy accounts and leaves existing sessions, owner pointer and audit unchanged.
 
 ## Persistence and migration boundary
 
@@ -145,8 +165,9 @@ substitute.
 
 | Table | Ownership | Important columns and constraints | Meaning |
 | --- | --- | --- | --- |
-| `users` | `bd.mediwish.user.User` | `id` primary key; `username` unique and not null; `mobile` unique and not null; optional `email`, unique ignoring case through `uk_users_email_upper` on `upper(email)`; non-null `password_hash`; non-null `mobile_verified`; non-null `created_at` | Shared identity/profile and credential verifier for Customers and future staff roles. |
-| `user_roles` | `User.roles` via `@ElementCollection` | Composite primary key `(user_id, role)`; `user_id` foreign key to `users.id` with `ON DELETE CASCADE`; non-null role | Role assignments used by Spring Security for current authorization. |
+| `users` | `bd.mediwish.user.User` | `id` primary key; `username` unique and not null; `mobile` unique and not null; optional `email`, unique ignoring case through `uk_users_email_upper` on `upper(email)`; non-null `password_hash`; non-null `mobile_verified`; non-null `created_at`; `roles_version` default zero; optional `full_name` and `date_of_birth`; `profile_version` default zero; `account_state` default `ACTIVE`, checked by `ck_users_account_state` | Shared identity/profile and credential verifier for Customers and staff roles. |
+| `user_mobile_changes` | `bd.mediwish.user.MobileChange` | UUID primary key; unique non-null `user_id` with `fk_user_mobile_changes_user` and `ON DELETE CASCADE`; non-null `new_mobile` and `requested_at` | A single staged replacement mobile per User. It does not become the active number until internal verified activation. |
+| `user_roles` | `User.roles` via `@ElementCollection` | Primary key `user_id`; cascading User FK; role-name check; deferred exactly-one-role triggers | Role assignments used by Spring Security for current authorization. |
 | `user_sessions` | `bd.mediwish.auth.UserSession` | UUID primary key; cascading `user_id` FK; non-null lifecycle timestamps; nullable revocation fields; nullable `mfa_factor_id` (`fk_user_sessions_mfa_factor`, `ON DELETE SET NULL`) and `mfa_verified_at`; user/revocation and expiry indexes | Durable refresh-session family whose revocation is checked before bearer authorization. The MFA columns are the session's assurance: staff roles apply only while they name the User's active factor. |
 | `user_session_refresh_tokens` | `bd.mediwish.auth.UserSessionRefreshToken` | UUID primary key; cascading session FK; unique token digest; unique `(session_id, generation)`; session/expiry index; nullable consumed timestamp | One row per refresh generation; consumed rows remain for replay detection. |
 | `staff_mfa_factors` | `bd.mediwish.auth.StaffMfaFactor` | UUID primary key; `fk_staff_mfa_factors_user` with `ON DELETE CASCADE`; `ck_staff_mfa_factors_status` limits `status` to `PENDING`, `ACTIVE`, `REVOKED`; partial unique indexes `uq_staff_mfa_active` and `uq_staff_mfa_pending` on `user_id`; non-null ciphertext, nonce and `last_used_step` (default `-1`) | A staff User's TOTP authenticator: at most one active and one pending. The seed is stored only sealed with AES-256-GCM. |
@@ -154,6 +175,7 @@ substitute.
 | `staff_mfa_throttle` | `bd.mediwish.auth.StaffMfaThrottle` | `user_id` primary key and `fk_staff_mfa_throttle_user` with `ON DELETE CASCADE`; non-null `failed_count` and `window_started_at`; nullable `locked_until` | Failed-code count per User; five failures in 15 minutes lock verification for 15 minutes. |
 | `staff_bootstrap` | `bd.mediwish.auth.StaffBootstrap` | `SMALLINT` primary key with `ck_staff_bootstrap_singleton` (`id = 1`); nullable `super_admin_user_id` (`fk_staff_bootstrap_super_admin`, `ON DELETE SET NULL`); non-null `provisioned_at` | Permanent singleton claimed once by the first-Admin command; it names the Super Admin and is never reopened. |
 | `security_audit_events` | `bd.mediwish.auth.SecurityAuditEvent` | UUID primary key; non-null `occurred_at` and `event_type`; nullable `subject_user_id` (`fk_security_audit_events_subject`, `ON DELETE SET NULL`), `session_id` (no FK) and `request_id`; `idx_security_audit_events_subject` on `(subject_user_id, occurred_at)` | Append-only record of staff MFA and provisioning events. It has no free-text column. |
+| `user_role_changes` | `bd.mediwish.auth.UserRoleChange` | UUID primary key; timestamp; nullable actor/target User foreign keys ON DELETE SET NULL; valid unequal old/new roles; nullable request id; target/time descending index | Atomic role-change evidence with no free-text or profile columns. |
 | `DATABASECHANGELOG` | Liquibase | Tool-managed applied-change records | Migration history and checksum protection; not application domain data. |
 | `DATABASECHANGELOGLOCK` | Liquibase | Tool-managed migration lock | Prevents concurrent Liquibase updates; not application domain data. |
 
@@ -163,18 +185,29 @@ substitute.
   passwords, OTPs and credentials are not database architecture fields and
   must not be logged or returned by an API.
 - `username` is normalized by the shared `UserIdentifierNormalizer` before
-  lookup and registration; JPA marks it non-updatable. The same seam trims
-  mobile values and lowercases optional email values for Ticket 03 candidate
-  resolution without adding E.164 or OTP policy.
+  lookup and registration; JPA marks it non-updatable. New writes also follow
+  the P12 username grammar. The same seam trims mobile values and lowercases
+  optional email values for Ticket 03 candidate resolution.
 - `email` is unique ignoring case (Ticket 03.03 D1), and any number of Users may
   have none, because PostgreSQL treats NULLs in a unique index as distinct. A
   taken email makes registration return `409 DUPLICATE_USER`.
-- `mobile` is trimmed and length-bounded in Ticket 02. Country/E.164
-  normalization, verification and account-linking semantics belong to Ticket
-  61 and are not represented as implemented schema here.
+- New registered and staged mobile values must contain exactly 11 ASCII digits;
+  existing stored values are not rewritten. A staged number is not reserved by
+  the database and does not affect sign-in until activation. Country/E.164
+  normalization and OTP verification belong to Ticket 61.
+- Customer profile edits update `full_name`, `email` and `date_of_birth` under
+  a User row lock. `profile_version` increments for an effective edit and
+  stale versions are rejected. The persisted account state is constrained to
+  `ACTIVE` or `CLOSURE_REQUESTED`; closing accounts refuse profile writes and
+  staged mobile changes. Ticket 11 adds no closure-request endpoint.
+- Staging replaces the one pending mobile row under the User lock. Cancellation
+  deletes that row. Internal activation applies the pending number as verified
+  and deletes the row atomically; a uniqueness conflict rolls the transaction
+  back, preserving the pending row.
 - Public registration cannot supply roles. The service constructs a User with
-  `CUSTOMER`. The only application path that adds a role is the first-Admin
-  command, which adds `ADMIN` once.
+  `CUSTOMER`. Provisioning replaces it with `ADMIN` once. Verified Admins
+  replace permitted roles through RoleAssignmentService; only the Super Admin
+  changes a role to or from Admin, and their own role is immutable.
 - `mobile_verified` is retained as persisted state but remains false for the
   reduced flow. Ticket 61 owns the final OTP transition.
 - Refresh values are generated with at least 32 random bytes and only their
@@ -185,7 +218,8 @@ substitute.
   kept. `revoked_reason` stores a `RevocationReason` code: `logout`,
   `refresh-replay`, `user-unavailable`, `mfa-verified` (a restricted staff
   session replaced by its verified session) or `staff-provisioned` (every
-  session of the User the first-Admin command promotes).
+  session of the User the first-Admin command promotes), or `role-changed`
+  (every active session of a User whose role was actually replaced).
 - Logout revokes all valid session families represented by duplicate refresh
   cookies in one transaction. A failure while revoking any family rolls back
   the entire operation rather than leaving a partial logout.
@@ -224,6 +258,8 @@ substitute.
 | `008-drop-unused-exact-email-index` | Drops `idx_users_email`, introduced by 006. | Keeps only the index used by the current case-insensitive lookup while preserving append-only migration history. |
 | `009-unique-user-email` | Halts, changing nothing, when non-null emails repeat ignoring case; otherwise replaces `idx_users_email_upper` with the unique `uk_users_email_upper` on `upper(email)`. | One index enforces unique optional email and serves the case-insensitive sign-in lookup. The operator resolves duplicates by hand, as the halt message names no address. |
 | `010-staff-mfa` | Creates `staff_mfa_factors`, `staff_mfa_backup_codes`, `staff_mfa_throttle`, `staff_bootstrap` and `security_audit_events` with their checks, partial unique indexes, foreign keys and indexes; adds nullable `mfa_factor_id` and `mfa_verified_at` to `user_sessions`. | Implements staff MFA, the one-time first-Admin bootstrap and the security audit trail. Existing sessions keep `NULL` evidence and continue to refresh. |
+| `011-staff-role-changes` | Converts legacy multi-role rows to each highest role, enforces exactly one role at commit, adds roles_version and user_role_changes. | Conversion preserves sessions; an actual assignment atomically versions, audits and revokes sessions. |
+| `012-user-profile` | Adds optional name/DOB, version and constrained account state to `users`; creates `user_mobile_changes` with a unique User FK and cascading delete. | Existing accounts default to active/version zero. The pending replacement is separate from the active mobile until verified activation. |
 
 When a later ticket changes persistence, add a new append-only changeset and
 update this page in the same change. Do not rewrite an applied changeset to
@@ -246,6 +282,8 @@ After editing, compare the ER diagram and invariant tables with the current
 changelog and entity mappings, then run the backend migration/integration
 checks. This page documents the current architecture; future tables should be
 added only when their ticket and migration exist.
+
+Password sign-in locks the User FOR SHARE before inserting the session and chooses its lifetime from the locked role. Bearer authentication locks the User FOR SHARE before reading active-session evidence, role and factor in one ordinary transaction, then releases the lock before route handling. Role assignment locks actor/target Users in UUID order FOR NO KEY UPDATE, then revokes active sessions in id order in the same transaction as role/version/audit writes. Refresh takes token then session and never locks User. All future session creation or revoke-all operations preserve User-before-session ordering.
 
 ## Ticket 14 catalog data
 

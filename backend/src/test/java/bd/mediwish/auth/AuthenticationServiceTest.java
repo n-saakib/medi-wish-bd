@@ -60,7 +60,7 @@ class AuthenticationServiceTest {
 
     private AuthenticationService service(PasswordEncoder encoder) {
         return new AuthenticationService(users, encoder, new UserIdentifierNormalizer(), sessions, accessTokens, factors,
-                TestAuthSettings.properties(), Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -70,7 +70,7 @@ class AuthenticationServiceTest {
                 PASSWORD_ONLY);
         lookups(" Alice@Example.COM ", null, null, user);
         when(passwords.matches("correct-password", VALID_VERIFIER)).thenReturn(true);
-        when(sessions.create(user, Duration.ofDays(30))).thenReturn(session);
+        when(sessions.create(user.id())).thenReturn(new SessionService.PasswordSession(user, session));
         when(accessTokens.issue(user.id(), session.sessionId())).thenReturn(new AccessTokenCodec.IssuedAccessToken("access", 900));
 
         var result = service.signIn(" Alice@Example.COM ", "correct-password");
@@ -82,12 +82,12 @@ class AuthenticationServiceTest {
     @Test
     void aStaffPasswordSignInGetsOnlyARestrictedSessionThatMustStillEnroll() {
         var user = new User("owner_1", "01700000000", null, VALID_VERIFIER);
-        user.grantRole(UserRole.ADMIN);
+        user.replaceRole(UserRole.ADMIN);
         var session = new SessionService.SessionCredential(user.id(), UUID.randomUUID(), "raw-refresh",
                 NOW.plus(Duration.ofMinutes(10)), PASSWORD_ONLY);
         lookups("owner_1", user, null, null);
         when(passwords.matches("correct-password", VALID_VERIFIER)).thenReturn(true);
-        when(sessions.create(user, Duration.ofMinutes(10))).thenReturn(session);
+        when(sessions.create(user.id())).thenReturn(new SessionService.PasswordSession(user, session));
         when(accessTokens.issue(user.id(), session.sessionId())).thenReturn(new AccessTokenCodec.IssuedAccessToken("access", 900));
 
         var result = service.signIn("owner_1", "correct-password");
@@ -97,6 +97,20 @@ class AuthenticationServiceTest {
         assertThat(result.refreshExpiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(10)));
     }
 
+    @Test
+    void signInIssuesFromTheUserReadUnderTheSessionLockInsteadOfThePasswordLookup() {
+        var unlocked = new User("changed_role", "01700000000", null, VALID_VERIFIER);
+        var locked = spy(unlocked);
+        when(locked.role()).thenReturn(UserRole.MODERATOR);
+        lookups("changed_role", unlocked, null, null);
+        when(passwords.matches("correct-password", VALID_VERIFIER)).thenReturn(true);
+        var credential = new SessionService.SessionCredential(unlocked.id(), UUID.randomUUID(), "refresh",
+                NOW.plus(Duration.ofMinutes(10)), PASSWORD_ONLY);
+        when(sessions.create(unlocked.id())).thenReturn(new SessionService.PasswordSession(locked, credential));
+        when(accessTokens.issue(unlocked.id(), credential.sessionId()))
+                .thenReturn(new AccessTokenCodec.IssuedAccessToken("access", 900));
+        assertThat(service.signIn("changed_role", "correct-password").mfa()).isEqualTo(MfaStatus.ENROLLMENT_REQUIRED);
+    }
     @Test
     void aWrongPasswordFailsWithoutASession() {
         var user = new User("alice_1", "01700000000", null, VALID_VERIFIER);

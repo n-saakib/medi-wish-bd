@@ -1,26 +1,20 @@
 # `src/lib/api.ts`
 
-Source: [`src/lib/api.ts`](../../../src/lib/api.ts)
+Source: [source](<../../../src/lib/api.ts>).
 
-## Purpose
+## Purpose and exports
 
-The shared HTTP boundary for the API clients in [`session.ts`](session.ts.md), [`user.ts`](user.ts.md) and [`catalog.ts`](catalog.ts.md). It owns the API base URL, request defaults, operation timeout, bounded JSON reading and the one error type.
+The shared HTTP boundary supports session, user, staff, Admin user, editable-profile and catalog clients. `apiRequest` sends `cache: 'no-store'` and `redirect: 'error'`, bounds the entire operation to 10 seconds and maps transport failures to `REQUEST_FAILED`. `endpoint` resolves paths against the configured API URL, defaulting to `http://127.0.0.1:8080`.
 
-## Exports
+`readJsonResponse` reads at most 16 KiB regardless of Content-Length, cancels larger bodies and rejects malformed JSON. `boundedError` retains only a 1–64 character error code and status. `ApiError.message` is always empty: server messages and diagnostics are never copied to client errors. The module also exports injectable fetch/response/options types and shared record, text and error guards.
 
-- `ApiError` — a bounded failure: `code` (the API's error code, or a client code) and `status` (`0` when no response arrived). Its `message` is always empty, because the API's `message` text is never read or shown.
-- `ApiClientOptions` — `{ baseUrl?, fetch? }`, the options both clients accept; tests inject `fetch`.
-- `errorMessageKey(reason)` — the `ErrorMessageKey` in [`messages/en.json`](../../messages/en.json.md). It maps authentication/MFA, invalid response, stale update, price required, category name taken, access denied and not found codes to bounded copy; other failures use `genericError`.
-- `apiRequest(fetcher, url, init, readResponse)` — sends one request with `cache: 'no-store'` and `redirect: 'error'`, and aborts it after 10 seconds, including the time `readResponse` spends reading the body. A transport failure or abort becomes `REQUEST_FAILED` with status `0`.
-- `endpoint(path, baseUrl?)` — resolves a path against `NEXT_PUBLIC_MEDI_WISH_API_URL`, defaulting to `http://127.0.0.1:8080`.
-- `readJsonResponse(response, maxBytes?)` — reads at most 16 KiB by default, whatever `Content-Length` claims, cancelling a larger body. Catalog success responses use a 256 KiB bound for valid 50-item pages; error bodies retain 16 KiB. Malformed or oversized JSON is `INVALID_RESPONSE`; a body-read failure is `REQUEST_FAILED`.
-- `boundedError(response)` — the `ApiError` for a failed response. It keeps the body's `code` only when it is a string of 1–64 characters, and otherwise uses `REQUEST_FAILED`.
-- `isRecord`, `boundedText`, `requestFailure` and `invalidResponse` — the small guards and error constructors the clients share. The `ApiFetch` and `ResponseReader` types describe the injectable `fetch` and a response reader.
+`readJsonResponse(response, maxBytes?)` accepts a larger bound for one caller: catalog success responses use 256 KiB for valid 50-item pages, while error bodies keep 16 KiB.
 
-## Use cases and boundaries
+## Error copy
 
-Client code calls `apiRequest` rather than `fetch`, so every API call gets the same timeout, caching and error shape. Components pick copy with `errorMessageKey`; a code the UI does not distinguish falls back to the generic message rather than to server text. No credential, token or response body is logged or copied into an error.
+`errorMessageKey` selects externalized English copy for authentication, duplicate identifiers, MFA, rate limits and invalid responses. The shared keys are `STALE_UPDATE → staleUpdate`, `ROLE_CHANGE_REFUSED → roleChangeRefused`, `ACCESS_DENIED → accessDenied` and `NOT_FOUND → notFound` (Ticket 08); Ticket 11 adds `ACCOUNT_CLOSING → accountClosing` and `INVALID_REQUEST → checkDetails`; Ticket 14 adds `PRICE_REQUIRED → priceRequired` and `CATEGORY_NAME_TAKEN → categoryNameTaken`. Unknown codes and non-API failures use `genericError`. Registration retains its more specific username-rule message for INVALID_REQUEST.
 
 ## Verification
 
-Covered through its callers: [`tests/session.test.ts`](../../tests/session.test.ts.md) covers the default 16 KiB limit and timeouts; [`tests/catalog.test.ts`](../../tests/catalog.test.ts.md) covers the catalog bound without widening the default; [`tests/user.test.ts`](../../tests/user.test.ts.md) covers bounded errors and transport failures. Form tests check mapped copy.
+Session and user tests cover body limits, timeouts, failed response reading and bounded errors. [`tests/profile.test.ts`](../../tests/profile.test.ts.md) checks the profile API boundary; mounted profile tests check stale, closing and duplicate-user copy. No credentials, response bodies or personal data are logged.
+[`tests/catalog.test.ts`](../../tests/catalog.test.ts.md) covers the catalog bound without widening the default.

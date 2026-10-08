@@ -62,6 +62,17 @@ class AuthRequestBodyLimitFilterTest {
         assertThat(chain.getRequest()).isSameAs(request);
     }
 
+    @ParameterizedTest
+    @CsvSource({"POST,/api/admin/users/search", "PUT,/api/admin/users/3f6b2d1e-8a4c-4b7e-9d2f-0a1b2c3d4e5f/roles"})
+    void administrativeBearerBodiesAreBoundedBeforeJsonParsing(String method, String path) throws Exception {
+        var request = request(path, "application/json", " ".repeat(LIMIT + 1).getBytes(StandardCharsets.UTF_8));
+        request.setMethod(method);
+        new AuthRequestBodyLimitFilter(SecurityConfiguration.BEARER_COMMAND_ROUTES, apiErrors()).doFilter(request, response, chain);
+        assertThat(response.getStatus()).isEqualTo(400);
+        assertThat(response.getContentAsString()).contains("INVALID_REQUEST");
+        assertThat(chain.getRequest()).isNull();
+    }
+
     private static MockHttpServletRequest request(String path, String contentType, byte[] body) {
         var request = new MockHttpServletRequest("POST", path);
         request.setContentType(contentType);

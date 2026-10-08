@@ -6,11 +6,15 @@ import bd.mediwish.auth.InvalidRequestException;
 import bd.mediwish.auth.MfaCodeInvalidException;
 import bd.mediwish.auth.MfaEnrollmentStaleException;
 import bd.mediwish.auth.TooManyAttemptsException;
+import bd.mediwish.auth.RoleChangeRefusedException;
+import bd.mediwish.auth.UserNotFoundException;
 import bd.mediwish.user.UserService;
 import bd.mediwish.catalog.*;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import java.sql.SQLException;
+import bd.mediwish.user.InvalidProfileException;
+import bd.mediwish.user.AccountClosingException;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.springframework.dao.DataAccessResourceFailureException;
@@ -53,8 +57,12 @@ class ApiExceptionHandlerTest {
             Map.entry("mfa-enrollment-stale", MfaEnrollmentStaleException::new),
             Map.entry("too-many-attempts", TooManyAttemptsException::new),
             Map.entry("invalid-request", InvalidRequestException::new),
+            Map.entry("role-refused", RoleChangeRefusedException::new),
+            Map.entry("user-not-found", UserNotFoundException::new),
             Map.entry("invalid-registration", UserService.InvalidRegistrationException::new),
             Map.entry("duplicate-user", UserService.DuplicateUserException::new),
+            Map.entry("invalid-profile", () -> new InvalidProfileException("PRIVATE_ROW")),
+            Map.entry("account-closing", AccountClosingException::new),
             Map.entry("authentication-failed", AuthenticationFailedException::new),
             Map.entry("authentication-required", AuthenticationRequiredException::new),
             Map.entry("data-access", () -> new DataAccessResourceFailureException("PRIVATE_ROW")),
@@ -67,7 +75,8 @@ class ApiExceptionHandlerTest {
 
     @ParameterizedTest
     @CsvSource({"invalid-request,400,INVALID_REQUEST", "invalid-registration,400,INVALID_REQUEST",
-            "duplicate-user,409,DUPLICATE_USER", "authentication-failed,401,AUTHENTICATION_FAILED",
+            "duplicate-user,409,DUPLICATE_USER", "invalid-profile,400,INVALID_REQUEST",
+            "account-closing,409,ACCOUNT_CLOSING", "authentication-failed,401,AUTHENTICATION_FAILED",
             "authentication-required,401,AUTHENTICATION_REQUIRED", "data-access,500,INTERNAL_ERROR",
             "transaction,500,INTERNAL_ERROR", "mfa-code-invalid,400,MFA_CODE_INVALID",
             "mfa-enrollment-stale,409,MFA_ENROLLMENT_STALE", "too-many-attempts,429,TOO_MANY_ATTEMPTS",
@@ -76,7 +85,8 @@ class ApiExceptionHandlerTest {
             "stale-update,409,STALE_UPDATE", "price-required,409,PRICE_REQUIRED",
             "category-name-taken,409,CATEGORY_NAME_TAKEN", "id-conflict,409,ID_CONFLICT",
             "category-unique,409,CATEGORY_NAME_TAKEN", "other-unique,500,INTERNAL_ERROR",
-            "other-category-failure,500,INTERNAL_ERROR"})
+            "other-category-failure,500,INTERNAL_ERROR", "role-refused,409,ROLE_CHANGE_REFUSED",
+            "user-not-found,404,NOT_FOUND"})
     void mapsEachDomainFailureToItsBoundedError(String failure, int status, String code) throws Exception {
         mvc.perform(post("/fail/" + failure).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().is(status))
@@ -94,6 +104,15 @@ class ApiExceptionHandlerTest {
                 .andExpect(content().string(not(containsString("PRIVATE_BODY"))));
     }
 
+    @ParameterizedTest
+    @CsvSource({"fail,415", "api/admin/users,400"})
+    void unsupportedMediaKeepsExistingRoutesStableAndBoundsAdministrativeCommands(String path, int status) throws Exception {
+        mvc.perform(post("/" + path + "/unreachable").contentType(MediaType.TEXT_PLAIN).content("PRIVATE_BODY"))
+                .andExpect(status().is(status)).andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.requestId", matchesPattern(UUID_PATTERN)))
+                .andExpect(content().string(not(containsString("PRIVATE_BODY"))));
+    }
+
     private static DataIntegrityViolationException unique(String constraint, String sqlState) {
         return new DataIntegrityViolationException("PRIVATE_ROW", new ConstraintViolationException(
                 "PRIVATE_ROW", new SQLException("PRIVATE_ROW", sqlState), constraint));
@@ -101,7 +120,7 @@ class ApiExceptionHandlerTest {
 
     @RestController
     static class FailingController {
-        @PostMapping("/fail/{failure}")
+        @PostMapping(value = {"/fail/{failure}", "/api/admin/users/{failure}"}, consumes = MediaType.APPLICATION_JSON_VALUE)
         void fail(@PathVariable String failure, @RequestBody Map<String, String> body) {
             throw FAILURES.get(failure).get();
         }

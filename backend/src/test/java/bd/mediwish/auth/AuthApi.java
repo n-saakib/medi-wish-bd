@@ -227,6 +227,48 @@ final class AuthApi implements AutoCloseable {
         return send("GET", "/api/user/me", Map.of("Authorization", "Bearer " + accessToken), null);
     }
 
+
+    /** The full owner-only profile resource, separate from the session's stable four-field projection. */
+    HttpResponse<String> profileOf(String accessToken) throws Exception {
+        return send("GET", "/api/user/me/profile", bearer(accessToken), null);
+    }
+
+    HttpResponse<String> putProfile(String accessToken, String body) throws Exception {
+        return send("PUT", "/api/user/me/profile", bearerJson(accessToken), body);
+    }
+
+    /** Exactly the four editable keys, including nulls that clear optional fields. */
+    static String profileEdit(long version, String fullName, String email, String dateOfBirth) {
+        var fields = new LinkedHashMap<String, Object>();
+        fields.put("fullName", fullName);
+        fields.put("email", email);
+        fields.put("dateOfBirth", dateOfBirth);
+        fields.put("version", version);
+        return JSON.writeValueAsString(fields);
+    }
+
+    HttpResponse<String> stageMobile(String accessToken, String mobile) throws Exception {
+        track(mobile);
+        return post("/api/user/me/mobile-change", bearerJson(accessToken),
+                JSON.writeValueAsString(Map.of("mobile", mobile)));
+    }
+
+    HttpResponse<String> cancelMobile(String accessToken) throws Exception {
+        return send("DELETE", "/api/user/me/mobile-change", bearer(accessToken), null);
+    }
+
+    void accountState(User user, String state) throws SQLException {
+        assertThat(database.update("UPDATE users SET account_state = ? WHERE username = ?", state, user.username()))
+                .isOne();
+    }
+
+    /** The deterministic verifier seam; deliberately no HTTP route or production OTP adapter. */
+    void activatePendingMobile(User user) throws SQLException {
+        UUID id = database.single("SELECT id FROM users WHERE username = ?", UUID.class, user.username());
+        UUID change = database.single("SELECT id FROM user_mobile_changes WHERE user_id = ?", UUID.class, id);
+        app.bean(bd.mediwish.user.MobileChangeService.class).activate(id, change);
+    }
+
     HttpResponse<String> staffMe(String accessToken) throws Exception {
         return send("GET", "/api/staff/me", bearer(accessToken), null);
     }
@@ -281,13 +323,44 @@ final class AuthApi implements AutoCloseable {
     }
 
     void grantRole(User user, String role) throws SQLException {
-        assertThat(database.update("INSERT INTO user_roles (user_id, role) VALUES (?, ?)", userId(user), role)).isOne();
+        assertThat(database.update("UPDATE user_roles SET role = ? WHERE user_id = ?", role, userId(user))).isOne();
     }
 
     void removeRole(User user, String role) throws SQLException {
-        assertThat(database.update("DELETE FROM user_roles WHERE user_id = ? AND role = ?", userId(user), role)).isOne();
+        assertThat(database.update("UPDATE user_roles SET role = 'CUSTOMER' WHERE user_id = ? AND role = ?", userId(user), role)).isOne();
     }
 
+    /** Admin read/command routes use a Bearer token only; filters stay in the JSON body. */
+    HttpResponse<String> adminUsers(String token, Map<String, Object> filter) throws Exception {
+        return post("/api/admin/users/search", bearerJson(token), JSON.writeValueAsString(filter));
+    }
+
+    HttpResponse<String> adminUser(String token, UUID id) throws Exception {
+        return send("GET", "/api/admin/users/" + id, bearer(token), null);
+    }
+
+    HttpResponse<String> putRole(String token, UUID id, String role, long version) throws Exception {
+        return send("PUT", "/api/admin/users/" + id + "/roles", bearerJson(token),
+                JSON.writeValueAsString(Map.of("role", role, "rolesVersion", version)));
+    }
+
+    record VerifiedStaff(User user, Enrolled enrolled) {
+        String token() { return enrolled.session().accessToken(); }
+    }
+
+    VerifiedStaff verifiedAdmin() throws Exception {
+        User user = registered();
+        grantRole(user, "ADMIN");
+        return new VerifiedStaff(user, enroll(user));
+    }
+
+    /** Uses the real provisioning transaction, once per owned schema, then the real MFA enrollment. */
+    VerifiedStaff verifiedSuperAdmin() throws Exception {
+        User user = registered();
+        assertThat(app.bean(FirstAdminProvisioningService.class).provision(user.username()))
+                .isEqualTo(FirstAdminProvisioningService.Outcome.PROVISIONED);
+        return new VerifiedStaff(user, enroll(user));
+    }
     /** Clears the User's wrong-code count and lock, as the lockout expiring would. */
     void clearMfaThrottle(User user) throws SQLException {
         database.update("DELETE FROM staff_mfa_throttle WHERE user_id = ?", userId(user));

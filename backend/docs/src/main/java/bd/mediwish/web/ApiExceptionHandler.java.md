@@ -1,19 +1,29 @@
 # `ApiExceptionHandler.java`
 
-Source: [`src/main/java/bd/mediwish/web/ApiExceptionHandler.java`](../../../../../../../src/main/java/bd/mediwish/web/ApiExceptionHandler.java)
+Source: [ApiExceptionHandler.java](../../../../../../../src/main/java/bd/mediwish/web/ApiExceptionHandler.java)
 
-Package-private production advice maps controller/domain failures to the shared externalized `{code, message, requestId}` envelope. It returns no submitted field, SQL diagnostic or exception text and logs nothing.
+Maps controller/domain failures to the correlated bounded envelope without logging exception text. Validation, registration shape and unreadable JSON are INVALID_REQUEST; duplicate identities conflict; authentication, MFA and throttle failures retain existing codes. Persistence/transaction failures become INTERNAL_ERROR.
 
-| Failure | Response |
+Ticket 08 maps StaleUpdateException to 409 STALE_UPDATE, RoleChangeRefusedException to 409 ROLE_CHANGE_REFUSED and UserNotFoundException to 404 NOT_FOUND. Unsupported media on administrative User routes is 400 INVALID_REQUEST as frozen for those commands; existing credential routes retain 415 INVALID_REQUEST. Security AccessDeniedException still reaches the security denial handler. Filter failures use ApiErrors directly.
+
+| Exception | Response |
 | --- | --- |
-| Invalid authentication/registration/catalog/money request or unreadable JSON | `400 INVALID_REQUEST` |
-| Duplicate User | `409 DUPLICATE_USER` |
-| Authentication failed/required | Matching `401` code |
-| Invalid MFA code, stale enrollment, throttle | `400 MFA_CODE_INVALID`, `409 MFA_ENROLLMENT_STALE`, `429 TOO_MANY_ATTEMPTS` |
-| Catalog command access denied | `403 ACCESS_DENIED` |
-| Missing catalog record | `404 NOT_FOUND` |
-| Stale changed intent, unpriced activation, category name collision, reused create id | `409 STALE_UPDATE`, `PRICE_REQUIRED`, `CATEGORY_NAME_TAKEN`, `ID_CONFLICT` |
-| Database/transaction failure | Named category uniqueness becomes `409 CATEGORY_NAME_TAKEN`; other failures remain `500 INTERNAL_ERROR` |
+| `InvalidRequestException`, `UserService.InvalidRegistrationException`, `HttpMessageNotReadableException`, `InvalidProfileException`, `InvalidCatalogException`, `InvalidMoneyException` | `400 INVALID_REQUEST` |
+| `StaleUpdateException` (shared, `bd.mediwish.web`; Tickets 08, 11 and 14) | `409 STALE_UPDATE` |
+| `CatalogAccessDeniedException` | `403 ACCESS_DENIED` |
+| `CatalogNotFoundException` | `404 NOT_FOUND` |
+| `PriceRequiredException`, `CategoryNameTakenException`, `IdConflictException` | `409 PRICE_REQUIRED`, `CATEGORY_NAME_TAKEN`, `ID_CONFLICT` |
+| `RoleChangeRefusedException` | `409 ROLE_CHANGE_REFUSED` |
+| `UserNotFoundException` | `404 NOT_FOUND` |
+| `HttpMediaTypeNotSupportedException` | `400 INVALID_REQUEST` on `/api/admin/users/**`, otherwise `415 INVALID_REQUEST` |
+| `AccountClosingException` | `409 ACCOUNT_CLOSING` |
+| `UserService.DuplicateUserException` | `409 DUPLICATE_USER` |
+| `AuthenticationFailedException` | `401 AUTHENTICATION_FAILED` |
+| `AuthenticationRequiredException` (including `SessionReplayException`) | `401 AUTHENTICATION_REQUIRED` |
+| `MfaCodeInvalidException` | `400 MFA_CODE_INVALID` |
+| `MfaEnrollmentStaleException` | `409 MFA_ENROLLMENT_STALE` |
+| `TooManyAttemptsException` | `429 TOO_MANY_ATTEMPTS` |
+| `DataAccessException`, `TransactionException` | `409 CATEGORY_NAME_TAKEN` for the named category uniqueness violation, otherwise `500 INTERNAL_ERROR` |
 
 `persistenceFailure` examines the exception cause chain only for Hibernate constraint `uk_product_categories_name` and SQL state `23505`. Translation happens after the service transaction has rolled back; it performs no read or retry in the aborted transaction. Other constraints and SQL states cannot become category name collisions.
 
@@ -22,4 +32,6 @@ Security exceptions from the chain use its bounded access handler. CORS, bearer 
 ApiExceptionHandlerTest proves each mapping, named constraint/state selectivity and unreadable JSON redaction. CatalogControllerTest uses this real advice for strict HTTP shape failures.
 The stale-update handler consumes the shared web.StaleUpdateException so catalog and other staff features reuse the same HTTP error contract.
 
-Shared-contract correction verification on 2026-10-08, revision b357d50 plus Ticket 14 completion changes: guarded offline Maven `verify` passed 746 unit tests and 160 executed integration tests (one compatibility-only skip) at 09:56:32 Asia/Dhaka in 4:31. Guarded `-Pcompatibility verify` passed 746 unit tests and all 161 integration tests at 10:03:49 in 6:22, with zero failures/errors/skips. Both runs released their owned schemas and role; the final mw_run role count was zero. Existing service and HTTP seam tests preserve the same no-op/stale behavior after moving the exception to the shared web package. Logs: main-checkout `.scratch/ticket14-verification/completion-full-backend-20261008.log` and `completion-full-compatibility-20261008.log`. These are automated backend gates; final manual browser evidence remains separately required.
+`ApiExceptionHandlerTest` maps each listed failure, including the three MFA failures and Ticket 08's role and not-found failures, to its status and code and proves unreadable JSON is `400` without echoing the body. The auth integration tests cover these errors over real HTTP and PostgreSQL, including captured-log privacy.
+
+It also covers Ticket 14's catalog failures, including the named category uniqueness translation, without echoing row data.

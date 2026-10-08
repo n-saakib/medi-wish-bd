@@ -1,8 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import Link from 'next/link';
 import { useSession } from '../auth/SessionProvider';
 import { useSessionRedirect } from '../auth/sessionRedirect';
 import { errorMessageKey, type ErrorMessageKey } from '../lib/api';
@@ -59,6 +59,7 @@ export function StaffHome() {
       {access.superAdmin && <p><span className="chip chip-brand">{t('superAdmin')}</span></p>}
       {(access.roles.includes('ADMIN') || access.roles.includes('MODERATOR')) &&
         <nav className="catalog-home-links" aria-label={t('title')}>
+          {access.roles.includes('ADMIN') && <Link className="btn btn-secondary" href="/admin/users">{t('usersAndRoles')}</Link>}
           <Link className="btn btn-secondary" href="/staff/products">{t('products')}</Link>
           <Link className="btn btn-secondary" href="/staff/categories">{t('categories')}</Link>
         </nav>}

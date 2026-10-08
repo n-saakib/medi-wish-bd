@@ -1,4 +1,3 @@
 package bd.mediwish.web;
-
-/** The supplied version no longer describes the current record. */
-public final class StaleUpdateException extends RuntimeException {}
+/** A command's loaded version differs from current state; the caller must reload. */
+public class StaleUpdateException extends RuntimeException {}

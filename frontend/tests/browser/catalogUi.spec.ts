@@ -88,21 +88,21 @@ test.describe('pages without the catalog API', () => {
   test('E2E-14-04 the staff home links to Products and Categories for Admins and Moderators',
     { tag: ['@t14', '@t14-T3'] }, async ({ page, browser }) => {
       await verifiedAdmin(page);
-      const expectLinks = async (staffPage: Page) => {
+      const expectLinks = async (staffPage: Page, expected: string[]) => {
         await expect(staffPage.getByRole('link', { name: 'Products', exact: true })).toHaveAttribute('href', '/staff/products');
         await expect(staffPage.getByRole('link', { name: 'Categories', exact: true }))
           .toHaveAttribute('href', '/staff/categories');
-        // Products comes before Categories (plan §8.2); Users and roles, when Ticket 08 is merged, comes first.
-        expect(await staffPage.locator('a[href="/staff/products"], a[href="/staff/categories"]').allInnerTexts())
-          .toEqual(['Products', 'Categories']);
+        // Plan §8.2 order: Users and roles (Admins only), then Products, then Categories.
+        expect(await staffPage.locator('a[href="/admin/users"], a[href="/staff/products"], a[href="/staff/categories"]')
+          .allInnerTexts()).toEqual(expected);
       };
-      await expectLinks(page);
+      await expectLinks(page, ['Users and roles', 'Products', 'Categories']);
 
       const moderator = await browser.newContext();
       try {
         const moderatorPage = await moderator.newPage();
         await verifiedModerator(moderatorPage);
-        await expectLinks(moderatorPage);
+        await expectLinks(moderatorPage, ['Products', 'Categories']);
         await moderatorPage.getByRole('link', { name: 'Categories', exact: true }).click();
         await expect(moderatorPage).toHaveURL('/staff/categories');
         await expect(moderatorPage.getByRole('heading', { level: 1, name: 'Categories' })).toBeVisible();

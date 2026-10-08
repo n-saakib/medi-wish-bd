@@ -13,7 +13,7 @@ Mounted jsdom coverage for [`RegistrationForm`](../src/auth/RegistrationForm.tsx
 - A filled-in email is sent.
 - When the automatic sign-in fails, the form redirects to `/sign-in` only, and no username, mobile or password appears in any router call.
 - A `DUPLICATE_USER` response shows the `errors.duplicateUser` copy while the API sends a different message, re-enables the button, keeps the password cleared and skips sign-in.
-- An `INVALID_REQUEST` response shows the translated username-rule message, including the at-least-one-letter rule.
+- An `INVALID_REQUEST` response shows the translated username-rule message, including the 3–20 character bound and at-least-one-letter rule.
 - A transport failure shows the generic translated message without its detail.
 
 On 2026-09-26 this suite passed as part of `npm run test:unit`.

@@ -120,9 +120,9 @@ test('the authenticator key, codes and backup codes stay out of storage, URLs, t
   // Leaving and coming back never shows the codes again: the page drops them on `pagehide`, and the session is
   // verified now, so the setup page sends the visitor on to /staff.
   await page.goto('/');
-  // Wait for the destination's cookie-session restore before leaving it. A document response alone
-  // does not mean the React session provider has finished its refresh-cookie mutation.
-  await expect(page.getByRole('link', { name: admin.username, exact: true })).toBeVisible();
+  // Wait for the home document to finish restoring its session before going back.
+  await expect(page.getByRole('navigation', { name: 'Account' })
+    .getByRole('link', { name: admin.username, exact: true })).toBeVisible();
   await page.goBack();
   await expect(page).toHaveURL('/staff');
   await expect(page.getByRole('heading', { name: 'Staff access verified' })).toBeVisible();

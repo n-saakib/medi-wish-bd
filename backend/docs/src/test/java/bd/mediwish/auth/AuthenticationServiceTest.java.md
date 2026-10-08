@@ -16,3 +16,5 @@ Tests use synthetic users and never print passwords, verifiers or refresh values
 ## Verification
 
 Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` passed all 238 unit tests.
+
+Ticket 08 pins id-only password-session delegation and issues from the locked User, even when its role differs from the initial password lookup.
