@@ -7,6 +7,7 @@ import { useSessionRedirect } from '../auth/sessionRedirect';
 import { ApiError, errorMessageKey, type ErrorMessageKey } from '../lib/api';
 import { createCatalogClient, newId, type Category, type Page } from '../lib/catalog';
 import { Alert } from '../shell/Alert';
+import { usePagerFocus } from '../shell/usePagerFocus';
 
 export function CategoryManager() {
   const t = useTranslations('categories');
@@ -30,6 +31,10 @@ export function CategoryManager() {
   const pendingRef = useRef(false);
   const createId = useRef<string | null>(null);
   const nameRef = useRef<HTMLInputElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // The name field is disabled while a save is pending, so a refused name is focused once it is enabled again.
+  const focusName = useRef(false);
+  const { pager, markTurn } = usePagerFocus(result);
 
   useEffect(() => {
     if (!ready) return;
@@ -40,6 +45,12 @@ export function CategoryManager() {
     );
     return () => { current = false; };
   }, [authenticatedFetch, ready, page, reload]);
+
+  useEffect(() => {
+    if (pending || !focusName.current) return;
+    focusName.current = false;
+    nameRef.current?.focus();
+  }, [pending]);
 
   function open(category: Category | 'new') {
     if (pendingRef.current) return;
@@ -67,7 +78,7 @@ export function CategoryManager() {
       setEditing(null); setSaved(true); setResult(null); setReload((value) => value + 1);
     } catch (reason) {
       if (reason instanceof ApiError && reason.code === 'CATEGORY_NAME_TAKEN') {
-        setFieldError(t('nameTaken')); nameRef.current?.focus();
+        setFieldError(t('nameTaken')); focusName.current = true;
       } else if (editing === 'new' && reason instanceof ApiError && reason.code === 'ID_CONFLICT') {
         setCreateConflict(true); setFailure(errorMessageKey(reason));
       } else if (reason instanceof ApiError && reason.code === 'STALE_UPDATE') setStale(true);
@@ -78,10 +89,12 @@ export function CategoryManager() {
   function reloadPage() {
     if (pendingRef.current) return;
     setEditing(null); setStale(false); setFieldError(null); setCreateConflict(false); setResult(null); setReload((value) => value + 1);
+    // The pressed Reload or Try again button disappears with its message; the page heading keeps focus instead.
+    headingRef.current?.focus();
   }
   function turnPage(next: number) {
     if (pendingRef.current) return;
-    setResult(null); setPage(next);
+    markTurn(); setPage(next);
   }
   const editor = editing && <form onSubmit={(event) => void save(event)} className="catalog-inline-form">
     <div className="field"><label htmlFor="category-name">{t('name')}</label>
@@ -98,9 +111,9 @@ export function CategoryManager() {
   </form>;
 
   return <main className="container page stack">
-    <div className="catalog-heading"><h1>{t('title')}</h1>
+    <div className="catalog-heading"><h1 ref={headingRef} tabIndex={-1}>{t('title')}</h1>
       <button className="btn btn-primary" type="button" disabled={pending} onClick={() => open('new')}>{t('add')}</button></div>
-    {saved && <p role="status" className="alert alert-success">{t('saved')}</p>}
+    {saved && <Alert tone="success" focusOnShow>{t('saved')}</Alert>}
     {stale && <div role="alert" className="alert alert-warn">{t('stale')}
       <button className="btn btn-secondary" type="button" onClick={reloadPage}>{t('reload')}</button></div>}
     {failure && <Alert tone="danger" focusOnShow>{errors(failure)}
@@ -115,11 +128,11 @@ export function CategoryManager() {
           <td>{category.productCount}</td>
           <td><span className={category.active ? 'chip chip-success' : 'chip'}>{t(category.active ? 'active' : 'inactive')}</span></td>
           <td><button className="btn btn-secondary" type="button" disabled={pending}
-            onClick={() => open(category)}>{t('edit')}</button></td>
+            aria-label={t('editNamed', { name: category.name })} onClick={() => open(category)}>{t('edit')}</button></td>
         </tr>)}</tbody></table></div>
       {result.totalItems === 0 && <p className="card-pad">{t('empty')}</p>}
-      {result.totalItems > 0 && <div className="catalog-pager">
-        <span>{result.items.length === 0 ? t('emptyPage') : t('showing', { start: result.page * result.size + 1,
+      {result.totalItems > 0 && <div className="catalog-pager" ref={pager}>
+        <span aria-live="polite">{result.items.length === 0 ? t('emptyPage') : t('showing', { start: result.page * result.size + 1,
           end: Math.min(result.page * result.size + result.items.length, result.totalItems), total: result.totalItems })}</span>
         <div><button className="btn btn-secondary" disabled={pending || page === 0} onClick={() => turnPage(page - 1)}>{t('previous')}</button>
           <button className="btn btn-secondary" disabled={pending || (page + 1) * result.size >= result.totalItems}

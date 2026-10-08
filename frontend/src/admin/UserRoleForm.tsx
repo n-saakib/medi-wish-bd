@@ -7,6 +7,7 @@ import { useSession } from '../auth/SessionProvider';
 import { useSessionRedirect } from '../auth/sessionRedirect';
 import { isUserId, loadUserRoles, saveRole, userRoles, type UserRole, type UserRoles } from '../lib/adminUsers';
 import { errorMessageKey } from '../lib/api';
+import { formatDateTime } from '../lib/dateTime';
 import { Alert } from '../shell/Alert';
 
 type Failure = 'staleUpdate' | 'roleChangeRefused' | 'accessDenied' | 'notFound' | 'genericError';
@@ -37,6 +38,9 @@ export function UserRoleForm({ userId }: { userId: string }) {
   const [success, setSuccess] = useState(false);
   const [busy, setBusy] = useState(false);
   const saving = useRef(false);
+  const heading = useRef<HTMLHeadingElement>(null);
+  // Reload removes its own button, so focus moves to the heading once the fresh record shows.
+  const focusHeading = useRef(false);
 
   useEffect(() => {
     if (!verified || !isUserId(userId)) return;
@@ -49,12 +53,18 @@ export function UserRoleForm({ userId }: { userId: string }) {
   }, [authenticatedFetch, userId, verified, reloads]);
 
   function reload() {
+    focusHeading.current = true;
     setLoaded(null);
     setFailure(null);
     setSuccess(false);
     setReloads((value) => value + 1);
   }
   const data = loaded?.id === userId ? loaded.data : undefined;
+  useEffect(() => {
+    if (!data || !focusHeading.current) return;
+    focusHeading.current = false;
+    heading.current?.focus();
+  }, [data]);
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!data || !selected || saving.current || selected === data.role || !data.assignableRoles.includes(selected)) return;
@@ -78,20 +88,13 @@ export function UserRoleForm({ userId }: { userId: string }) {
   const loadFailure = !isUserId(userId) ? 'notFound' : loaded?.id === userId ? loaded.failure : undefined;
   const adminDisabled = data ? !data.assignableRoles.includes('ADMIN') : false;
   const note = data?.self ? 'selfNote' : data?.superAdmin ? 'superAdminNote' : adminDisabled ? 'adminNote' : null;
-  function date(instant: string) {
-    const parts = new Intl.DateTimeFormat('en', {
-      day: 'numeric', month: 'short', year: 'numeric', hour: 'numeric', minute: '2-digit', hourCycle: 'h23',
-    }).formatToParts(new Date(instant));
-    const part = (name: Intl.DateTimeFormatPartTypes) => parts.find((value) => value.type === name)?.value;
-    return `${part('day')} ${part('month')} ${part('year')}, ${part('hour')}:${part('minute')}`;
-  }
   return (
     <main className="container page stack admin-users">
       <nav className="breadcrumb" aria-label={t('breadcrumb')}><Link className="btn btn-ghost" href="/admin/users">{t('title')}</Link></nav>
       {loadFailure ? <Alert tone="danger" focusOnShow>{t(loadFailure)}</Alert>
         : !data ? <p role="status" className="muted">{t('checkingRole')}</p>
         : <>
-          <div><h1>{data.username}</h1><p className="muted">{t('joinedDate', {
+          <div><h1 ref={heading} tabIndex={-1}>{data.username}</h1><p className="muted">{t('joinedDate', {
             date: new Intl.DateTimeFormat('en', { month: 'short', year: 'numeric' }).format(new Date(data.createdAt)),
           })}</p>{data.superAdmin && <span className="chip chip-brand">{t('superAdmin')}</span>}</div>
           {failure && <Alert tone="danger" focusOnShow>{t(failure)}{failure === 'staleUpdate' && <>
@@ -124,7 +127,7 @@ export function UserRoleForm({ userId }: { userId: string }) {
             {data.roleChanges.length === 0 ? <p className="muted">{t('emptyHistory')}</p>
               : <ul className="role-history" aria-label={t('history')}>{data.roleChanges.map((change, index) => <li key={index}>
                 {t('change', { oldRole: roles(change.oldRole), newRole: roles(change.newRole),
-                  actor: change.actorUsername ?? t('deletedActor'), date: date(change.occurredAt) })}
+                  actor: change.actorUsername ?? t('deletedActor'), date: formatDateTime(change.occurredAt) })}
               </li>)}</ul>}
           </section>
         </>}

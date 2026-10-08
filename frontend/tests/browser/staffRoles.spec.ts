@@ -130,12 +130,12 @@ function historyItems(page: Page): Locator {
 }
 
 /**
- * One Change history line: "Changed from Customer to Moderator by owner.admin · 27 Sep 2026, 9:02". A null actor (their
+ * One Change history line: "Changed from Customer to Moderator by owner.admin · 27 Sep 2026, 9:02 am" (Asia/Dhaka). A null actor (their
  * User no longer exists) reads "by a deleted account".
  */
 function historyLine(from: RoleOption, to: RoleOption, actor: string | null): RegExp {
   return new RegExp(`^Changed from ${from} to ${to} by ${actor === null ? deletedActor : escapeRegExp(actor)}`
-    + ' · \\d{1,2} [A-Z][a-z]{2} \\d{4}, \\d{1,2}:\\d{2}$');
+    + ' · \\d{1,2} [A-Z][a-z]{2} \\d{4}, \\d{1,2}:\\d{2} [ap]m$');
 }
 
 /** The target's open browser: the next page load finds the session revoked and lands on sign-in. */
@@ -308,6 +308,8 @@ test('E2E-08-31 a verified Moderator sees the access-denied state on both pages 
       await expect(page.getByRole('alert').filter({ hasText: deniedMessage })).toBeVisible();
       await expect(usersTable(page)).toHaveCount(0);
       await expect(roleCard(page)).toHaveCount(0);
+      // Only the denial remains: no search form above it.
+      await expect(searchField(page)).toHaveCount(0);
       await expect(page.getByText(customer.username)).toHaveCount(0);
     }
   });
@@ -489,6 +491,7 @@ test('E2E-08-36 a stale page shows the stale alert with Reload, and saving after
     await expect(page.getByRole('alert').filter({ hasText: staleMessage })).toHaveCount(0);
     await expect(roleOption(page, 'Delivery person')).toBeChecked();
     await expect(roleOption(page, 'Moderator')).not.toBeChecked();
+    await expect(page.getByRole('heading', { level: 1, name: customer.username })).toBeFocused();
 
     await saveRole(page, customer.username, 'Moderator');
     expect((await readUserRoles(other.session, id)).role).toBe('MODERATOR');

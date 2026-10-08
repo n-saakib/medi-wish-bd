@@ -113,6 +113,29 @@ class StaffRoleMigrationIT {
             assertThat(db.single("SELECT count(*) FROM user_roles WHERE user_id=?",Long.class,id)).isZero();
         }
     }
+    /** An operator's SQL session need not have the application's schema on its search path (fixed forward by 014). */
+    @Test void theRoleCheckReadsItsOwnSchemaWhateverTheSessionSearchPath() throws Exception {
+        try(var db=TestDatabase.create()) {
+            migrate(db,false);
+            String schema=db.schema(), elsewhere="SET search_path TO pg_catalog";
+            assertThatThrownBy(()->transaction(db,elsewhere,"INSERT INTO "+schema+".users(id,username,mobile,"
+                    +"password_hash,mobile_verified,created_at) VALUES ('"+UUID.randomUUID()+"','path_no_role',"
+                    +"'01700009003','synthetic',false,now())"))
+                    .isInstanceOf(SQLException.class).hasMessageContaining("every User needs a role")
+                    .extracting(error->((SQLException) error).getSQLState()).isEqualTo("23514");
+            UUID id=UUID.randomUUID();
+            transaction(db,elsewhere,"INSERT INTO "+schema+".users(id,username,mobile,password_hash,mobile_verified,"
+                    +"created_at) VALUES ('"+id+"','path_role','01700009004','synthetic',false,now())",
+                    "INSERT INTO "+schema+".user_roles(user_id,role) VALUES ('"+id+"','CUSTOMER')");
+            transaction(db,elsewhere,"DELETE FROM "+schema+".user_roles WHERE user_id='"+id+"'",
+                    "INSERT INTO "+schema+".user_roles(user_id,role) VALUES ('"+id+"','MODERATOR')");
+            assertThat(db.single("SELECT role FROM user_roles WHERE user_id=?",String.class,id)).isEqualTo("MODERATOR");
+            assertThatThrownBy(()->transaction(db,elsewhere,"DELETE FROM "+schema+".user_roles WHERE user_id='"+id+"'"))
+                    .isInstanceOf(SQLException.class).hasMessageContaining("every User needs a role");
+            assertThat(db.single("SELECT array_to_string(proconfig,';') FROM pg_proc WHERE oid=to_regprocedure(?)",
+                    String.class,schema+".user_role_required()")).isEqualTo("search_path="+schema+", pg_temp");
+        }
+    }
     private static UUID insertUser(TestDatabase db,String name) throws SQLException {
         UUID id=UUID.randomUUID();
         db.update("INSERT INTO users(id,username,mobile,password_hash,mobile_verified,created_at) VALUES (?,?,?,?,false,now())",

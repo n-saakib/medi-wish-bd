@@ -58,7 +58,7 @@ export function StaffHome() {
       </dl>
       {access.superAdmin && <p><span className="chip chip-brand">{t('superAdmin')}</span></p>}
       {(access.roles.includes('ADMIN') || access.roles.includes('MODERATOR')) &&
-        <nav className="catalog-home-links" aria-label={t('title')}>
+        <nav className="catalog-home-links" aria-label={t('staffPages')}>
           {access.roles.includes('ADMIN') && <Link className="btn btn-secondary" href="/admin/users">{t('usersAndRoles')}</Link>}
           <Link className="btn btn-secondary" href="/staff/products">{t('products')}</Link>
           <Link className="btn btn-secondary" href="/staff/categories">{t('categories')}</Link>

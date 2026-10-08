@@ -111,6 +111,7 @@ describe('UserRoleForm permissions and failures', () => {
     expect(requiredElement(page, '[role="alert"]').textContent).toContain('This record changed after you opened it. Reload and try again.');
     await act(async () => requiredElement<HTMLButtonElement>(page, '[role="alert"] button').click());
     await settle();
+    expect(document.activeElement).toBe(requiredElement(page, 'h1'));
     expect(requiredElement<HTMLInputElement>(page, 'input[value="DELIVERY_PERSON"]').checked).toBe(true);
     expect(page.querySelector('[role="alert"]')).toBeNull();
     await choose(page);
@@ -160,10 +161,11 @@ describe('UserRoleForm permissions and failures', () => {
     const page = await renderWithSession(createElement(UserRoleForm, { userId: detail.id }), createSessionClient({ fetch: api.fetch }));
     await settle();
     expect(requiredElement(page, '[aria-label="Change history"]').textContent)
-      .toMatch(/^Changed from Customer to Moderator by a deleted account · \d{1,2} [A-Z][a-z]{2} \d{4}, \d{1,2}:\d{2}$/);
+      .toMatch(/^Changed from Customer to Moderator by a deleted account · \d{1,2} [A-Z][a-z]{2} \d{4}, \d{1,2}:\d{2} [ap]m$/);
   });
   it.each([
     ['NOT_FOUND', 404, 'This user could not be found.'],
+    ['ACCESS_DENIED', 403, 'Only Admins can manage users.'],
     ['INTERNAL_ERROR', 500, 'The request could not be completed.'],
     ['MFA_REQUIRED', 403, 'The request could not be completed.'],
   ])('shows a focused %s detail error without a role form', async (code, status, copy) => {

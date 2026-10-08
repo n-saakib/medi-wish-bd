@@ -50,15 +50,24 @@ export function MfaEnrollment() {
   const codeRef = useRef<HTMLInputElement>(null);
   // Only the latest start request may show its secret; an older response is ignored.
   const latestStart = useRef(0);
+  // The start still in flight; a StrictMode re-run of the mount effect reuses it instead of superseding it.
+  const pendingStart = useRef<Promise<PendingEnrollment> | null>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
   const needsEnrollment = !session.restoring && session.mfa === 'ENROLLMENT_REQUIRED';
   const needsEnrollmentRef = useRef(needsEnrollment);
 
   // Verification turns the session VERIFIED; the redirect waits until the backup codes are saved.
   useSessionRedirect('mfa-enrollment', { enabled: !submitting && !backupCodes });
 
-  const start = useCallback(() => {
+  const start = useCallback((reusePending = false) => {
     const request = ++latestStart.current;
-    void startMfaEnrollment().then(
+    const pending = (reusePending && pendingStart.current) || startMfaEnrollment();
+    pendingStart.current = pending;
+    const settled = () => {
+      if (pendingStart.current === pending) pendingStart.current = null;
+    };
+    void pending.then(settled, settled);
+    void pending.then(
       async (enrollment) => {
         const qrSvg = await drawQr(enrollment.otpauthUri);
         if (request === latestStart.current) setSetup({ enrollment, qrSvg });
@@ -72,7 +81,7 @@ export function MfaEnrollment() {
   useEffect(() => {
     needsEnrollmentRef.current = needsEnrollment;
     if (!needsEnrollment) return;
-    start();
+    start(true);
     return () => {
       latestStart.current += 1;
     };
@@ -105,6 +114,8 @@ export function MfaEnrollment() {
     setStartFailed(false);
     setSetup(null);
     start();
+    // The retry button is removed, so focus returns to the heading instead of the page body.
+    headingRef.current?.focus();
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -151,7 +162,7 @@ export function MfaEnrollment() {
   return (
     <>
       <div className="steps-mini" aria-hidden="true"><span className="is-done" /><span /></div>
-      <h1>{t('enrollTitle')}</h1>
+      <h1 ref={headingRef} tabIndex={-1}>{t('enrollTitle')}</h1>
       <p className="muted">{t('enrollIntro')}</p>
       {feedback && <EnrollmentFeedback key={feedback.serial} feedback={feedback} />}
       {startFailed

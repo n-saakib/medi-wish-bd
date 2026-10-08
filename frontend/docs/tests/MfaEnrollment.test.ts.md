@@ -18,3 +18,5 @@ Mounted jsdom coverage for [`MfaEnrollment`](../src/auth/MfaEnrollment.tsx.md) a
 - `pagehide` removes the secret, and a persisted `pageshow` starts a new setup; `pagehide` removes shown backup codes; unmount leaves neither in the document.
 - Spies prove no `localStorage` or `sessionStorage` call, no URL or history change, and no secret or code in console, history or router calls.
 - A session that is not `ENROLLMENT_REQUIRED` starts no setup and is redirected.
+
+Staff UI correction (2026-10-08): a component mounted inside `StrictMode` after the session restore calls `startMfaEnrollment` once and verifies against that enrollment; `Try again` leaves focus on the heading.

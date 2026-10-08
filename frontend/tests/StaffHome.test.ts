@@ -53,6 +53,7 @@ describe('StaffHome', () => {
     expect(api.requests.at(-1)?.headers.get('Authorization')).toBe('Bearer access-verified');
     expect(router.replace).not.toHaveBeenCalled();
     expect(requiredElement(page, 'a[href="/admin/users"]').textContent).toBe('Users and roles');
+    expect(requiredElement(page, 'nav').getAttribute('aria-label')).toBe('Staff pages');
   });
 
   it('shows no Super Admin label for another staff member', async () => {

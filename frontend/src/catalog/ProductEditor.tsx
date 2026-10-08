@@ -1,13 +1,15 @@
 'use client';
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useFormatter, useTranslations } from 'next-intl';
+import { useTranslations } from 'next-intl';
 import { useSession } from '../auth/SessionProvider';
 import { useSessionRedirect } from '../auth/sessionRedirect';
 import { ApiError, errorMessageKey, type ErrorMessageKey } from '../lib/api';
 import { createCatalogClient, formatTaka, isUuid, newId, type Category, type Product,
   type ProductDraft, type ProductKind, type ProductUpdate } from '../lib/catalog';
+import { formatDateTime } from '../lib/dateTime';
 import { fetchStaffAccess } from '../lib/staff';
 import { Alert } from '../shell/Alert';
 
@@ -15,14 +17,25 @@ type Draft = Omit<ProductDraft, 'id'> & { active: boolean };
 type Field = keyof Draft | 'sellingPrice' | 'mrp';
 const empty: Draft = { kind: 'MEDICINE', name: '', brandName: null, genericName: null, dosageForm: null,
   manufacturer: null, categoryId: '', saleUnit: '', description: null, requireValidation: false, active: false };
+/**
+ * The Product just created in this tab. Creating navigates to the new Product's page, which mounts a fresh editor;
+ * that editor confirms the save once and focuses the confirmation. Kept in memory only, never in the address.
+ */
+let justCreated: string | null = null;
 const money = /^\d{1,7}(?:\.\d{1,2})?$/;
+const decimal = /^\d+(?:\.\d{1,2})?$/;
+const maxCents = 999_999_999n;
 
-/** Exact BDT minor units for the accepted positive input grammar; never converts through floating point. */
-function moneyCents(value: string): bigint | null {
-  if (!money.test(value)) return null;
+/**
+ * Exact BDT minor units for the accepted positive input grammar; never converts through floating point. A decimal
+ * outside 0.01–9,999,999.99 is `'range'`; anything else outside the grammar is `'format'`.
+ */
+function moneyCents(value: string): bigint | 'format' | 'range' {
+  if (!decimal.test(value)) return 'format';
   const [whole, fraction = ''] = value.split('.');
   const cents = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0') || '0');
-  return cents > 0n ? cents : null;
+  if (cents === 0n || cents > maxCents) return 'range';
+  return money.test(value) ? cents : 'format';
 }
 
 function fromProduct(product: Product): Draft {
@@ -42,7 +55,6 @@ function normalized(draft: Draft): Draft {
 
 export function ProductEditor({ productId }: { productId?: string }) {
   const t = useTranslations('catalog');
-  const format = useFormatter();
   const errors = useTranslations('errors');
   const router = useRouter();
   const session = useSession();
@@ -71,6 +83,12 @@ export function ProductEditor({ productId }: { productId?: string }) {
   const pendingRef = useRef(false);
   const pricingPendingRef = useRef(false);
   const malformed = productId !== undefined && !isUuid(productId);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const savedRef = useRef<HTMLParagraphElement>(null);
+  // Fields are disabled while saving, so a field error is focused once its field is enabled again.
+  const focusField = useRef<Field | null>(null);
+  // What to focus once the loaded page has rendered: the saved message after creating, or the heading after a retry.
+  const focusAfterLoad = useRef<'saved' | 'heading' | null>(null);
 
   useEffect(() => {
     if (!ready || malformed) return;
@@ -86,6 +104,7 @@ export function ProductEditor({ productId }: { productId?: string }) {
       setProduct(loaded); setDraft(loaded ? fromProduct(loaded) : empty);
       setSellingPrice(loaded?.sellingPrice ?? ''); setMrp(loaded?.mrp ?? '');
       setLoading(false); setLoadFailure(null); setFailure(null); setNotFound(false); setStale(false); setFieldErrors({}); setSaved(null);
+      if (loaded && loaded.id === justCreated) { justCreated = null; setSaved('product'); focusAfterLoad.current = 'saved'; }
     };
     void load().catch((reason: unknown) => {
       if (!current) return;
@@ -96,6 +115,20 @@ export function ProductEditor({ productId }: { productId?: string }) {
     return () => { current = false; };
   }, [authenticatedFetch, malformed, productId, ready, reload]);
 
+  useEffect(() => {
+    if (saving || !focusField.current) return;
+    document.getElementById(`catalog-${focusField.current}`)?.focus();
+    focusField.current = null;
+  }, [fieldErrors, saving]);
+
+  useEffect(() => {
+    const target = focusAfterLoad.current === 'saved' ? savedRef.current
+      : focusAfterLoad.current === 'heading' ? headingRef.current : null;
+    if (!target) return;
+    focusAfterLoad.current = null;
+    target.focus();
+  });
+
   function change<K extends keyof Draft>(key: K, value: Draft[K]) {
     setDraft((before) => ({ ...before, [key]: value }));
     setFieldErrors((before) => ({ ...before, [key]: undefined }));
@@ -104,8 +137,7 @@ export function ProductEditor({ productId }: { productId?: string }) {
 
   function showErrors(found: Partial<Record<Field, string>>) {
     setFieldErrors(found);
-    const first = Object.keys(found)[0];
-    if (first) document.getElementById(`catalog-${first}`)?.focus();
+    focusField.current = (Object.keys(found)[0] as Field | undefined) ?? null;
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -135,6 +167,7 @@ export function ProductEditor({ productId }: { productId?: string }) {
         const { active: _active, ...fields } = clean;
         void _active;
         const created = await client.createProduct({ id: createId.current, ...fields });
+        justCreated = created.id;
         router.replace(`/staff/products/${created.id}`);
       }
       setSaved('product');
@@ -152,20 +185,23 @@ export function ProductEditor({ productId }: { productId?: string }) {
     event.preventDefault();
     if (!product || !admin || pricingPendingRef.current || pendingRef.current) return;
     const invalid: Partial<Record<Field, string>> = {};
-    const sellingCents = moneyCents(sellingPrice);
-    const mrpCents = mrp ? moneyCents(mrp) : null;
-    if (!sellingPrice) invalid.sellingPrice = t('sellingPriceRequired');
-    else if (sellingCents === null) invalid.sellingPrice = t('moneyFormat');
-    if (mrp && mrpCents === null) invalid.mrp = t('moneyFormat');
-    if (sellingCents !== null && mrpCents !== null && sellingCents > mrpCents)
+    const selling = sellingPrice.trim(), listed = mrp.trim();
+    const sellingCents = selling ? moneyCents(selling) : null;
+    const mrpCents = listed ? moneyCents(listed) : null;
+    const moneyError = (cents: bigint | 'format' | 'range' | null) =>
+      cents === 'range' ? t('moneyRange') : cents === 'format' ? t('moneyFormat') : undefined;
+    if (!selling) invalid.sellingPrice = t('sellingPriceRequired');
+    else if (typeof sellingCents !== 'bigint') invalid.sellingPrice = moneyError(sellingCents);
+    if (typeof mrpCents === 'string') invalid.mrp = moneyError(mrpCents);
+    if (typeof sellingCents === 'bigint' && typeof mrpCents === 'bigint' && sellingCents > mrpCents)
       invalid.sellingPrice = t('priceAboveMrp');
     if (Object.keys(invalid).length) { showErrors(invalid); return; }
     setFieldErrors((before) => ({ ...before, sellingPrice: undefined, mrp: undefined }));
-    if (product.sellingPrice === sellingPrice && (product.mrp ?? '') === mrp) { setSaved('pricing'); return; }
+    if (product.sellingPrice === selling && (product.mrp ?? '') === listed) { setSaved('pricing'); return; }
     pricingPendingRef.current = true; setPricingPending(true); setFailure(null); setStale(false); setSaved(null);
     try {
       const updated = await createCatalogClient({ authenticatedFetch }).updatePricing(product.id,
-        { sellingPrice, mrp: mrp || null, version: product.version });
+        { sellingPrice: selling, mrp: listed || null, version: product.version });
       setProduct(updated); setSellingPrice(updated.sellingPrice ?? ''); setMrp(updated.mrp ?? ''); setSaved('pricing');
       setFieldErrors((before) => ({ ...before, active: undefined }));
     } catch (reason) {
@@ -190,10 +226,13 @@ export function ProductEditor({ productId }: { productId?: string }) {
   }
 
   if (!ready) return null;
-  if (malformed || notFound) return <main className="container page"><p role="alert">{t('productNotFound')}</p></main>;
+  const back = <nav className="breadcrumb" aria-label={t('breadcrumb')}>
+    <Link className="btn btn-ghost" href="/staff/products">{t('products')}</Link></nav>;
+  if (malformed || notFound) return <main className="container page">{back}<h1>{t('productNotFound')}</h1></main>;
   if (loading) return <main className="container page"><p role="status">{t('loading')}</p></main>;
-  if (loadFailure) return <main className="container page"><Alert tone="danger">{errors(loadFailure)}
-    <button className="btn btn-secondary" onClick={() => setReload((value) => value + 1)}>{t('retry')}</button></Alert></main>;
+  if (loadFailure) return <main className="container page">{back}<Alert tone="danger">{errors(loadFailure)}
+    <button className="btn btn-secondary" onClick={() => { focusAfterLoad.current = 'heading'; setReload((value) => value + 1); }}>
+      {t('retry')}</button></Alert></main>;
 
   const categoryChoices = [...categories];
   if (product && !categoryChoices.some((category) => category.id === product.categoryId)) {
@@ -201,12 +240,15 @@ export function ProductEditor({ productId }: { productId?: string }) {
   }
   const status = product?.status === 'ACTIVE' ? 'activeStatus' : product?.status === 'INACTIVE' ? 'inactiveStatus' : 'needsPrice';
   return <main className="container page stack catalog-editor">
-    <div className="catalog-heading"><div><h1>{product?.name ?? t('newProduct')}</h1>
+    {back}
+    <div className="catalog-heading"><div><h1 ref={headingRef} tabIndex={-1}>{product?.name ?? t('newProduct')}</h1>
       {product && <p className="muted">{t('lastEdited', { username: product.updatedByUsername ?? '—', version: product.version })}</p>}</div>
       {product && <span className={product.status === 'ACTIVE' ? 'chip chip-success' : product.status === 'NEEDS_PRICE' ? 'chip chip-warn' : 'chip'}>{t(status)}</span>}</div>
-    {saved && <p className="alert alert-success" role="status">{t(saved === 'pricing' ? 'pricingSaved' : 'saved')}</p>}
+    {saved && <p ref={savedRef} tabIndex={-1} className="alert alert-success" role="status">
+      {t(saved === 'pricing' ? 'pricingSaved' : 'saved')}</p>}
     {stale && <div className="alert alert-warn" role="alert">{t('productStale')}
-      <button className="btn btn-secondary" onClick={() => setReload((value) => value + 1)}>{t('reload')}</button></div>}
+      <button className="btn btn-secondary" onClick={() => { headingRef.current?.focus(); setReload((value) => value + 1); }}>
+        {t('reload')}</button></div>}
     {failure && <Alert tone="danger" focusOnShow>{errors(failure)}
       {conflictingCreateId && <button className="btn btn-secondary" type="button"
         onClick={() => router.replace(`/staff/products/${conflictingCreateId}`)}>{t('reload')}</button>}</Alert>}
@@ -276,15 +318,14 @@ export function ProductEditor({ productId }: { productId?: string }) {
           case 'PRICE_CHANGED': line = change.newMrp
             ? t('priceSetBy', { price: formatTaka(change.newSellingPrice!, t('currency')),
               mrp: formatTaka(change.newMrp, t('currency')), username })
-            : t('priceSetWithoutMrp', { price: formatTaka(change.newSellingPrice!, t('currency')), username }); break;
+            : t(change.oldMrp ? 'priceSetMrpRemoved' : 'priceSetWithoutMrp',
+              { price: formatTaka(change.newSellingPrice!, t('currency')), username }); break;
           case 'REQUIRE_VALIDATION_CHANGED': line = t(change.newRequireValidation
             ? 'reviewTurnedOnBy' : 'reviewTurnedOffBy', { username }); break;
           default: line = t('catalogUpdatedBy', { username });
         }
         return <li key={`${change.occurredAt}-${index}`}><strong>{line}</strong>
-          <time dateTime={change.occurredAt}>{format.dateTime(new Date(change.occurredAt), {
-            dateStyle: 'medium', timeStyle: 'short', timeZone: 'Asia/Dhaka',
-          })}</time></li>;
+          <time dateTime={change.occurredAt}>{formatDateTime(change.occurredAt)}</time></li>;
       })}</ol>
     </section>}
   </main>;

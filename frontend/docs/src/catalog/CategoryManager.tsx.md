@@ -9,3 +9,5 @@ After a successful save or stale Reload, the outdated table is replaced by the l
 Category status chips use success green for Active and the neutral base chip for Inactive, retaining their readable labels.
 
 Nonempty page ranges count the categories actually returned. If concurrent changes leave the current page empty while earlier pages still exist, it says No categories on this page and preserves Previous navigation instead of displaying an inverted range.
+
+Accessibility correction (2026-10-08): Previous and Next keep the current rows and pager mounted while the next page loads, and [`usePagerFocus`](../shell/usePagerFocus.ts.md) keeps keyboard focus in the pager when the pressed button becomes disabled on the first or last page; the range text is a polite live region. A duplicate or blank name returns focus to the name field once the form is enabled again. The saved notice is a focused success alert, stale Reload moves focus to the page heading, and each Edit button is named `Edit {category}`.

@@ -8,6 +8,7 @@ import { useSessionRedirect } from '../auth/sessionRedirect';
 import { listUsers, userRoles, type UserFilter, type UserPage, type UserRole } from '../lib/adminUsers';
 import { ApiError } from '../lib/api';
 import { Alert } from '../shell/Alert';
+import { usePagerFocus } from '../shell/usePagerFocus';
 
 /** The Admin's bounded list. Filters live only in memory and search bodies; the API decides authorization. */
 export function UserList() {
@@ -22,6 +23,7 @@ export function UserList() {
   const [filter, setFilter] = useState<UserFilter>({});
   const [loaded, setLoaded] = useState<UserPage | null>(null);
   const [failure, setFailure] = useState<'accessDenied' | 'genericError' | null>(null);
+  const { pager, markTurn } = usePagerFocus(loaded);
 
   useEffect(() => {
     if (!verified) return;
@@ -39,11 +41,24 @@ export function UserList() {
     setFailure(null);
     setFilter(next);
   }
+  /** Keeps this page and its pager in place while the next one loads, so keyboard focus is not lost. */
+  function turn(page: number) {
+    markTurn();
+    setFailure(null);
+    setFilter({ ...filter, page });
+  }
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     load({ ...(username.trim() ? { username: username.trim() } : {}), ...(role ? { role } : {}), page: 0 });
   }
   if (!verified) return null;
+  // Once the API refuses the list, the search cannot help, so only the denial remains.
+  if (failure === 'accessDenied') return (
+    <main className="container page stack admin-users">
+      <h1>{t('title')}</h1>
+      <Alert tone="danger" focusOnShow>{t(failure)}</Alert>
+    </main>
+  );
   return (
     <main className="container page stack admin-users">
       <div><h1>{t('title')}</h1><p className="muted">{t('intro')}</p></div>
@@ -74,12 +89,12 @@ export function UserList() {
                 <td><Link className="btn btn-secondary" href={`/admin/users/${user.id}`} aria-label={t('openUser', { username: user.username })}>{t('open')}</Link></td>
               </tr>)}</tbody>
             </table></div>
-            <div className="pager"><span>{t('showing', { start: loaded.page * loaded.size + 1,
+            <div className="pager" ref={pager}><span aria-live="polite">{t('showing', { start: loaded.page * loaded.size + 1,
               end: loaded.page * loaded.size + loaded.items.length, total: loaded.totalItems })}</span>
               <div className="row"><button type="button" className="btn btn-secondary" disabled={loaded.page === 0}
-                onClick={() => load({ ...filter, page: loaded.page - 1 })}>{t('previous')}</button>
+                onClick={() => turn(loaded.page - 1)}>{t('previous')}</button>
                 <button type="button" className="btn btn-secondary" disabled={(loaded.page + 1) * loaded.size >= loaded.totalItems}
-                  onClick={() => load({ ...filter, page: loaded.page + 1 })}>{t('next')}</button></div>
+                  onClick={() => turn(loaded.page + 1)}>{t('next')}</button></div>
             </div>
           </>}
       </section>

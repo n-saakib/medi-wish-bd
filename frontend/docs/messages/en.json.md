@@ -26,3 +26,7 @@ Mounted tests assert catalog labels and bounded alerts. The production build res
 Externalized English next-intl messages for the delivered home/account/authentication/MFA/staff pages. `adminUsers` supplies list/detail filters, rows, role labels/reasons, save/history and bounded failure copy. `staffHome.usersAndRoles` names the Admin link; shared errors add staleUpdate, roleChangeRefused, accessDenied and notFound. Server diagnostics and private field values are never interpolated into error messages.
 
 Product and Category stale-edit banners keep their feature-specific guidance next to the shared stale-update message. Catalog empty-page messages distinguish a page with no returned rows from an entirely empty catalog.
+
+Accessibility additions (2026-10-08): `staffHome.staffPages` names the staff link landmark; `catalog.editProduct` titles the Product edit page; `catalog.editNamed` and `categories.editNamed` (`Edit {name}`) give each row's Edit control a distinct accessible name.
+
+UX additions (2026-10-08): `catalog.moneyRange` (“Enter an amount from 0.01 to 9,999,999.99.”), `catalog.priceSetMrpRemoved` (“Price set to {price} (MRP removed) by {username}”) and `catalog.breadcrumb` for the Product editor's link back to Products. The user chose this copy on 2026-10-08.

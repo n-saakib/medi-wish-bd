@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
-import { act, createElement } from 'react';
+import { act, createElement, StrictMode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MfaEnrollment } from '../src/auth/MfaEnrollment';
-import type { SessionSource } from '../src/auth/SessionProvider';
+import { type SessionSource, useSession } from '../src/auth/SessionProvider';
 import { ApiError } from '../src/lib/api';
 import type { EnrolledSession, MfaEnrollment as PendingEnrollment } from '../src/lib/session';
 import { deferred, enrollmentBody, restoredStaff, signedInUser, syntheticBackupCodes } from './fakeApi';
@@ -43,8 +43,8 @@ function enrollmentSource(overrides: Partial<SessionSource> = {}): SessionSource
   });
 }
 
-async function renderEnrollment(source = enrollmentSource()): Promise<HTMLElement> {
-  const page = await renderWithSession(createElement(MfaEnrollment), source);
+async function renderEnrollment(source = enrollmentSource(), element = createElement(MfaEnrollment)): Promise<HTMLElement> {
+  const page = await renderWithSession(element, source);
   await settle();
   return page;
 }
@@ -214,6 +214,26 @@ describe('MfaEnrollment', () => {
     expect(source.startMfaEnrollment).toHaveBeenCalledTimes(2);
     expect(page.querySelector('[role="alert"]')).toBeNull();
     expect(requiredElement(page, 'details code').textContent).toContain('JBSW');
+    expect(document.activeElement).toBe(requiredElement(page, 'h1'));
+  });
+
+  it('starts one setup when StrictMode re-runs the mount effect, and verifies against it', async () => {
+    const start = deferred<PendingEnrollment>();
+    const source = enrollmentSource({
+      startMfaEnrollment: vi.fn().mockReturnValueOnce(start.promise).mockResolvedValueOnce(secondEnrollment),
+    });
+    // Mounts only once the session is restored, as after a client-side sign-in, so the start runs on mount.
+    function RestoredEnrollment() {
+      return useSession().restoring ? null : createElement(StrictMode, null, createElement(MfaEnrollment));
+    }
+    const page = await renderEnrollment(source, createElement(RestoredEnrollment));
+    await act(async () => start.resolve(firstEnrollment));
+    await settle();
+
+    expect(source.startMfaEnrollment).toHaveBeenCalledOnce();
+    expect(requiredElement(page, 'details code').textContent).toContain('JBSW');
+    await enterCode(page, '287082');
+    expect(source.verifyMfaEnrollment).toHaveBeenCalledWith(firstEnrollment.enrollmentId, '287082');
   });
 
   it('drops the secret when the page is hidden and starts afresh when restored from the back/forward cache', async () => {
