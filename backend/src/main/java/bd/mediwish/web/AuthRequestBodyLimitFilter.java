@@ -20,7 +20,7 @@ import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
-/** Bounds JSON bodies on registration, sign-in and Bearer command routes, including profile changes. */
+/** Bounds the JSON bodies of the credential, staff MFA and Bearer command routes, including the User search and profile changes. */
 final class AuthRequestBodyLimitFilter extends OncePerRequestFilter {
     static final int MAX_BODY_BYTES = 16 * 1024;
 

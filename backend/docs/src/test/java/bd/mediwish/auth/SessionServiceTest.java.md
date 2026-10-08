@@ -9,3 +9,5 @@ Checks generation-zero creation with 32 random bytes; a session created with the
 ## Verification
 
 Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` passed all 238 unit tests.
+
+Ticket 08 tests password creation through the User id: shared lock before session save, current staff role chooses the restricted lifetime, and a deleted User creates no session.

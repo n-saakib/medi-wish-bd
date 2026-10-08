@@ -1,6 +1,7 @@
 package bd.mediwish.user;
 
 import bd.mediwish.auth.AuthenticationRequiredException;
+import bd.mediwish.web.StaleUpdateException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;

@@ -24,21 +24,19 @@ class AuthenticationService {
     private final SessionService sessions;
     private final AccessTokenCodec accessTokens;
     private final StaffMfaFactorRepository factors;
-    private final AuthProperties properties;
     private final Clock clock;
     // Unknown, ambiguous and unusable accounts are compared against this, so they fail as slowly as a wrong password.
     private final String dummyVerifier;
 
     AuthenticationService(UserRepository users, PasswordEncoder passwords, UserIdentifierNormalizer identifiers,
                           SessionService sessions, AccessTokenCodec accessTokens, StaffMfaFactorRepository factors,
-                          AuthProperties properties, Clock clock) {
+                          Clock clock) {
         this.users = users;
         this.passwords = passwords;
         this.identifiers = identifiers;
         this.sessions = sessions;
         this.accessTokens = accessTokens;
         this.factors = factors;
-        this.properties = properties;
         this.clock = clock;
         this.dummyVerifier = passwords.encode(UUID.randomUUID().toString());
     }
@@ -49,9 +47,8 @@ class AuthenticationService {
                 .orElse(null);
         boolean matches = passwords.matches(password, user == null ? dummyVerifier : user.passwordHash());
         if (user == null || !matches) throw new AuthenticationFailedException();
-        // A password alone gives staff only a short restricted session until the authenticator is verified.
-        return issue(user, sessions.create(user, user.hasStaffRole()
-                ? properties.mfa().restrictedSessionLifetime() : properties.refreshTokenLifetime()));
+        var created = sessions.create(user.id());
+        return issue(created.user(), created.credential());
     }
 
     AuthenticatedSession refresh(String refreshToken) {
@@ -85,7 +82,7 @@ class AuthenticationService {
     /** Issues an access token for the session with its current MFA status; also used after MFA verification. */
     AuthenticatedSession issue(User user, SessionService.SessionCredential session) {
         var accessToken = accessTokens.issue(user.id(), session.sessionId());
-        var access = StaffAccessPolicy.evaluate(user.roles(), factors.activeFactorIdOf(user),
+        var access = StaffAccessPolicy.evaluate(user.role(), factors.activeFactorIdOf(user),
                 session.mfa().factorId(), session.mfa().verifiedAt());
         // A restricted session can end before its access token would expire; report the earlier of the two.
         long expiresIn = Math.min(accessToken.expiresInSeconds(),

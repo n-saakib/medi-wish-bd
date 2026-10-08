@@ -1,12 +1,12 @@
 # `src/app/globals.css`
 
-Source: [`src/app/globals.css`](../../../src/app/globals.css)
+Source: [source](<../../../src/app/globals.css>).
 
 ## Purpose
 
-This is the global stylesheet loaded once by the root layout. It holds the design tokens and component styles ported from `agent-docs/ui-design/assets/styles.css`, limited to what the current home, account, editable profile, sign-in, registration, staff MFA and staff landing pages use. There is no CSS framework or CSS-in-JS layer; components apply these class names directly.
+This is the global stylesheet loaded once by the root layout. It holds the design tokens and component styles ported from `agent-docs/ui-design/assets/styles.css`, limited to what the delivered home, account, editable profile, sign-in, registration, staff MFA, staff landing and Users and roles pages use. There is no CSS framework or CSS-in-JS layer; components apply these class names directly. The Admin additions port card sections, responsive filters, locally scrollable tables, pager, labelled radio choice rows, history wrapping and text MFA chips from the static designs.
 
-## Rules
+Every control has a 44 px target (radios use the full label); keyboard focus has the amber outline. Narrow filters and private headings wrap instead of overflowing the document. No prototype JavaScript, sample data or unused future styles are imported. Layout/focus evidence belongs to browser suites and manual QA.
 
 - **Tokens.** `:root` defines the brand greens, amber accent, ink/muted text, line, background and surface colors, tinted alert backgrounds, radii, a light shadow, the `--font` stack and the `1240px` content width, and sets `color-scheme: light`. `--brand-100` and `--accent-50` are the light brand border and amber tint used by the chip and backup-code panel. The font stack names Inter and Hind Siliguri first but no webfont is downloaded; browsers fall back to installed or system fonts.
 - **Base.** Border-box sizing, text-size-adjust, body font/color/background, link color, heading sizes, paragraph spacing and the helpers `.small`, `.muted`, `.center`, `.mt-8`, `.mt-16`, `.mt-24`, `.mb-0` and `.mono` (monospace stack). `:focus-visible` draws a 3 px amber outline on every focusable element.
@@ -26,3 +26,4 @@ Search, cart, category navigation, footer, product and order styles from the des
 ## Use and verification
 
 [`src/app/layout.tsx`](layout.tsx.md) imports this file once. On 2026-09-26 `npm run lint` and `npm run build` passed with this stylesheet, and again on 2026-09-27 with the staff MFA additions. Responsive and focus appearance is a browser concern; its verification is recorded in the Ticket 03.01 evidence.
+The table wrapper is positioned so its absolutely positioned screen-reader-only column heading remains contained by the local horizontal scrollport. The 375 px manual review exposed a document width of 535 px before this fix; the mobile browser check protects document overflow.

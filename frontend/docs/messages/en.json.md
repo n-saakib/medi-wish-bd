@@ -1,6 +1,6 @@
 # `messages/en.json`
 
-Source: [`messages/en.json`](../../messages/en.json)
+Source: [source](<../../messages/en.json>).
 
 ## Purpose
 
@@ -20,3 +20,4 @@ Only English is configured. Components interpolate the pending mobile directly i
 ## Verification
 
 Mounted tests assert catalog labels and bounded alerts. The production build resolves metadata and component keys. Ticket 11 browser checks assert the accepted copy and profile accessibility.
+Externalized English next-intl messages for the delivered home/account/authentication/MFA/staff pages. `adminUsers` supplies list/detail filters, rows, role labels/reasons, save/history and bounded failure copy. `staffHome.usersAndRoles` names the Admin link; shared errors add staleUpdate, roleChangeRefused, accessDenied and notFound. Server diagnostics and private field values are never interpolated into error messages.

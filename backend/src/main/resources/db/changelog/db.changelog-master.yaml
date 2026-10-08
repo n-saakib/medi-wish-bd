@@ -472,6 +472,92 @@ databaseChangeLog:
             constraintName: fk_user_sessions_mfa_factor
             onDelete: SET NULL
   - changeSet:
+      id: 011-staff-role-changes
+      author: medi-wish
+      preConditions:
+        - onFail: HALT
+        - onFailMessage: >-
+            Migration 011-staff-role-changes stopped: user_roles contains an unknown role.
+            Resolve the invalid role by hand, then rerun the migration.
+        - sqlCheck:
+            expectedResult: 0
+            sql: SELECT count(*) FROM user_roles WHERE role NOT IN ('CUSTOMER', 'DELIVERY_PERSON', 'MODERATOR', 'ADMIN')
+      changes:
+        - sql:
+            sql: >-
+              DELETE FROM user_roles lower_role USING
+              (SELECT user_id, max(CASE role WHEN 'CUSTOMER' THEN 0 WHEN 'DELIVERY_PERSON' THEN 1
+              WHEN 'MODERATOR' THEN 2 WHEN 'ADMIN' THEN 3 END) AS rank FROM user_roles GROUP BY user_id) highest
+              WHERE lower_role.user_id = highest.user_id AND
+              (CASE lower_role.role WHEN 'CUSTOMER' THEN 0 WHEN 'DELIVERY_PERSON' THEN 1
+              WHEN 'MODERATOR' THEN 2 WHEN 'ADMIN' THEN 3 END) < highest.rank
+        - sql:
+            sql: >-
+              INSERT INTO user_roles(user_id, role) SELECT id, 'CUSTOMER' FROM users
+              WHERE NOT EXISTS (SELECT 1 FROM user_roles WHERE user_id = users.id)
+        - dropPrimaryKey:
+            tableName: user_roles
+            constraintName: pk_user_roles
+        - addPrimaryKey:
+            tableName: user_roles
+            columnNames: user_id
+            constraintName: pk_user_roles
+        - sql:
+            sql: >-
+              ALTER TABLE user_roles ADD CONSTRAINT ck_user_roles_role
+              CHECK (role IN ('CUSTOMER', 'DELIVERY_PERSON', 'MODERATOR', 'ADMIN'))
+        - sql:
+            splitStatements: false
+            sql: |
+              CREATE FUNCTION user_role_required() RETURNS trigger LANGUAGE plpgsql AS $role_required$
+              DECLARE checked_user_id UUID;
+              BEGIN
+                IF TG_TABLE_NAME = 'users' THEN
+                  checked_user_id := NEW.id;
+                ELSE
+                  checked_user_id := OLD.user_id;
+                END IF;
+                IF EXISTS (SELECT 1 FROM users WHERE id = checked_user_id)
+                   AND NOT EXISTS (SELECT 1 FROM user_roles WHERE user_id = checked_user_id) THEN
+                  RAISE EXCEPTION 'user_role_required: every User needs a role' USING ERRCODE = 'check_violation';
+                END IF;
+                RETURN NULL;
+              END;
+              $role_required$;
+        - sql:
+            sql: >-
+              CREATE CONSTRAINT TRIGGER ctr_users_role_required AFTER INSERT OR UPDATE OF id ON users
+              DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION user_role_required()
+        - sql:
+            sql: >-
+              CREATE CONSTRAINT TRIGGER ctr_user_roles_role_required AFTER DELETE OR UPDATE OF user_id ON user_roles
+              DEFERRABLE INITIALLY DEFERRED FOR EACH ROW EXECUTE FUNCTION user_role_required()
+        - addColumn:
+            tableName: users
+            columns:
+              - column:
+                  name: roles_version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+        - sql:
+            sql: |
+              CREATE TABLE user_role_changes (
+                id UUID PRIMARY KEY,
+                occurred_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                target_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                old_role VARCHAR(32) NOT NULL,
+                new_role VARCHAR(32) NOT NULL,
+                request_id VARCHAR(64),
+                CONSTRAINT ck_user_role_changes_old_role CHECK (old_role IN ('CUSTOMER', 'DELIVERY_PERSON', 'MODERATOR', 'ADMIN')),
+                CONSTRAINT ck_user_role_changes_new_role CHECK (new_role IN ('CUSTOMER', 'DELIVERY_PERSON', 'MODERATOR', 'ADMIN')),
+                CONSTRAINT ck_user_role_changes_changed CHECK (old_role <> new_role)
+              )
+        - sql:
+            sql: CREATE INDEX ix_user_role_changes_target ON user_role_changes (target_user_id, occurred_at DESC)
+  - changeSet:
       id: 012-user-profile
       author: medi-wish
       changes:

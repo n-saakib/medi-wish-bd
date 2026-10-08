@@ -14,4 +14,4 @@ After migration and Hibernate validation, the pre-existing refresh credential ro
 
 ## Constraints and isolation
 
-PostgreSQL enforces the state CHECK, required version, one pending change per user, foreign key, 11-character pending-mobile storage and deletion cascade. Fresh installation exercises the same constraints. All values are synthetic; tests own and remove only guarded, isolated test schemas. Tagged integration and regression.
+PostgreSQL enforces the state CHECK, required version, one pending change per user, foreign key, 11-character pending-mobile storage and deletion cascade. Fresh installation exercises the same constraints. Because Ticket 08's changeset 011 runs before 012 and its deferred trigger requires every committed User to hold a role, each raw User insert adds its `CUSTOMER` role in the same statement. All values are synthetic; tests own and remove only guarded, isolated test schemas. Tagged integration and regression.

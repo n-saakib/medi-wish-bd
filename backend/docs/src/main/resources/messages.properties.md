@@ -1,8 +1,8 @@
 # `messages.properties`
 
-Source: [`src/main/resources/messages.properties`](../../../../src/main/resources/messages.properties)
+Source: [messages.properties](../../../../src/main/resources/messages.properties)
 
-## Purpose and reasoning
+Externalized English text for every ApiError, resolved as error.<CODE>. Ticket 08 adds the shared STALE_UPDATE instruction to reload and ROLE_CHANGE_REFUSED message, both matching the frozen contract. Existing messages stay unchanged.
 
 This Java message bundle contains the public English text for each `ApiError` code; `ApiErrors` resolves `error.<CODE>` in English. Keeping text outside Java makes responses consistent and gives future localization or copy changes one small resource boundary without changing status mapping code.
 
@@ -22,6 +22,9 @@ This Java message bundle contains the public English text for each `ApiError` co
 | `error.MFA_CODE_INVALID` | The authenticator code is wrong or already used (`400`). |
 | `error.MFA_ENROLLMENT_STALE` | The enrollment expired or was replaced; the client starts again (`409`). |
 | `error.TOO_MANY_ATTEMPTS` | MFA verification is locked after too many wrong codes (`429`). |
+| `error.STALE_UPDATE` | The record changed after the caller loaded it; reload and try again (`409`). Shared by Tickets 08, 11 and 14. |
+| `error.ROLE_CHANGE_REFUSED` | The requested role change is not allowed (`409`). |
+| `error.ACCOUNT_CLOSING` | A closing account cannot change its profile or pending mobile (`409`). |
 
 There is exactly one key per `ApiError` constant; add both together. Do not put exception text, SQL details, credentials, OTPs, medicine searches or order contents in these messages.
 

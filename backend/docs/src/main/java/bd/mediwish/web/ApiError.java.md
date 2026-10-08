@@ -1,8 +1,8 @@
 # `ApiError.java`
 
-Source: [`src/main/java/bd/mediwish/web/ApiError.java`](../../../../../../../src/main/java/bd/mediwish/web/ApiError.java)
+Source: [ApiError.java](../../../../../../../src/main/java/bd/mediwish/web/ApiError.java)
 
-## Purpose
+Single owner of bounded public error codes, HTTP statuses and externalized error.<CODE> message keys. Ticket 08 adds STALE_UPDATE and ROLE_CHANGE_REFUSED, and Ticket 11 adds ACCOUNT_CLOSING (all 409). Existing authentication/MFA/validation/rate-limit/error codes retain their statuses.
 
 Package-private enum that is the single owner of public API error codes, their HTTP statuses and their message keys. Each constant's `messageKey` is `error.<CODE>`, its English message in `messages.properties`.
 
@@ -17,9 +17,10 @@ Package-private enum that is the single owner of public API error codes, their H
 | `NOT_FOUND` | 404 |
 | `METHOD_NOT_ALLOWED` | 405 |
 | `DUPLICATE_USER` | 409 |
-| `STALE_UPDATE` | 409 |
 | `ACCOUNT_CLOSING` | 409 |
 | `MFA_ENROLLMENT_STALE` | 409 |
+| `STALE_UPDATE` | 409 |
+| `ROLE_CHANGE_REFUSED` | 409 |
 | `TOO_MANY_ATTEMPTS` | 429 |
 | `INTERNAL_ERROR` | 500 |
 

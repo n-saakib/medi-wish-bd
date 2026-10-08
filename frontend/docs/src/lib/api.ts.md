@@ -1,6 +1,6 @@
 # `src/lib/api.ts`
 
-Source: [`src/lib/api.ts`](../../../src/lib/api.ts)
+Source: [source](<../../../src/lib/api.ts>).
 
 ## Purpose and exports
 
@@ -10,7 +10,7 @@ The shared HTTP boundary supports session, user, staff and editable-profile clie
 
 ## Error copy
 
-`errorMessageKey` selects externalized English copy for authentication, duplicate identifiers, MFA, rate limits and invalid responses. Ticket 11 adds `STALE_UPDATE → staleUpdate`, `ACCOUNT_CLOSING → accountClosing` and `INVALID_REQUEST → checkDetails`. Unknown codes and non-API failures use `genericError`. Registration retains its more specific username-rule message for INVALID_REQUEST.
+`errorMessageKey` selects externalized English copy for authentication, duplicate identifiers, MFA, rate limits and invalid responses. The shared keys are `STALE_UPDATE → staleUpdate`, `ROLE_CHANGE_REFUSED → roleChangeRefused`, `ACCESS_DENIED → accessDenied` and `NOT_FOUND → notFound` (Ticket 08); Ticket 11 adds `ACCOUNT_CLOSING → accountClosing` and `INVALID_REQUEST → checkDetails`. Unknown codes and non-API failures use `genericError`. Registration retains its more specific username-rule message for INVALID_REQUEST.
 
 ## Verification
 

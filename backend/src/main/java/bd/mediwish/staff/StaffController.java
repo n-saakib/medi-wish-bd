@@ -24,8 +24,9 @@ class StaffController {
 
     @GetMapping("/me")
     StaffAccess me(@AuthenticationPrincipal CurrentUserAuthentication.CurrentUser current) {
-        List<String> roles = current.roles().stream().map(Enum::name).sorted().toList();
-        boolean superAdmin = StaffAccessPolicy.isSuperAdmin(current.userId(), current.roles(),
+        var role = current.roles().iterator().next();
+        List<String> roles = List.of(role.name());
+        boolean superAdmin = StaffAccessPolicy.isSuperAdmin(current.userId(), role,
                 bootstrap.superAdminUserId().orElse(null));
         return new StaffAccess(current.profile().username(), roles, superAdmin);
     }

@@ -1,48 +1,43 @@
 # `SecurityConfiguration.java`
 
-Source: [`src/main/java/bd/mediwish/web/SecurityConfiguration.java`](../../../../../../../src/main/java/bd/mediwish/web/SecurityConfiguration.java)
+Source: [SecurityConfiguration.java](../../../../../../../src/main/java/bd/mediwish/web/SecurityConfiguration.java)
 
-## Purpose
+Stateless servlet security boundary. Hosted cookies must be Secure, and hosted credentialed CORS must list explicit origins. Only exclusively local/test profiles allow insecure cookies and loopback fallback origins. Allowed CORS methods are GET, POST, PUT, DELETE, HEAD and OPTIONS; allowed headers are Authorization, Content-Type and X-XSRF-TOKEN.
 
-Package-private configuration of the stateless Spring Security boundary: CSRF, credentialed CORS, the web filters, route authorization and bounded security errors. HTTP Basic and server sessions are not used. Password hashing belongs to `AuthCoreConfiguration`.
+The static RoleHierarchy bean declares ADMIN > MODERATOR > DELIVERY_PERSON > CUSTOMER. Spring Security 7.1.1 automatically supplies it to its authorization-manager factory. Staff/profile routes use their minimum role; restricted MFA authorities are outside this hierarchy.
 
-It is `@ConditionalOnWebApplication(SERVLET)`: a non-web context, such as the first-Admin command started with `spring.main.web-application-type=none`, has no `HttpSecurity` and would otherwise fail to start, so there the whole configuration, including its Secure-cookie and CORS startup checks, is skipped.
+## Route matchers
 
-## Members
-
-| Member | Behavior |
+| Matcher | Routes and use |
 | --- | --- |
-| Constructor | Treats the process as local only when at least one profile is active and every active profile is `local` or `test`. Fails startup with `IllegalStateException` when `AuthProperties.cookie().secure()` is `false` outside a local process. |
-| `MFA_ROUTES` | `POST /api/auth/mfa/enrollment`, `POST /api/auth/mfa/enrollment/verify` and `POST /api/auth/mfa/verify`. Bearer-only, so they are CSRF-exempt (a cross-site page cannot send the in-memory access token), and body-limited like sign-in. |
-| `PROTECTED_ROUTES` | Shared matcher of every route that needs a Bearer token: `GET /api/user/me`, `GET /api/staff/me` and `BEARER_COMMAND_ROUTES`, plus GET /api/user/me/profile. `BearerAccessTokenFilter` uses it. |
-| `CREDENTIAL_ROUTES` | Shared matcher of `POST /api/auth/register` and `POST /api/auth/login`. The CSRF exemption, the `permitAll()` rule and `AuthRequestBodyLimitFilter` all use it, so they always agree on which requests are credential requests, including percent-encoded spellings of the paths. |
-| `corsConfigurationSource(allowedOrigins)` | Reads comma-separated `app.cors.allowed-origins`. When empty, a local process falls back to `http://127.0.0.1:3000` and `http://localhost:3000`; otherwise startup fails. `*` fails startup because credentials are allowed. Allows methods `GET`, `POST`, `PUT`, `DELETE`, `HEAD`, `OPTIONS`, headers `Authorization`, `Content-Type`, `X-XSRF-TOKEN`, credentials and a one-hour preflight cache. |
-| `csrfTokenRepository()` | The `CookieCsrfTokenRepository` the chain uses, described under CSRF below. Package-private so a unit test can check the cookie it writes. |
-| `security(...)` | Builds the filter chain described below. |
+| `CREDENTIAL_ROUTES` | `POST /api/auth/register` and `POST /api/auth/login`: public, CSRF-exempt (no session exists yet) and body-limited. Percent-encoded spellings match as Spring MVC routes them. |
+| `MFA_ROUTES` | `POST /api/auth/mfa/enrollment`, `/enrollment/verify` and `/mfa/verify`: Bearer-only, so CSRF-exempt, and body-limited like sign-in. |
+| `USER_PROFILE_READ`, `USER_PROFILE_COMMANDS` | Ticket 11: `GET /api/user/me/profile`; `PUT /api/user/me/profile` and `POST`/`DELETE /api/user/me/mobile-change`. |
+| `ADMIN_USER_SEARCH`, `ADMIN_USER_DETAIL`, `ADMIN_ROLE_CHANGE` | Ticket 08: `POST /api/admin/users/search`, `GET /api/admin/users/*` and `PUT /api/admin/users/*/roles`. |
+| `BEARER_COMMAND_ROUTES` | Admin search, role changes and the profile commands. CSRF-exempt because a cross-site page cannot supply the in-memory Bearer header, and subject to the shared 16 KiB JSON limit. A bodyless `DELETE` passes the limiter unchanged. |
+| `PROTECTED_ROUTES` | Every route that needs a Bearer token: `GET /api/user/me`, `GET /api/staff/me`, the MFA, profile and admin routes. `BearerAccessTokenFilter` uses it. |
 
 ## Filter chain
 
-- **CSRF:** `CookieCsrfTokenRepository` with a script-readable `XSRF-TOKEN` cookie at `/api`, `SameSite=Lax`, Secure per the cookie setting, and the raw `X-XSRF-TOKEN` header handler. CSRF is ignored only for `CREDENTIAL_ROUTES` and `BEARER_COMMAND_ROUTES`; every other unsafe request, including refresh and logout, needs the token.
-- **Filters:** `BoundedCorsFilter` before `SecurityContextHolderFilter`; `AuthRequestBodyLimitFilter` after it, bounding `CREDENTIAL_ROUTES` and `BEARER_COMMAND_ROUTES` at 16 KiB; and `BearerAccessTokenFilter` after `LogoutFilter`. All three are constructed here, not registered as beans.
-- **Authorization:** the authorities come from `StaffAccessPolicy`, through the bearer filter.
+- **CSRF:** `CookieCsrfTokenRepository` with a script-readable `XSRF-TOKEN` cookie at `/api`, `SameSite=Lax`, Secure per the cookie setting, and the raw `X-XSRF-TOKEN` header handler. CSRF is ignored only for `CREDENTIAL_ROUTES`, `MFA_ROUTES` and `BEARER_COMMAND_ROUTES`; refresh, logout and every other unsafe request need the token.
+- **Filters:** `BoundedCorsFilter` before `SecurityContextHolderFilter`; `AuthRequestBodyLimitFilter` after it, bounding the credential, MFA and Bearer command routes at 16 KiB; and `BearerAccessTokenFilter` after `LogoutFilter`. All three are constructed here, not registered as beans.
+- **Authorization:** authorities come from `StaffAccessPolicy` through the bearer filter.
 
   | Request | Rule |
   | --- | --- |
   | ERROR dispatches, `GET`/`HEAD` liveness and readiness, `POST /api/auth/register\|login\|refresh\|logout`, `GET /api/auth/csrf` | permitted |
   | `POST /api/auth/mfa/enrollment`, `/enrollment/verify` | authority `StaffAccessPolicy.MFA_ENROLLMENT` |
   | `POST /api/auth/mfa/verify` | authority `StaffAccessPolicy.MFA_CHALLENGE` |
-  | `GET /api/staff/me` | role `ADMIN` or `MODERATOR` (only a verified staff session has them) |
-  | `GET /api/user/me`, `GET /api/user/me/profile`, `PUT /api/user/me/profile`, `POST /api/user/me/mobile-change`, `DELETE /api/user/me/mobile-change` | any of the four roles (a restricted staff session has none) |
+  | `GET /api/staff/me` | role `MODERATOR` or higher (only a verified staff session has a staff role) |
+  | `GET /api/user/me` | role `CUSTOMER` or higher |
+  | profile read and commands | explicitly `CUSTOMER`, `DELIVERY_PERSON`, `MODERATOR` or `ADMIN` (correct with or without the hierarchy) |
+  | admin search, detail and role change | role `ADMIN` |
   | anything else | denied |
 
-- **Errors:** the authentication entry point always writes `401 AUTHENTICATION_REQUIRED` with `WWW-Authenticate: Bearer`. The access-denied handler writes `403 MFA_REQUIRED` when the current authentication holds one of `StaffAccessPolicy.MFA_AUTHORITIES` (a staff session that must still enroll or verify) and `403 ACCESS_DENIED` otherwise. A denied anonymous request, such as `POST` to a health probe with a valid CSRF token, gets `401`; an unsafe request without a valid CSRF token is rejected earlier by the CSRF filter through the access-denied handler with `403`.
+- **Errors:** missing authentication is `401 AUTHENTICATION_REQUIRED` with `WWW-Authenticate: Bearer`. A denial is `403 MFA_REQUIRED` for a restricted staff session (one of `StaffAccessPolicy.MFA_AUTHORITIES`) and `403 ACCESS_DENIED` otherwise; an unsafe request without a valid CSRF token is rejected by the CSRF filter with `403`.
 
-Correlation and `no-store` headers come from `RequestCorrelationFilter`, which runs before this chain.
+`RequestCorrelationFilter` adds correlation and `no-store` headers before this chain. The whole configuration is servlet-conditional, so offline first-Admin provisioning has no web-security beans.
 
 ## Verification
 
-`SecurityConfigurationTest` covers the Secure-cookie profile rule, credentialed CORS limits, the local origin fallback, wildcard rejection and the hosted `XSRF-TOKEN` cookie attributes. `BoundedCorsFilterTest`, `AuthRequestBodyLimitFilterTest` and `BearerAccessTokenFilterTest` cover the installed filters. `SessionIT`, `HealthIT` and `ProfileIT` cover CSRF, route rules and error statuses over real HTTP. `RoleAuthorizationIT`, `StaffMfaIT` and `StaffMfaRegressionIT` cover the role and MFA rules, `MFA_REQUIRED`, the CSRF exemption and body limit of the MFA routes. `UserProfilePermissionIT` covers all four profile routes for missing, malformed and revoked sessions, both restricted staff MFA states, and each sole role. `FirstAdminProvisioningIT` starts the non-web context without this configuration.
-
-## Ticket 11 profile routes
-
-USER_PROFILE_READ matches GET /api/user/me/profile. USER_PROFILE_COMMANDS matches PUT /api/user/me/profile and POST/DELETE /api/user/me/mobile-change. All four enter PROTECTED_ROUTES and explicitly admit CUSTOMER, DELIVERY_PERSON, MODERATOR and ADMIN; restricted staff sessions still receive MFA_REQUIRED. BEARER_COMMAND_ROUTES combines these commands with MFA_ROUTES for CSRF exemption and the 16 KiB JSON guard. Bodyless DELETE passes; refresh/logout still require CSRF. CORS permits PUT and DELETE alongside the existing methods.
+`SecurityConfigurationTest` covers the Secure-cookie profile rule, credentialed CORS limits and methods, the local origin fallback, wildcard rejection, the `XSRF-TOKEN` cookie attributes, the role hierarchy, and that the profile and admin routes are Bearer-protected and the admin commands body-limited. `BoundedCorsFilterTest`, `AuthRequestBodyLimitFilterTest`, `ProfileBodyLimitTest` and `BearerAccessTokenFilterTest` cover the installed filters. `SessionIT`, `HealthIT`, `ProfileIT`, `RoleAuthorizationIT`, `StaffMfaIT`, `StaffMfaRegressionIT`, `StaffRoleIT` and `UserProfilePermissionIT` cover CSRF, route rules, MFA and role denials and error statuses over real HTTP and PostgreSQL.

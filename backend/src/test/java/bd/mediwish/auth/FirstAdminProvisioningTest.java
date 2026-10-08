@@ -62,7 +62,8 @@ class FirstAdminProvisioningTest {
 
         assertThat(service().provision(" Owner_1 ")).isEqualTo(Outcome.PROVISIONED);
 
-        assertThat(user.roles()).contains(UserRole.ADMIN);
+        assertThat(user.roles()).containsExactly(UserRole.ADMIN);
+        assertThat(user.rolesVersion()).isZero();
         verify(users).save(user);
         verify(sessions).revokeAllForUser(user.id(), RevocationReason.STAFF_PROVISIONED);
         verify(audit).record(SecurityAuditEvent.Type.FIRST_ADMIN_PROVISIONED, user.id(), null);

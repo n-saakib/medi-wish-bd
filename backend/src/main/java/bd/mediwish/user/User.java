@@ -10,6 +10,7 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.BatchSize;
 
 import java.time.Instant;
 import java.time.LocalDate;
@@ -44,6 +45,9 @@ public class User {
     private boolean mobileVerified;
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
+    @Column(name = "roles_version", nullable = false)
+    private long rolesVersion;
+    @BatchSize(size = 50)
     @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))
     @Column(name = "role", nullable = false, length = 32)
@@ -76,7 +80,11 @@ public class User {
     public boolean mobileVerified() { return mobileVerified; }
     public Set<UserRole> roles() { return Collections.unmodifiableSet(roles); }
 
-    public boolean hasStaffRole() { return roles.stream().anyMatch(UserRole::isStaff); }
+    public Instant createdAt() { return createdAt; }
+    public UserRole role() { return roles.iterator().next(); }
+    public long rolesVersion() { return rolesVersion; }
+    public void bumpRolesVersion() { rolesVersion++; }
+    public boolean hasStaffRole() { return role().isStaff(); }
     public void updateProfile(String fullName, String email, LocalDate dateOfBirth) {
         this.fullName = fullName;
         this.email = email;
@@ -88,6 +96,11 @@ public class User {
         this.mobileVerified = true;
     }
 
-    /** Adds a role, keeping the existing ones; only the first-Admin provisioning grants roles so far. */
-    public void grantRole(UserRole role) { roles.add(role); }
+    /** Replaces the one assignment; a repeated assignment does not dirty the collection. */
+    public void replaceRole(UserRole role) {
+        java.util.Objects.requireNonNull(role);
+        if (role() == role) return;
+        roles.clear();
+        roles.add(role);
+    }
 }

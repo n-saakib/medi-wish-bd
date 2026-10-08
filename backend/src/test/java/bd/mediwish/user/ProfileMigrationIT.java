@@ -26,9 +26,10 @@ class ProfileMigrationIT {
             UUID id = UUID.randomUUID();
             String password = "Migration-Profile-Password-1";
             String passwordHash = Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8().encode(password);
-            database.update("INSERT INTO users(id,username,mobile,email,password_hash,mobile_verified,created_at) "
-                    + "VALUES(?, 'legacy.profile', '+8801700001234', 'Legacy@Example.Test', ?, true, now())", id, passwordHash);
-            database.update("INSERT INTO user_roles(user_id,role) VALUES(?, 'CUSTOMER')", id);
+            // One statement, so Ticket 08's deferred every-User-has-a-role trigger sees both rows at commit.
+            database.update("WITH u AS (INSERT INTO users(id,username,mobile,email,password_hash,mobile_verified,created_at) "
+                    + "VALUES(?, 'legacy.profile', '+8801700001234', 'Legacy@Example.Test', ?, true, now()) RETURNING id) "
+                    + "INSERT INTO user_roles(user_id,role) SELECT id, 'CUSTOMER' FROM u", id, passwordHash);
             UUID sessionId = UUID.randomUUID();
             UUID refreshId = UUID.randomUUID();
             String refreshToken = "migration-profile-refresh-synthetic-00000000";
@@ -87,8 +88,9 @@ class ProfileMigrationIT {
     void theEntireChangelogAlsoInstallsAndValidatesOnAnEmptyDatabase() throws Exception {
         try (var database = TestDatabase.create(); var app = TestApplication.start(database.applicationProperties())) {
             UUID id = UUID.randomUUID();
-            database.update("INSERT INTO users(id,username,mobile,password_hash,mobile_verified,created_at) "
-                    + "VALUES(?, 'fresh.profile', '01700000000', 'synthetic-verifier', false, now())", id);
+            database.update("WITH u AS (INSERT INTO users(id,username,mobile,password_hash,mobile_verified,created_at) "
+                    + "VALUES(?, 'fresh.profile', '01700000000', 'synthetic-verifier', false, now()) RETURNING id) "
+                    + "INSERT INTO user_roles(user_id,role) SELECT id, 'CUSTOMER' FROM u", id);
             constraints(database, id);
             assertThat(app.bean(ProfileService.class).profile(id).version()).isZero();
         }
@@ -120,8 +122,9 @@ class ProfileMigrationIT {
                 .isInstanceOf(SQLException.class).satisfies(e -> assertThat(((SQLException)e).getSQLState()).isEqualTo("22001"));
         database.update("DELETE FROM user_mobile_changes WHERE user_id = ?", id);
         UUID disposable = UUID.randomUUID();
-        database.update("INSERT INTO users(id,username,mobile,password_hash,mobile_verified,created_at) "
-                + "VALUES(?, ?, '01900000000', 'synthetic-verifier', false, now())", disposable, "cascade_" + disposable);
+        database.update("WITH u AS (INSERT INTO users(id,username,mobile,password_hash,mobile_verified,created_at) "
+                + "VALUES(?, ?, '01900000000', 'synthetic-verifier', false, now()) RETURNING id) "
+                + "INSERT INTO user_roles(user_id,role) SELECT id, 'CUSTOMER' FROM u", disposable, "cascade_" + disposable);
         database.update("INSERT INTO user_mobile_changes(id,user_id,new_mobile,requested_at) VALUES(?, ?, '01800000000', now())",
                 UUID.randomUUID(), disposable);
         database.update("DELETE FROM users WHERE id = ?", disposable);

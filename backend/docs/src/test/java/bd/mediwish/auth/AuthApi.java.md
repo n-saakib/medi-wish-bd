@@ -16,6 +16,7 @@ Every password, token, cookie, seed and backup code it sees is tracked; 204 and 
 
 Exercised by every auth integration test.
 
+Ticket 08: grantRole replaces the only stored role with UPDATE; removeRole restores CUSTOMER, preserving the existing per-request authorization fixture intent. adminUsers sends filters only in POST JSON; adminUser and putRole identify by UUID. verifiedAdmin enrolls a synthetic staff fixture; verifiedSuperAdmin uses the real provisioning transaction, once per owned schema, before enrollment. VerifiedStaff retains the fixture identity and enrollment for fresh-code/revocation checks.
 ## Ticket 11 helpers
 
 profileOf, putProfile, stageMobile and cancelMobile call the owner-only profile contract. profileEdit always includes all four editable keys, retaining null values. accountState supplies the accepted closure fixture through this run's guarded schema. activatePendingMobile invokes the Spring MobileChangeService with the actual pending UUID; it creates no HTTP verification route. Staged mobile values join the privacy tracking set.

@@ -32,7 +32,7 @@ Failures report only the surface and the number of values found, never a value. 
 
 The second test registers a synthetic User, has ADMIN granted, signs in, reloads `/staff/mfa/enroll`, reads the manual key, verifies and reads the ten backup codes. It then:
 
-1. goes to `/` and back: the page lands on `/staff` with no backup code and no key on screen, because the setup page drops them on `pagehide` and the verified session is sent on;
+1. goes to `/`, waits for the signed-in username link (session restoration complete), and goes back: the page lands on `/staff` with no backup code and no key on screen, because the setup page drops them on `pagehide` and the verified session is sent on;
 2. signs out, signs in, reloads `/staff/mfa` and verifies the next step's code, then reloads `/staff`.
 
 Storage is snapshotted along the way. The key and every backup code must not appear in the API log, console, URLs and history, or storage and history state, and no IndexedDB database may exist. The two 6-digit codes are matched as whole tokens in the console, URLs and storage, but not in the API log, where timestamps and ids would give false matches. Every `/staff*` document the browser loaded (all three routes are required) and a direct request to each route must carry `Cache-Control: no-store`.

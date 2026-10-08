@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { useSession } from '../auth/SessionProvider';
@@ -55,6 +56,7 @@ export function StaffHome() {
         <dt>{t('roles')}</dt>
         <dd>{access.roles.map((role) => (t.has(`roleNames.${role}`) ? t(`roleNames.${role}`) : role)).join(', ')}</dd>
       </dl>
+      {access.roles.includes('ADMIN') && <Link className="btn btn-secondary" href="/admin/users">{t('usersAndRoles')}</Link>}
       {access.superAdmin && <p><span className="chip chip-brand">{t('superAdmin')}</span></p>}
     </section>
   );

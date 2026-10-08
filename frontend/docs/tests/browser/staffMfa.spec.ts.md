@@ -4,11 +4,11 @@ Source: [`../../../tests/browser/staffMfa.spec.ts`](../../../tests/browser/staff
 
 ## Purpose
 
-The Ticket 06 staff MFA journeys against the real test API, run on the `chrome` and `msedge` projects. Admin rights are granted with [`grantRole`](testApi.ts.md) in the run's schema, as an operator would. Codes come from the page's manual key through [`totp.ts`](totp.ts.md).
+The Ticket 06 staff MFA journeys against the real test API, run on the `chrome` and `msedge` projects. Admin rights are granted with [`grantRole`](testApi.ts.md) in the run's schema, as an operator would. Codes come from the page's manual key through [`totp.ts`](totp.ts.md). `registeredAdmin` and `enroll` come from [`support.ts`](support.ts.md), where Ticket 08 moved them so the staff role specs share them.
 
 ## Tests
 
-- **`@smoke an Admin sets up an authenticator and reaches the staff page`** — the shortest path. It registers through the API, grants ADMIN, signs in, enrolls with the current code, saves the backup codes and sees verified access on `/staff`. Run it alone with `npx playwright test --grep @smoke`.
+- **`@smoke an Admin sets up an authenticator and reaches the staff page`** — the shortest path. It registers through the API, grants ADMIN, signs in, enrolls with the current code, saves the backup codes and sees verified access on `/staff`. Run it with `npx playwright test --grep @smoke`, which since Ticket 08 also runs that ticket's smoke test (`E2E-08-46`).
 - **A Customer opening `/staff` is sent to their account** — a registered Customer lands on `/account`.
 - **Full journey:**
   1. Register through the form, have ADMIN granted, and sign out.

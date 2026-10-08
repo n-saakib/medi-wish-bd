@@ -71,7 +71,6 @@ p { margin: 0 0 .75rem; }
 .icon-btn[disabled] { opacity: .5; cursor: not-allowed; }
 .chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-size: .78rem; font-weight: 600; line-height: 1.5; white-space: nowrap; }
 .chip-brand { background: var(--brand-50); color: var(--brand-700); border: 1px solid var(--brand-100); }
-.chip-success { background: var(--success-50); color: #11532a; border: 1px solid #bfe3cb; }
 .chip-muted { background: var(--bg); color: var(--muted); border: 1px solid var(--line); }
 
 /* Forms */
@@ -150,3 +149,35 @@ p { margin: 0 0 .75rem; }
 /* Staff header */
 .staff-top { background: var(--surface); border-bottom: 1px solid var(--line); }
 .staff-top .container { display: flex; justify-content: space-between; align-items: center; gap: 12px; height: 64px; }
+
+/* Users and roles: the design's table, radio rows and pager, with 44 px controls. */
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.row, .row-between { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.row-between { justify-content: space-between; }
+.stack-s > * + * { margin-top: 8px; }
+.card-head { padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.card-head h2 { margin: 0; font-size: 1.1rem; }
+.card-body { padding: 20px; }
+.card-foot { padding: 14px 20px; border-top: 1px solid var(--line); background: #fbfdfc; border-radius: 0 0 var(--radius) var(--radius); }
+.select { min-width: 160px; min-height: 44px; padding: 10px 12px; font: inherit; color: var(--ink); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-s); }
+.select:focus { outline: 3px solid var(--accent); outline-offset: 0; border-color: var(--brand-600); }
+.toolbar { padding: 16px 20px; display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; border-bottom: 1px solid var(--line); }
+.admin-search { flex: 1; min-width: 200px; }
+.table-wrap { position: relative; overflow-x: auto; }
+.table { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.table th { text-align: left; font-weight: 600; font-size: .78rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 10px 14px; border-bottom: 1px solid var(--line); background: #fafcfb; white-space: nowrap; }
+.table td { padding: 12px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+.table tr:last-child td { border-bottom: 0; }
+.table tbody tr:hover { background: #f8fbfa; }
+.pager { padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; border-top: 1px solid var(--line); }
+.choice { display: flex; gap: 12px; align-items: center; min-height: 44px; padding: 14px 16px; border: 1px solid var(--line-strong); border-radius: var(--radius-s); background: var(--surface); cursor: pointer; }
+.choice input { accent-color: var(--brand-600); width: 18px; height: 18px; flex: none; }
+.choice.is-selected { border-color: var(--brand-600); background: var(--brand-50); box-shadow: inset 0 0 0 1px var(--brand-600); }
+.choice:has(input:disabled) { cursor: not-allowed; }
+.chip-success { background: var(--success-50); color: #177a3b; border: 1px solid #bfe3cb; }
+.chip-warn { background: var(--warn-50); color: #9a5b00; border: 1px solid #f1d9a8; }
+.breadcrumb { margin-bottom: 16px; }
+.role-history { margin: 0; padding-left: 20px; }
+.role-history > * + * { margin-top: 8px; }
+.admin-users h1, .role-history { overflow-wrap: anywhere; }
+@media (max-width: 600px) { .admin-users .toolbar > .field { width: 100%; } .admin-users .select { width: 100%; } }

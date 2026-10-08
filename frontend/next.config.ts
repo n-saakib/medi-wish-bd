@@ -7,7 +7,9 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // Staff pages can show an authenticator secret or backup codes, so neither the browser nor a proxy may keep them.
   async headers() {
-    return [{ source: '/staff/:path*', headers: [{ key: 'Cache-Control', value: 'no-store' }] }];
+    return ['/staff/:path*', '/admin/:path*'].map((source) => ({
+      source, headers: [{ key: 'Cache-Control', value: 'no-store' }],
+    }));
   },
 };
 

@@ -1,6 +1,7 @@
 package bd.mediwish.auth;
 
 import bd.mediwish.user.User;
+import bd.mediwish.user.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,14 +18,16 @@ import java.util.UUID;
 class SessionService {
     private static final int REFRESH_RANDOM_BYTES = 32;
 
+    private final UserRepository users;
     private final UserSessionRepository sessions;
     private final UserSessionRefreshTokenRepository refreshTokens;
     private final AuthProperties properties;
     private final Clock clock;
     private final SecureRandom random;
 
-    SessionService(UserSessionRepository sessions, UserSessionRefreshTokenRepository refreshTokens,
+    SessionService(UserRepository users, UserSessionRepository sessions, UserSessionRefreshTokenRepository refreshTokens,
                    AuthProperties properties, Clock clock, SecureRandom random) {
+        this.users = users;
         this.sessions = sessions;
         this.refreshTokens = refreshTokens;
         this.properties = properties;
@@ -32,18 +35,16 @@ class SessionService {
         this.random = random;
     }
 
+    /** Password sessions lock the User first and select the lifetime from that current role. */
     @Transactional
-    SessionCredential create(User user) {
-        return create(user, properties.refreshTokenLifetime());
-    }
-
-    /** A password session; staff sign-in passes the short restricted lifetime (D5). */
-    @Transactional
-    SessionCredential create(User user, Duration lifetime) {
+    PasswordSession create(UUID userId) {
+        User user = users.findByIdForShare(userId).orElseThrow(AuthenticationRequiredException::new);
+        Duration lifetime = user.hasStaffRole() ? properties.mfa().restrictedSessionLifetime()
+                : properties.refreshTokenLifetime();
         Instant now = clock.instant();
-        return persist(new UserSession(UUID.randomUUID(), user, now, now.plus(lifetime)), now);
+        var credential = persist(new UserSession(UUID.randomUUID(), user, now, now.plus(lifetime)), now);
+        return new PasswordSession(user, credential);
     }
-
     /**
      * Replaces an active restricted session with a new MFA-verified one that has the full refresh lifetime, so no
      * token issued before verification carries the new assurance. Runs in the caller's transaction.
@@ -74,7 +75,7 @@ class SessionService {
     SessionCredential rotate(String presentedToken) {
         UserSessionRefreshToken current = refreshTokens.findByTokenHashForUpdate(RefreshTokenHasher.hash(presentedToken))
                 .orElseThrow(AuthenticationRequiredException::new);
-        UserSession session = sessions.findByIdForUpdate(current.session().id())
+        UserSession session = sessions.findByIdForUpdate(current.sessionId())
                 .orElseThrow(AuthenticationRequiredException::new);
         Instant now = clock.instant();
         if (current.consumed()) {
@@ -144,6 +145,8 @@ class SessionService {
         return new SessionCredential(session.user().id(), session.id(), rawToken, session.expiresAt(),
                 new MfaEvidence(session.mfaFactorId(), session.mfaVerifiedAt()));
     }
+
+    record PasswordSession(User user, SessionCredential credential) {}
 
     record SessionCredential(UUID userId, UUID sessionId, String refreshToken, Instant expiresAt, MfaEvidence mfa) {}
 

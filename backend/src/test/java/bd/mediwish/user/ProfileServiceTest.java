@@ -1,6 +1,7 @@
 package bd.mediwish.user;
 
 import bd.mediwish.auth.AuthenticationRequiredException;
+import bd.mediwish.web.StaleUpdateException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

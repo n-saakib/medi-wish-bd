@@ -1,13 +1,5 @@
 # `AuthRequestBodyLimitFilterTest.java`
 
-Source: [`src/test/java/bd/mediwish/web/AuthRequestBodyLimitFilterTest.java`](../../../../../../../src/test/java/bd/mediwish/web/AuthRequestBodyLimitFilterTest.java)
+Source: [AuthRequestBodyLimitFilterTest.java](../../../../../../../src/test/java/bd/mediwish/web/AuthRequestBodyLimitFilterTest.java)
 
-## Purpose
-
-Unit test of the 16 KiB auth request limit: a body at the limit reaches the controller intact; a JSON body over it is rejected whatever `Content-Length` declares; other methods, routes and content types pass through to their normal handling.
-
-## Verification
-
-10 tests.
-
-Verified 2026-09-27 on `ed1e006`: `./mvnw.cmd -o verify` passed 171 unit and 109 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 109 with no skip.
+A JSON body exactly at 16 KiB reaches the chain intact; oversized bodies are refused regardless of declared length. Other methods/routes/content types pass normally. Administrative search POST and role PUT are also bounded before JSON parsing and return a safe INVALID_REQUEST envelope.

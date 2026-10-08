@@ -62,7 +62,7 @@ class FirstAdminProvisioningService {
                 return outcome;
             }
             User locked = users.findByIdForUpdate(userId).orElseThrow();
-            locked.grantRole(UserRole.ADMIN);
+            locked.replaceRole(UserRole.ADMIN);
             users.save(locked);
             // A session from before the promotion is revoked; the new Admin signs in again and must enroll MFA.
             sessions.revokeAllForUser(userId, RevocationReason.STAFF_PROVISIONED);

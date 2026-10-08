@@ -21,3 +21,5 @@ Staff sign-in over HTTP on the shared context (`AuthApi.Shared`), with captured 
 16 tests.
 
 Verified 2026-09-27 on the working tree over `bef3b76`: the targeted integration run passed (16 tests).
+
+Ticket 08 updates the staff response assertions to a singleton ADMIN or MODERATOR role array. The existing restricted-session, factor revocation and permission assertions remain cumulative regression coverage.

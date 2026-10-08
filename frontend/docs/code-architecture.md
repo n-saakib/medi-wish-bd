@@ -14,6 +14,8 @@ and the editable customer profile with pending mobile changes (Ticket 11).
 Product catalog, search, cart, orders, the staff dashboard, OTP, backup-code
 sign-in, recovery and OAuth screens are not implemented in this slice.
 
+Ticket08 adds `/admin/users` and `/admin/users/[userId]` in the staff route group. UserList and UserRoleForm use the shared session guard and `authenticatedFetch` through the bounded `lib/adminUsers` client; private username filters travel only in POST bodies and route IDs are UUIDs. The forms render one role, explicit disabled reasons, busy/error/retry states and the latest20 history entries. The session guard resolves in the browser; dynamic detail IDs are validated before any API call. Admin document responses carry no-store.
+
 ## Application dependency diagram
 
 ```mermaid
@@ -55,6 +57,17 @@ flowchart TD
     subgraph STAFFF[src/staff - client]
         STAFFHOME[StaffHome.tsx]
     end
+
+    ADMINPAGES[Admin user route wrappers]
+    ADMINCOMP[UserList / UserRoleForm]
+    ADMINLIB[adminUsers.ts<br/>bounded search/detail/role client]
+    STAFFGROUP --> ADMINPAGES
+    ADMINPAGES --> ADMINCOMP
+    ADMINCOMP --> REDIRECT
+    ADMINCOMP --> PROVIDER
+    ADMINCOMP --> ADMINLIB
+    ADMINLIB --> SESSION
+    ADMINLIB --> APIMOD
 
     subgraph SHELL[src/shell]
         SITEHEADER[SiteHeader.tsx<br/>client]

@@ -6,7 +6,8 @@ enum RevocationReason {
     REFRESH_REPLAY("refresh-replay"),
     USER_UNAVAILABLE("user-unavailable"),
     MFA_VERIFIED("mfa-verified"),
-    STAFF_PROVISIONED("staff-provisioned");
+    STAFF_PROVISIONED("staff-provisioned"),
+    ROLE_CHANGED("role-changed");
 
     final String code;
 

@@ -11,3 +11,5 @@ Unit test of `FirstAdminProvisioningService` and `FirstAdminProvisioning` with m
 15 tests.
 
 Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` passed all 238 unit tests.
+
+Ticket 08 pins provisioning to exactly one ADMIN role and unchanged roles_version zero.

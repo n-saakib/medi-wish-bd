@@ -28,17 +28,23 @@ const maxErrorCodeLength = 64;
 
 export type ErrorMessageKey = 'authenticationFailed' | 'duplicateUser' | 'mfaRequired' | 'mfaCodeInvalid'
   | 'mfaEnrollmentStale' | 'tooManyAttempts' | 'invalidResponse' | 'genericError'
-  | 'staleUpdate' | 'accountClosing' | 'checkDetails';
+  | 'staleUpdate' | 'roleChangeRefused' | 'accessDenied' | 'notFound' | 'accountClosing' | 'checkDetails';
 
 /** The `errors` message key for a failure. Codes the UI does not tell apart share the generic message. */
 export function errorMessageKey(reason: unknown): ErrorMessageKey {
   switch (reason instanceof ApiError ? reason.code : undefined) {
+    case 'STALE_UPDATE':
+      return 'staleUpdate';
+    case 'ROLE_CHANGE_REFUSED':
+      return 'roleChangeRefused';
+    case 'ACCESS_DENIED':
+      return 'accessDenied';
+    case 'NOT_FOUND':
+      return 'notFound';
     case 'AUTHENTICATION_FAILED':
       return 'authenticationFailed';
     case 'DUPLICATE_USER':
       return 'duplicateUser';
-    case 'STALE_UPDATE':
-      return 'staleUpdate';
     case 'ACCOUNT_CLOSING':
       return 'accountClosing';
     case 'INVALID_REQUEST':

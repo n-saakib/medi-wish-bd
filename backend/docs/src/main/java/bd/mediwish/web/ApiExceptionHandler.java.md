@@ -1,15 +1,18 @@
 # `ApiExceptionHandler.java`
 
-Source: [`src/main/java/bd/mediwish/web/ApiExceptionHandler.java`](../../../../../../../src/main/java/bd/mediwish/web/ApiExceptionHandler.java)
+Source: [ApiExceptionHandler.java](../../../../../../../src/main/java/bd/mediwish/web/ApiExceptionHandler.java)
 
-## Purpose
+Maps controller/domain failures to the correlated bounded envelope without logging exception text. Validation, registration shape and unreadable JSON are INVALID_REQUEST; duplicate identities conflict; authentication, MFA and throttle failures retain existing codes. Persistence/transaction failures become INTERNAL_ERROR.
 
-Package-private `@RestControllerAdvice` that maps the domain exceptions of every controller to the bounded error envelope. Controllers throw; they do not build error responses.
+Ticket 08 maps StaleUpdateException to 409 STALE_UPDATE, RoleChangeRefusedException to 409 ROLE_CHANGE_REFUSED and UserNotFoundException to 404 NOT_FOUND. Unsupported media on administrative User routes is 400 INVALID_REQUEST as frozen for those commands; existing credential routes retain 415 INVALID_REQUEST. Security AccessDeniedException still reaches the security denial handler. Filter failures use ApiErrors directly.
 
 | Exception | Response |
 | --- | --- |
 | `InvalidRequestException`, `UserService.InvalidRegistrationException`, `HttpMessageNotReadableException`, `InvalidProfileException` | `400 INVALID_REQUEST` |
-| `StaleUpdateException` | `409 STALE_UPDATE` |
+| `StaleUpdateException` (shared, `bd.mediwish.web`) | `409 STALE_UPDATE` |
+| `RoleChangeRefusedException` | `409 ROLE_CHANGE_REFUSED` |
+| `UserNotFoundException` | `404 NOT_FOUND` |
+| `HttpMediaTypeNotSupportedException` | `400 INVALID_REQUEST` on `/api/admin/users/**`, otherwise `415 INVALID_REQUEST` |
 | `AccountClosingException` | `409 ACCOUNT_CLOSING` |
 | `UserService.DuplicateUserException` | `409 DUPLICATE_USER` |
 | `AuthenticationFailedException` | `401 AUTHENTICATION_FAILED` |
@@ -28,4 +31,4 @@ Package-private `@RestControllerAdvice` that maps the domain exceptions of every
 
 ## Verification
 
-`ApiExceptionHandlerTest` (13 tests) maps each listed failure, including the three MFA failures, to its status and code and proves unreadable JSON is `400` without echoing the body. The auth integration tests cover these errors over real HTTP and PostgreSQL, including captured-log privacy.
+`ApiExceptionHandlerTest` maps each listed failure, including the three MFA failures and Ticket 08's role and not-found failures, to its status and code and proves unreadable JSON is `400` without echoing the body. The auth integration tests cover these errors over real HTTP and PostgreSQL, including captured-log privacy.
