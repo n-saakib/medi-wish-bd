@@ -145,7 +145,7 @@ class UserProfileIT {
     }
 
     @Test
-    void onlyTheFourProfileRoutesAndExistingMeRouteAreMappedAndNoneActivateAMobile() throws Exception {
+    void onlyTheAcceptedOwnerRoutesAreMappedAndNoneActivateAMobile() throws Exception {
         String token = api.signIn(api.registered()).accessToken();
         assertThat(api.profileOf(token).statusCode()).isEqualTo(200);
         var mappings = api.app().bean(org.springframework.web.servlet.handler.HandlerMappingIntrospector.class)
@@ -158,7 +158,9 @@ class UserProfileIT {
                                 .map(method -> method.name() + " " + path)))
                 .collect(Collectors.toSet());
         assertThat(profileMappings).containsExactlyInAnyOrder("GET /api/user/me", "GET /api/user/me/profile",
-                "PUT /api/user/me/profile", "POST /api/user/me/mobile-change", "DELETE /api/user/me/mobile-change");
+                "PUT /api/user/me/profile", "POST /api/user/me/mobile-change", "DELETE /api/user/me/mobile-change",
+                "GET /api/user/me/addresses", "POST /api/user/me/addresses",
+                "PUT /api/user/me/addresses/{id}", "DELETE /api/user/me/addresses/{id}");
         assertThat(mappings.stream().flatMap(mapping -> mapping.getPatternValues().stream())
                 .filter(path -> path.contains("mobile")).toList()).containsOnly("/api/user/me/mobile-change");
     }

@@ -707,3 +707,105 @@ databaseChangeLog:
                   current_schema(), current_schema());
               END;
               $pin_role_required$;
+
+  - changeSet:
+      id: 017-saved-addresses
+      author: medi-wish
+      changes:
+        - createTable:
+            tableName: saved_addresses
+            columns:
+              - column:
+                  name: user_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: label
+                  type: VARCHAR(40)
+              - column:
+                  name: recipient_name
+                  type: VARCHAR(100)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: mobile
+                  type: VARCHAR(11)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: address_line
+                  type: VARCHAR(200)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: city
+                  type: VARCHAR(60)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: is_default
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: version
+                  type: BIGINT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: saved_addresses
+            columnNames: user_id, id
+            constraintName: pk_saved_addresses
+        - createTable:
+            tableName: saved_address_changes
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: user_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: changed_at
+                  type: TIMESTAMP WITH TIME ZONE
+                  constraints:
+                    nullable: false
+        - addPrimaryKey:
+            tableName: saved_address_changes
+            columnNames: id
+            constraintName: pk_saved_address_changes
+        - sql:
+            splitStatements: true
+            sql: |-
+              ALTER TABLE saved_addresses ADD CONSTRAINT fk_saved_addresses_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+              ALTER TABLE saved_addresses ADD CONSTRAINT ck_saved_addresses_recipient_name CHECK (btrim(recipient_name) <> '');
+              ALTER TABLE saved_addresses ADD CONSTRAINT ck_saved_addresses_mobile CHECK (mobile ~ '^[0-9]{11}$');
+              ALTER TABLE saved_addresses ADD CONSTRAINT ck_saved_addresses_address_line CHECK (btrim(address_line) <> '');
+              ALTER TABLE saved_addresses ADD CONSTRAINT ck_saved_addresses_city CHECK (btrim(city) <> '');
+              ALTER TABLE saved_addresses ADD CONSTRAINT ck_saved_addresses_version CHECK (version >= 0);
+              CREATE INDEX ix_saved_addresses_user ON saved_addresses (user_id, created_at, id);
+              CREATE UNIQUE INDEX uq_saved_addresses_default ON saved_addresses (user_id) WHERE is_default;
+              ALTER TABLE saved_address_changes ADD CONSTRAINT fk_saved_address_changes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+              CREATE INDEX ix_saved_address_changes_user ON saved_address_changes (user_id, changed_at);

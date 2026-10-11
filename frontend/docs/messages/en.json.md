@@ -32,3 +32,5 @@ Accessibility additions (2026-10-08): `staffHome.staffPages` names the staff lin
 UX additions (2026-10-08): `catalog.moneyRange` (“Enter an amount from 0.01 to 9,999,999.99.”), `catalog.priceSetMrpRemoved` (“Price set to {price} (MRP removed) by {username}”) and `catalog.breadcrumb` for the Product editor's link back to Products. The user chose this copy on 2026-10-08.
 
 Closing-pass additions (2026-10-08): `register.usernameInvalid`, `register.mobileInvalid`, `register.emailInvalid` and `register.passwordInvalid` replace the removed `register.invalid`; `catalog.priceRequiredModerator` (“An Admin must add a price before this product can be active.”) tells a Moderator who must price a Product.
+
+Ticket 12 adds addresses for page/dialog labels, full/empty/recovery/default-promotion copy and a changeNotice interpolating configured calendar limits and remaining allowance. account.addresses names the navigation link. errors.addressBookFull and errors.addressChangeLimit supply bounded refusal copy.

@@ -53,6 +53,7 @@
     "mobile": "Mobile",
     "email": "Email",
     "editProfile": "Edit profile",
+    "addresses": "Addresses",
     "signOut": "Sign out",
     "signingOut": "Signing out…"
   },
@@ -132,6 +133,8 @@
     "saveForVerification": "Save for verification"
   },
   "errors": {
+    "addressBookFull": "This address book is full. Remove an address to add another.",
+    "addressChangeLimit": "You've reached the address change limit for this week or month. You can still remove an address.",
     "genericError": "The request could not be completed.",
     "authenticationFailed": "Those details don’t match an account.",
     "duplicateUser": "The username, mobile number or email is already in use.",
@@ -246,5 +249,38 @@
       "SETUP_REQUIRED": "Setup pending",
       "ENROLLED": "Enrolled"
     }
+  },
+  "addresses": {
+    "title": "Addresses",
+    "count": "{count} of {limit}",
+    "loading": "Loading your addresses…",
+    "empty": "No saved addresses yet.",
+    "add": "Add address",
+    "full": "You've saved {limit} of {limit} addresses; remove one to add another.",
+    "edit": "Edit",
+    "default": "Default",
+    "dialogAddTitle": "Add address",
+    "dialogEditTitle": "Edit address",
+    "label": "Label",
+    "labelPlaceholder": "Home, Office…",
+    "recipientName": "Name",
+    "mobile": "Mobile",
+    "addressLine": "Address",
+    "addressLinePlaceholder": "House, road, area",
+    "city": "City",
+    "makeDefault": "Default address",
+    "firstIsDefault": "Your first address is the default.",
+    "defaultHint": "To change the default, edit another address and tick Default.",
+    "save": "Save",
+    "saving": "Saving…",
+    "cancel": "Cancel",
+    "remove": "Remove",
+    "removeConfirm": "Remove this address?",
+    "keep": "Keep",
+    "reload": "Reload",
+    "promoted": "{label} is now your default address.",
+    "savedEarlier": "Your earlier save went through. Check the address below.",
+    "fieldInvalid": "Check this field.",
+    "changeNotice": "Adding or editing uses one change: {perWeek} per week (Mon–Sun) and {perMonth} per calendar month, Dhaka time. Removing is free. Left: {remainingThisWeek} this week, {remainingThisMonth} this month."
   }
 }

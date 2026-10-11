@@ -57,7 +57,7 @@ export function AccountSummary() {
           </>}
         </dl>
         : <Alert tone="danger">{tErrors('genericError')}</Alert>}
-      {account && <div><Link className="btn btn-secondary" href="/account/profile">{t('editProfile')}</Link></div>}
+      {account && <div><Link className="btn btn-secondary" href="/account/profile">{t('editProfile')}</Link> <Link className="btn btn-secondary" href="/account/addresses">{t('addresses')}</Link></div>}
       <div>
         <button className="btn btn-secondary" type="button" onClick={() => void session.signOut()} disabled={session.signingOut}>
           {session.signingOut ? t('signingOut') : t('signOut')}

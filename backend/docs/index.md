@@ -122,29 +122,29 @@ Shared-contract correction verification on 2026-10-08, revision b357d50 plus Tic
 
 | Documentation | Responsibility |
 | --- | --- |
-| [AccountClosingException.java.md](src/main/java/bd/mediwish/user/AccountClosingException.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [AccountState.java.md](src/main/java/bd/mediwish/user/AccountState.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [IdentifierFormats.java.md](src/main/java/bd/mediwish/user/IdentifierFormats.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [InvalidProfileException.java.md](src/main/java/bd/mediwish/user/InvalidProfileException.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [MobileChange.java.md](src/main/java/bd/mediwish/user/MobileChange.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [MobileChangeNotPendingException.java.md](src/main/java/bd/mediwish/user/MobileChangeNotPendingException.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [MobileChangeRepository.java.md](src/main/java/bd/mediwish/user/MobileChangeRepository.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [MobileChangeService.java.md](src/main/java/bd/mediwish/user/MobileChangeService.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [ProfileController.java.md](src/main/java/bd/mediwish/user/ProfileController.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [ProfileEdit.java.md](src/main/java/bd/mediwish/user/ProfileEdit.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [AccountClosingException.java.md](src/main/java/bd/mediwish/user/AccountClosingException.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [AccountState.java.md](src/main/java/bd/mediwish/user/AccountState.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [IdentifierFormats.java.md](src/main/java/bd/mediwish/user/IdentifierFormats.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [InvalidProfileException.java.md](src/main/java/bd/mediwish/user/InvalidProfileException.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [MobileChange.java.md](src/main/java/bd/mediwish/user/MobileChange.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [MobileChangeNotPendingException.java.md](src/main/java/bd/mediwish/user/MobileChangeNotPendingException.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [MobileChangeRepository.java.md](src/main/java/bd/mediwish/user/MobileChangeRepository.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [MobileChangeService.java.md](src/main/java/bd/mediwish/user/MobileChangeService.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [ProfileController.java.md](src/main/java/bd/mediwish/user/ProfileController.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [ProfileEdit.java.md](src/main/java/bd/mediwish/user/ProfileEdit.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
 | [ProfileRules.java.md](src/main/java/bd/mediwish/user/ProfileRules.java.md) | Profile validation, with trimmed-name length checked before space collapse |
-| [ProfileService.java.md](src/main/java/bd/mediwish/user/ProfileService.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [ProfileView.java.md](src/main/java/bd/mediwish/user/ProfileView.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [ProfileRequestAdvice.java.md](src/main/java/bd/mediwish/web/ProfileRequestAdvice.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [IdentifierFormatsTest.java.md](src/test/java/bd/mediwish/user/IdentifierFormatsTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [MobileChangeServiceTest.java.md](src/test/java/bd/mediwish/user/MobileChangeServiceTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [ProfileMigrationIT.java.md](src/test/java/bd/mediwish/user/ProfileMigrationIT.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [ProfileService.java.md](src/main/java/bd/mediwish/user/ProfileService.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [ProfileView.java.md](src/main/java/bd/mediwish/user/ProfileView.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [ProfileRequestAdvice.java.md](src/main/java/bd/mediwish/web/ProfileRequestAdvice.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [IdentifierFormatsTest.java.md](src/test/java/bd/mediwish/user/IdentifierFormatsTest.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [MobileChangeServiceTest.java.md](src/test/java/bd/mediwish/user/MobileChangeServiceTest.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [ProfileMigrationIT.java.md](src/test/java/bd/mediwish/user/ProfileMigrationIT.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
 | [ProfileRulesTest.java.md](src/test/java/bd/mediwish/user/ProfileRulesTest.java.md) | Profile validation and space-heavy trimmed-name boundary regressions |
-| [ProfileServiceTest.java.md](src/test/java/bd/mediwish/user/ProfileServiceTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [ConcurrentProfileIT.java.md](src/test/java/bd/mediwish/auth/ConcurrentProfileIT.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [UserProfileIT.java.md](src/test/java/bd/mediwish/auth/UserProfileIT.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [ProfileBodyLimitTest.java.md](src/test/java/bd/mediwish/web/ProfileBodyLimitTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
-| [ProfileControllerTest.java.md](src/test/java/bd/mediwish/web/ProfileControllerTest.java.md) | Ticket 11 profile, mobile staging or contract coverage |
+| [ProfileServiceTest.java.md](src/test/java/bd/mediwish/user/ProfileServiceTest.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [ConcurrentProfileIT.java.md](src/test/java/bd/mediwish/auth/ConcurrentProfileIT.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [UserProfileIT.java.md](src/test/java/bd/mediwish/auth/UserProfileIT.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [ProfileBodyLimitTest.java.md](src/test/java/bd/mediwish/web/ProfileBodyLimitTest.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
+| [ProfileControllerTest.java.md](src/test/java/bd/mediwish/web/ProfileControllerTest.java.md) | Ticket 11 profile/mobile staging contract and accepted owner-route/absence-of-OTP guard |
 | [UserProfileRegressionIT.java.md](src/test/java/bd/mediwish/auth/UserProfileRegressionIT.java.md) | Ticket 11 all-table fingerprints and immutable username across profile save, mobile stage/cancel and activation |
 | [UserProfilePermissionIT.java.md](src/test/java/bd/mediwish/auth/UserProfilePermissionIT.java.md) | Ticket 11 real HTTP permission matrix: missing/malformed/revoked tokens, sole staff MFA restrictions, all four sole roles, ownership and denial persistence |
 ## Ticket 08 staff roles
@@ -175,3 +175,33 @@ Shared-contract correction verification on 2026-10-08, revision b357d50 plus Tic
 Refresh revocation freshness: [`UserSessionRefreshToken`](src/main/java/bd/mediwish/auth/UserSessionRefreshToken.java.md) exposes its foreign-key ID without loading the family before [`SessionService`](src/main/java/bd/mediwish/auth/SessionService.java.md) locks and checks current state.
 
 Authentication and role boundaries: [UserRepository](src/main/java/bd/mediwish/user/UserRepository.java.md), [SessionService](src/main/java/bd/mediwish/auth/SessionService.java.md) and [database locking](db-architecture.md) explain coherent bearer reads under User FOR SHARE. [AuthenticationService](src/main/java/bd/mediwish/auth/AuthenticationService.java.md), [BearerAccessTokenFilter](src/main/java/bd/mediwish/web/BearerAccessTokenFilter.java.md), [MfaStatus](src/main/java/bd/mediwish/auth/MfaStatus.java.md) and [RoleAuthorizationIT](src/test/java/bd/mediwish/auth/RoleAuthorizationIT.java.md) distinguish the single role, production revocation and direct policy fixtures.
+
+Ticket 12 saved delivery addresses:
+
+| Source | Documentation |
+| --- | --- |
+| src/main/java/bd/mediwish/address/AddressBookController.java | [AddressBookController.java](src/main/java/bd/mediwish/address/AddressBookController.java.md) |
+| src/main/java/bd/mediwish/address/AddressBookFullException.java | [AddressBookFullException.java](src/main/java/bd/mediwish/address/AddressBookFullException.java.md) |
+| src/main/java/bd/mediwish/address/AddressBookService.java | [AddressBookService.java](src/main/java/bd/mediwish/address/AddressBookService.java.md) |
+| src/main/java/bd/mediwish/address/AddressBookView.java | [AddressBookView.java](src/main/java/bd/mediwish/address/AddressBookView.java.md) |
+| src/main/java/bd/mediwish/address/AddressChangeCalendar.java | [AddressChangeCalendar.java](src/main/java/bd/mediwish/address/AddressChangeCalendar.java.md) |
+| src/main/java/bd/mediwish/address/AddressChangeLimitException.java | [AddressChangeLimitException.java](src/main/java/bd/mediwish/address/AddressChangeLimitException.java.md) |
+| src/main/java/bd/mediwish/address/AddressFields.java | [AddressFields.java](src/main/java/bd/mediwish/address/AddressFields.java.md) |
+| src/main/java/bd/mediwish/address/AddressIdConflictException.java | [AddressIdConflictException.java](src/main/java/bd/mediwish/address/AddressIdConflictException.java.md) |
+| src/main/java/bd/mediwish/address/AddressNotFoundException.java | [AddressNotFoundException.java](src/main/java/bd/mediwish/address/AddressNotFoundException.java.md) |
+| src/main/java/bd/mediwish/address/AddressRules.java | [AddressRules.java](src/main/java/bd/mediwish/address/AddressRules.java.md) |
+| src/main/java/bd/mediwish/address/InvalidAddressException.java | [InvalidAddressException.java](src/main/java/bd/mediwish/address/InvalidAddressException.java.md) |
+| src/main/java/bd/mediwish/address/SavedAddress.java | [SavedAddress.java](src/main/java/bd/mediwish/address/SavedAddress.java.md) |
+| src/main/java/bd/mediwish/address/SavedAddressRepository.java | [SavedAddressRepository.java](src/main/java/bd/mediwish/address/SavedAddressRepository.java.md) |
+| src/test/java/bd/mediwish/address/AddressRulesTest.java | [address/AddressRulesTest.java](src/test/java/bd/mediwish/address/AddressRulesTest.java.md) |
+| src/test/java/bd/mediwish/address/AddressBookServiceTest.java | [address/AddressBookServiceTest.java](src/test/java/bd/mediwish/address/AddressBookServiceTest.java.md) |
+| src/test/java/bd/mediwish/web/AddressBookControllerTest.java | [web/AddressBookControllerTest.java](src/test/java/bd/mediwish/web/AddressBookControllerTest.java.md) |
+- [src/test/java/bd/mediwish/auth/AddressBookIT.java](src/test/java/bd/mediwish/auth/AddressBookIT.java.md)
+- [src/test/java/bd/mediwish/auth/AddressBookPermissionIT.java](src/test/java/bd/mediwish/auth/AddressBookPermissionIT.java.md)
+- [src/test/java/bd/mediwish/auth/AddressBookRegressionIT.java](src/test/java/bd/mediwish/auth/AddressBookRegressionIT.java.md)
+- [src/test/java/bd/mediwish/auth/AddressBookRestartIT.java](src/test/java/bd/mediwish/auth/AddressBookRestartIT.java.md)
+- [src/test/java/bd/mediwish/auth/AddressBookUnicodeIT.java](src/test/java/bd/mediwish/auth/AddressBookUnicodeIT.java.md)
+- [src/test/java/bd/mediwish/auth/AddressChangeLimitIT.java](src/test/java/bd/mediwish/auth/AddressChangeLimitIT.java.md)
+- [src/test/java/bd/mediwish/auth/ConcurrentAddressBookIT.java](src/test/java/bd/mediwish/auth/ConcurrentAddressBookIT.java.md)
+- [src/test/java/bd/mediwish/address/AddressMigrationIT.java](src/test/java/bd/mediwish/address/AddressMigrationIT.java.md)
+- [src/test/java/bd/mediwish/address/MovableAddressChangeCalendar.java](src/test/java/bd/mediwish/address/MovableAddressChangeCalendar.java.md)

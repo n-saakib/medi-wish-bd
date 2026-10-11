@@ -15,3 +15,5 @@ Sign out disables the button while pending. The provider clears the session whet
 ## Verification
 
 [`tests/AccountSummary.test.ts`](../../tests/AccountSummary.test.ts.md) covers loading, profile projection, expiry, error and sign-out states. Ticket 11 browser tests exercise the Edit profile navigation.
+
+Ticket 12 adds the secondary Addresses link to /account/addresses next to Edit profile. Both are visible for the loaded caller account, including staff own accounts.

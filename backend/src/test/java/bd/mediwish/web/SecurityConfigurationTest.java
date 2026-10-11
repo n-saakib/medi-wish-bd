@@ -120,6 +120,18 @@ class SecurityConfigurationTest {
         assertThat(SecurityConfiguration.BEARER_COMMAND_ROUTES.matches(new MockHttpServletRequest("POST", "/api/auth/refresh"))).isFalse();
     }
 
+    @Test
+    void addressReadsAndCommandsHaveBearerProtectionAndOnlyCommandsAreCsrfExempt() {
+        for (String[] route : new String[][]{{"GET", "/api/user/me/addresses"}, {"POST", "/api/user/me/addresses"},
+                {"PUT", "/api/user/me/addresses/4c1f6f1e-6f3c-4a9e-9d62-0b8f7f3b2a11"},
+                {"DELETE", "/api/user/me/addresses/4c1f6f1e-6f3c-4a9e-9d62-0b8f7f3b2a11"}}) {
+            var request = new MockHttpServletRequest(route[0], route[1]);
+            assertThat(SecurityConfiguration.PROTECTED_ROUTES.matches(request)).isTrue();
+            assertThat(SecurityConfiguration.BEARER_COMMAND_ROUTES.matches(request)).isEqualTo(!route[0].equals("GET"));
+        }
+        assertThat(SecurityConfiguration.USER_ADDRESS_COMMANDS.matches(new MockHttpServletRequest("PUT", "/api/user/me/addresses/id/extra"))).isFalse();
+    }
+
     private static CorsConfiguration cors(SecurityConfiguration configuration, String allowedOrigins) {
         return configuration.corsConfigurationSource(allowedOrigins)
                 .getCorsConfiguration(new MockHttpServletRequest("GET", "/api/auth/csrf"));

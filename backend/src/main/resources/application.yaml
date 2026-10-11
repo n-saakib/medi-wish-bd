@@ -46,6 +46,10 @@ server:
   max-http-request-header-size: 16KB
 
 app:
+  addresses:
+    change-limits:
+      per-week: 5
+      per-month: 10
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:}
   auth:

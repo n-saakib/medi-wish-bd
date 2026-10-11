@@ -20,3 +20,8 @@ Ticket 08: grantRole replaces the only stored role with UPDATE; removeRole resto
 ## Ticket 11 helpers
 
 profileOf, putProfile, stageMobile and cancelMobile call the owner-only profile contract. profileEdit always includes all four editable keys, retaining null values. accountState supplies the accepted closure fixture through this run's guarded schema. activatePendingMobile invokes the Spring MobileChangeService with the actual pending UUID; it creates no HTTP verification route. Staged mobile values join the privacy tracking set.
+
+## Ticket 12 helpers
+
+start(properties, configurations) merges explicit operator overrides into the guarded database application properties. Address/newAddress tracks synthetic delivery fields; addressBody/addressEdit serialize exact create/update contracts with nullable labels. addresses/postAddress/putAddress/deleteAddress call owner routes through the normal HTTP client. changeRows and changeTimes read committed change counts and microsecond timestamps in the owned schema. These helpers add no public test route and do not change authentication time.
+userId resolves by immutable username in test SQL, so cross-story assertions can still locate the same owner after mobile activation changes the fixture mobile. HTTP routes remain owner-only and carry no username.

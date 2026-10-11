@@ -32,3 +32,5 @@ The file supports local startup, packaged startup and health checks with the sam
 ## Verification
 
 `HealthIT` verifies health groups, database readiness, bounded responses, recovery and migration persistence. `ConfigurationIT` proves malformed datasource settings fail without printing a password. `DependencyCompatibilityIT` verifies the profile-specific overrides remain restricted. `AuthPropertiesTest` and `MfaSecretCipherTest` cover the MFA settings, and `FirstAdminProvisioningIT` the provisioning property.
+
+app.addresses.change-limits.per-week and per-month configure successful address changes (5 and 10). Both values must be present integers at least one; service construction rejects invalid limits. Limits change through configuration and restart, with no schema change.

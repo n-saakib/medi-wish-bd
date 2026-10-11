@@ -4,11 +4,11 @@ This is the living code map for the current Spring Boot backend. Source files
 remain authoritative; this page records package ownership, dependency
 direction and the observable request boundaries.
 
-**Last reviewed:** 2026-10-05
+**Last reviewed:** 2026-10-11
 **Current scope:** health baseline, shared User profile/roles, Ticket 03
 password sessions with Bearer, CSRF, CORS and refresh-cookie adapters, and
 Ticket 06 first-Admin provisioning, staff TOTP MFA, security audit events and
-the staff route, and Ticket 11 profile editing with staged mobile changes.
+the staff route, Ticket 11 profile editing with staged mobile changes, Ticket 12 saved addresses, and Ticket 14 catalog.
 **Later boundaries:** OTP, password recovery, staff management beyond the
 recovery/reset workflows, and deployment.
 
@@ -315,3 +315,7 @@ ProfileController exposes only GET/PUT /api/user/me/profile and POST/DELETE /api
 ## Ticket 14 catalog boundary
 
 `bd.mediwish.catalog` owns pure Product and money rules, Category/Product/history JPA mappings, repositories, and transactional services. Categories and Products are created with PostgreSQL `INSERT ... ON CONFLICT (id) DO NOTHING`; a matching normalized request receives the stored record and a changed payload conflicts. Mutations lock one Product or Category row, reject stale changed intent, and keep history in the same transaction. Product search is paged; history username projections avoid loading each actor's role collection. The shared `bd.mediwish.web` package enforces the staff catalog/pricing route matrix, current-role MFA access, bounded catalog errors and authorized JSON body limits. CatalogController delegates through strict catalog-local request shapes without changing authentication JSON binding.
+
+## Ticket 12 saved-address boundary
+
+bd.mediwish.address owns strict owner-only JSON routes, pure normalization/default/calendar rules, the composite-key entity, native repository and User-locked transactional service. Every mutation takes the User lock before addresses or change rows; reads remain available while closing. Shared web security authorizes all four roles, bounds command bodies and errors, and keeps personal values out of logs. Configured Dhaka week/month counts and address writes share the transaction. Ticket 25's optional save must call create in a separate request after the Order commits.

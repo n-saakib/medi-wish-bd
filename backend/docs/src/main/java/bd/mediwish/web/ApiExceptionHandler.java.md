@@ -35,3 +35,5 @@ The stale-update handler consumes the shared web.StaleUpdateException so catalog
 `ApiExceptionHandlerTest` maps each listed failure, including the three MFA failures and Ticket 08's role and not-found failures, to its status and code and proves unreadable JSON is `400` without echoing the body. The auth integration tests cover these errors over real HTTP and PostgreSQL, including captured-log privacy.
 
 It also covers Ticket 14's catalog failures, including the named category uniqueness translation, without echoing row data.
+
+Ticket 12 maps five address domain exceptions to bounded INVALID_REQUEST, NOT_FOUND, ID_CONFLICT, ADDRESS_BOOK_FULL and ADDRESS_CHANGE_LIMIT_REACHED responses; field and persistence details remain private.

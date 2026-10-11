@@ -365,3 +365,5 @@ component, library API, message namespace, network contract or test/tool
 boundary changes. Keep the diagrams aligned with the current source and tested
 behavior. Add future OTP, storefront search, cart or order nodes only when their
 implementation and contract are actually introduced.
+
+Ticket 12: /account/addresses uses AddressBook and AddressDialog in src/account plus the strict src/lib/addresses.ts HTTP projection. The page uses the account guard, remounts per session generation and serializes commands. The server owns cap, default successor and calendar allowance; the client displays returned numbers and reconciles ambiguous or stale results without persisting personal data.
