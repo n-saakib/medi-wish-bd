@@ -30,7 +30,7 @@ function source(reply: Reply) {
   const requests: { path: string; init: RequestInit }[] = [];
   const authenticatedFetch: SessionClient['authenticatedFetch'] = async (path, init, read) => {
     requests.push({ path, init });
-    return read(await reply(path, init));
+    return read(path.endsWith('/images') && init.method === 'GET' ? Response.json({ images: [], maxImages: 8 }) : await reply(path, init));
   };
   return { requests, session: createSessionSource({ restoreSession: async () => restoredStaff('VERIFIED'), authenticatedFetch }) };
 }
@@ -50,6 +50,14 @@ beforeEach(() => router.replace.mockClear());
 afterEach(unmountAll);
 
 describe('Product editor', () => {
+  it('shows image management only for an existing product', async () => {
+    const { session } = source(fixture());
+    const edit = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
+    expect([...edit.querySelectorAll('h2')].some((heading) => heading.textContent === 'Images')).toBe(true);
+    await unmountAll();
+    const create = await renderWithSession(createElement(ProductEditor), session);
+    expect([...create.querySelectorAll('h2')].some((heading) => heading.textContent === 'Images')).toBe(false);
+  });
   it.each([
     ['ACTIVE', 'Active', 'chip chip-success'],
     ['NEEDS_PRICE', 'Needs price', 'chip chip-warn'],

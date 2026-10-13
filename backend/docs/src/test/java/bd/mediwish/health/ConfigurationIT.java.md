@@ -23,3 +23,8 @@ The test deliberately asserts the root cause and privacy property rather than a 
 Run as part of the default Maven `verify` lifecycle with the real PostgreSQL test environment available for the other integration tests. The auth cases create and drop one guarded test schema; no development credentials are used.
 
 Verified 2026-09-27 on `ed1e006`: `./mvnw.cmd -o verify` passed 171 unit and 109 integration tests (1 expected compatibility skip); `./mvnw.cmd -o -Pcompatibility verify` passed 171 and 109 with no skip. `ConfigurationIT` ran 3 tests.
+
+
+Ticket 15 adds serving-startup refusal for missing/unsupported provider, relative storage roots, invalid or non-test namespaces under test, and hosted use of the local adapter. Cases use guarded real PostgreSQL and verify secrets remain absent from captured output.
+
+Storage guard cases assert the direct IllegalStateException and bounded message: SmartInitializingSingleton validation runs after singleton creation, so Spring does not wrap this refusal. The hosted guard uses no active profile, valid hosted auth and a prod-check namespace, as required by the accepted plan. Existing datasource/auth cause assertions remain intact.

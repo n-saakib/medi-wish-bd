@@ -5,14 +5,14 @@ remains authoritative; this page documents the route structure, the
 server/client boundary, the shared session state and the small API client
 seams.
 
-**Last reviewed:** 2026-10-08<br/>
+**Last reviewed:** 2026-10-13<br/>
 **Current scope:** application shell, English localization, health probe
 boundary, and the Ticket 03.01 designed storefront routes: home, sign-in,
 registration (Ticket 02), account with sign-out (Ticket 03 browser session),
 the staff authenticator setup, code and verified staff landing (Ticket 06),
 the editable customer profile with pending mobile changes (Ticket 11), the
 Admin Users and roles pages (Ticket 08) and the staff Product and Category
-catalog pages (Ticket 14). Storefront search, cart, orders, the staff
+catalog pages (Ticket 14), including the existing Product image editor (Ticket 15). Storefront search, cart, orders, the staff
 dashboard, OTP, backup-code sign-in, recovery and OAuth screens are not
 implemented in this slice.
 
@@ -365,3 +365,9 @@ component, library API, message namespace, network contract or test/tool
 boundary changes. Keep the diagrams aligned with the current source and tested
 behavior. Add future OTP, storefront search, cart or order nodes only when their
 implementation and contract are actually introduced.
+
+## Ticket 15 image flow
+
+`src/catalog/ProductImages.tsx` adds the accepted Images card to an existing Product editor. It uses the current session client through `src/lib/productImages.ts`; one pending command disables controls and the upload retry retains its original UUID, File, description and replacement identity. Metadata saves carry the displayed image version, and Make main image carries the entire displayed order as its stale-update precondition. Loading/error states, native dialog confirmation and focus targets follow the staff edit design.
+
+`ProductImage.tsx` provides dimensions, alt text and an accessible failure placeholder through `next/image`. `src/lib/imageConfig.ts` defines the optimizer's exact API-origin/public-image path boundary; Next's image settings disallow local paths and redirects, retain no disk cache and cap cache lifetime at60seconds. It produces WebP for display while uploads remain PNG/JPEG only. The public Product page remains Ticket17 scope.

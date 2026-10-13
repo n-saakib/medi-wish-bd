@@ -132,6 +132,9 @@
     "saveForVerification": "Save for verification"
   },
   "errors": {
+    "imageInvalid": "The file is not a valid JPG or PNG image within the size limits.",
+    "imageLimitReached": "This Product already has the maximum number of images.",
+    "storageUnavailable": "Images cannot be saved right now. Try again shortly.",
     "genericError": "The request could not be completed.",
     "authenticationFailed": "Those details don’t match an account.",
     "duplicateUser": "The username, mobile number or email is already in use.",
@@ -187,6 +190,19 @@
     "moneyFormat": "Enter an amount like 125.50.", "moneyRange": "Enter an amount from 0.01 to 9,999,999.99.", "priceAboveMrp": "The selling price can’t be more than the MRP.",
     "productStale": "Someone saved this product while you were editing. Review their changes first.",
     "reload": "Reload", "inactiveCategory": "{name} (inactive)"
+  },
+  "productImages": {
+    "title": "Images", "formats": "JPG or PNG · up to 3 MB", "mainHint": "The first image is the main image.",
+    "upload": "Upload image", "uploading": "Uploading image…", "uploaded": "Image uploaded.",
+    "loading": "Loading images…", "loadFailed": "Images could not be loaded.", "retry": "Try again",
+    "maxReached": "This product has the maximum of 8 images.", "tooLarge": "Choose an image up to 3 MB.",
+    "wrongType": "Choose a JPG or PNG image.", "openImage": "Image {n}: {alt}", "dialogTitle": "Image {n}",
+    "altLabel": "Description (alt text)", "altHint": "Leave empty to use the product name.",
+    "saveAlt": "Save description", "altSaved": "Description saved.", "makeMain": "Make main image", "madeMain": "Main image updated.",
+    "replace": "Replace image", "replaced": "Image replaced.", "remove": "Remove image", "confirmRemove": "Remove",
+    "removeConfirm": "Remove this image? Customers will no longer see it.", "removed": "Image removed.", "cancel": "Cancel", "close": "Close",
+    "fallbackAlt": "{name}, image {n}", "alreadyRemoved": "This image was already removed. The list has been refreshed.",
+    "orderChanged": "The images changed in another session. The list has been refreshed."
   },
   "categories": {
     "title": "Categories", "add": "Add category", "category": "Category", "products": "Products",

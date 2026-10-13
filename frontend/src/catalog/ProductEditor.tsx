@@ -12,6 +12,7 @@ import { createCatalogClient, formatTaka, isUuid, newId, type Category, type Pro
 import { formatDateTime } from '../lib/dateTime';
 import { fetchStaffAccess } from '../lib/staff';
 import { Alert } from '../shell/Alert';
+import { ProductImages } from './ProductImages';
 
 type Draft = Omit<ProductDraft, 'id'> & { active: boolean };
 type Field = keyof Draft | 'sellingPrice' | 'mrp';
@@ -305,6 +306,7 @@ export function ProductEditor({ productId }: { productId?: string }) {
       </section>
       <button className="btn btn-primary" type="submit" disabled={saving}>{pending ? t('saving') : t('save')}</button>
     </form>
+    {product && <ProductImages key={product.id} productId={product.id} productName={product.name} />}
     {product && <section className="card card-pad stack" role="region" aria-label={t('pricing')}>
       <h2>{t('pricing')}</h2><form className="catalog-form-grid" onSubmit={(event) => void savePricing(event)} aria-busy={pricingPending}>
         <div className="field"><label htmlFor="catalog-mrp">{t('mrpInput', { currency: t('currency') })}</label>

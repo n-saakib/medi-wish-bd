@@ -707,3 +707,37 @@ databaseChangeLog:
                   current_schema(), current_schema());
               END;
               $pin_role_required$;
+
+  - changeSet:
+      id: 015-product-images
+      author: medi-wish
+      changes:
+        - sql:
+            splitStatements: true
+            sql: |-
+              CREATE TABLE product_images (
+                id UUID PRIMARY KEY,
+                product_id UUID NOT NULL REFERENCES products(id) ON DELETE RESTRICT,
+                object_key VARCHAR(120) NOT NULL CONSTRAINT uk_product_images_object_key UNIQUE,
+                content_type VARCHAR(16) NOT NULL CONSTRAINT ck_product_images_content_type
+                  CHECK (content_type IN ('image/jpeg', 'image/png')),
+                byte_size INTEGER NOT NULL CONSTRAINT ck_product_images_byte_size CHECK (byte_size BETWEEN 1 AND 3145728),
+                width INTEGER NOT NULL, height INTEGER NOT NULL,
+                sha256 CHAR(64) NOT NULL CONSTRAINT ck_product_images_sha256 CHECK (sha256 ~ '^[0-9a-f]{64}$'),
+                alt_text VARCHAR(160) CONSTRAINT ck_product_images_alt_text
+                  CHECK (alt_text IS NULL OR (char_length(alt_text) >= 1 AND alt_text = btrim(alt_text))),
+                display_order INTEGER NOT NULL CONSTRAINT ck_product_images_display_order CHECK (display_order BETWEEN 0 AND 7),
+                version BIGINT NOT NULL DEFAULT 0 CONSTRAINT ck_product_images_version CHECK (version >= 0),
+                created_at TIMESTAMPTZ NOT NULL, updated_at TIMESTAMPTZ NOT NULL,
+                created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT ck_product_images_dimensions CHECK (width BETWEEN 1 AND 4096 AND height BETWEEN 1 AND 4096),
+                CONSTRAINT ck_product_images_key_owner CHECK (object_key = 'products/' || product_id::text || '/' || id::text
+                  || CASE content_type WHEN 'image/jpeg' THEN '.jpg' ELSE '.png' END),
+                CONSTRAINT uk_product_images_order UNIQUE (product_id, display_order) DEFERRABLE INITIALLY DEFERRED
+              );
+
+              CREATE TABLE retired_product_image_ids (
+                id UUID PRIMARY KEY,
+                retired_at TIMESTAMPTZ NOT NULL
+              );

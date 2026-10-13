@@ -38,3 +38,7 @@ Product MRP and price headers/cells use .num for right alignment and tabular num
 Tickets 08 and 14 each added `.sr-only`, `.chip-success` and `.chip-warn`; the merge keeps one shared rule per selector with the design's token values, next to the other chip variants.
 
 Closing-pass fix (2026-10-08): `.catalog-form-grid` aligns its fields to the top, so a field error under one input no longer pushes the neighbouring inputs out of line. A field error after a `.catalog-check` label (the Product's Active error) is a block under the label instead of running into its text. `.profile-pending-note` replaces the old `.profile-pending p` rule because the note is always rendered as the pending mobile's status region.
+
+Ticket 15 ports the image grid, thumbnail and dashed upload slot from the staff-product-edit design. The grid has two columns up to 700px and four on wider screens; the main thumbnail has a brand border. Dialog previews fit the viewport, actions wrap and image controls retain 44px targets. Labelled placeholders occupy the thumbnail. The image-upload-slot override makes the shared empty-slot square without changing its base design.
+
+The remove-confirmation button uses the design danger token and filled button style, retaining its explicit Remove label.

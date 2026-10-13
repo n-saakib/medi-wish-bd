@@ -32,3 +32,5 @@ Accessibility additions (2026-10-08): `staffHome.staffPages` names the staff lin
 UX additions (2026-10-08): `catalog.moneyRange` (“Enter an amount from 0.01 to 9,999,999.99.”), `catalog.priceSetMrpRemoved` (“Price set to {price} (MRP removed) by {username}”) and `catalog.breadcrumb` for the Product editor's link back to Products. The user chose this copy on 2026-10-08.
 
 Closing-pass additions (2026-10-08): `register.usernameInvalid`, `register.mobileInvalid`, `register.emailInvalid` and `register.passwordInvalid` replace the removed `register.invalid`; `catalog.priceRequiredModerator` (“An Admin must add a price before this product can be active.”) tells a Moderator who must price a Product.
+
+Ticket 15 uses a separate productImages namespace for card/dialog labels, fallback alt descriptions, progress, confirmations, retry and stale-state notices. Shared errors add imageInvalid, imageLimitReached and storageUnavailable; diagnostics and filenames do not enter UI error copy.

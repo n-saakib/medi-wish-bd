@@ -35,3 +35,6 @@ The stale-update handler consumes the shared web.StaleUpdateException so catalog
 `ApiExceptionHandlerTest` maps each listed failure, including the three MFA failures and Ticket 08's role and not-found failures, to its status and code and proves unreadable JSON is `400` without echoing the body. The auth integration tests cover these errors over real HTTP and PostgreSQL, including captured-log privacy.
 
 It also covers Ticket 14's catalog failures, including the named category uniqueness translation, without echoing row data.
+
+
+Ticket 15 maps invalid images, image limit and storage outages to IMAGE_INVALID, IMAGE_LIMIT_REACHED and STORAGE_UNAVAILABLE. Multipart size exceptions use IMAGE_INVALID only for POST on the exact UUID-shaped image upload route; all other multipart shape/size errors use INVALID_REQUEST. The product image ordering unique constraint maps to STALE_UPDATE. Inputs and storage diagnostics never enter ordinary error bodies.

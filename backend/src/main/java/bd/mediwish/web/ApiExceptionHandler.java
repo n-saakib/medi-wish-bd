@@ -17,6 +17,12 @@ import bd.mediwish.catalog.CatalogNotFoundException;
 import bd.mediwish.catalog.PriceRequiredException;
 import bd.mediwish.catalog.CategoryNameTakenException;
 import bd.mediwish.catalog.IdConflictException;
+import bd.mediwish.catalog.InvalidImageException;
+import bd.mediwish.catalog.ImageLimitReachedException;
+import bd.mediwish.storage.StorageUnavailableException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.hibernate.exception.ConstraintViolationException;
 import bd.mediwish.user.InvalidProfileException;
 import bd.mediwish.user.AccountClosingException;
@@ -107,9 +113,29 @@ class ApiExceptionHandler {
         return error(ApiError.ID_CONFLICT, request);
     }
 
+    @ExceptionHandler(InvalidImageException.class)
+    ResponseEntity<ApiErrors.Body> invalidImage(HttpServletRequest request) { return error(ApiError.IMAGE_INVALID, request); }
+    @ExceptionHandler(ImageLimitReachedException.class)
+    ResponseEntity<ApiErrors.Body> imageLimit(HttpServletRequest request) { return error(ApiError.IMAGE_LIMIT_REACHED, request); }
+    @ExceptionHandler(StorageUnavailableException.class)
+    ResponseEntity<ApiErrors.Body> storageUnavailable(HttpServletRequest request) { return error(ApiError.STORAGE_UNAVAILABLE, request); }
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    ResponseEntity<ApiErrors.Body> uploadSize(HttpServletRequest request) {
+        boolean imageUpload = request.getMethod().equals("POST") && request.getRequestURI().matches(
+                "/api/staff/products/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}/images");
+        return error(imageUpload ? ApiError.IMAGE_INVALID : ApiError.INVALID_REQUEST, request);
+    }
+    @ExceptionHandler({MultipartException.class, MissingServletRequestPartException.class})
+    ResponseEntity<ApiErrors.Body> malformedMultipart(HttpServletRequest request) { return error(ApiError.INVALID_REQUEST, request); }
+
     @ExceptionHandler({DataAccessException.class, TransactionException.class})
     ResponseEntity<ApiErrors.Body> persistenceFailure(Exception failure, HttpServletRequest request) {
         for (Throwable cause = failure; cause != null; cause = cause.getCause()) {
+            if (cause instanceof ConstraintViolationException orderViolation
+                    && "23505".equals(orderViolation.getSQLState())
+                    && "uk_product_images_order".equals(orderViolation.getConstraintName())) {
+                return error(ApiError.STALE_UPDATE, request);
+            }
             if (cause instanceof ConstraintViolationException violation
                     && "23505".equals(violation.getSQLState())
                     && "uk_product_categories_name".equals(violation.getConstraintName())) {

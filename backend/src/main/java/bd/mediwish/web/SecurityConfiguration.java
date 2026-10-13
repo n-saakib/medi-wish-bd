@@ -64,16 +64,23 @@ class SecurityConfiguration {
             route(HttpMethod.POST, "/api/staff/products"),
             route(HttpMethod.PUT, "/api/staff/products/*"));
     static final RequestMatcher STAFF_PRICING = route(HttpMethod.PUT, "/api/staff/products/*/pricing");
+    static final RequestMatcher STAFF_PRODUCT_IMAGE_READS = route(HttpMethod.GET, "/api/staff/products/*/images");
+    static final RequestMatcher STAFF_PRODUCT_IMAGE_JSON = new OrRequestMatcher(
+            route(HttpMethod.PUT, "/api/staff/products/*/images/*"), route(HttpMethod.PUT, "/api/staff/products/*/image-order"));
+    static final RequestMatcher STAFF_PRODUCT_IMAGE_COMMANDS = new OrRequestMatcher(STAFF_PRODUCT_IMAGE_JSON,
+            route(HttpMethod.POST, "/api/staff/products/*/images"), route(HttpMethod.DELETE, "/api/staff/products/*/images/*"));
+    static final RequestMatcher PUBLIC_PRODUCT_IMAGES = new OrRequestMatcher(
+            route(HttpMethod.GET, "/api/public/product-images/*"), route(HttpMethod.HEAD, "/api/public/product-images/*"));
     static final RequestMatcher ADMIN_USER_SEARCH = route(HttpMethod.POST, "/api/admin/users/search");
     static final RequestMatcher ADMIN_USER_DETAIL = route(HttpMethod.GET, "/api/admin/users/*");
     static final RequestMatcher ADMIN_ROLE_CHANGE = route(HttpMethod.PUT, "/api/admin/users/*/roles");
     /** Bearer-only commands need no CSRF cookie; their JSON bodies stay bounded. */
     static final RequestMatcher BEARER_COMMAND_ROUTES = new OrRequestMatcher(ADMIN_USER_SEARCH, ADMIN_ROLE_CHANGE,
-            USER_PROFILE_COMMANDS, STAFF_CATALOG_COMMANDS, STAFF_PRICING);
+            USER_PROFILE_COMMANDS, STAFF_CATALOG_COMMANDS, STAFF_PRICING, STAFF_PRODUCT_IMAGE_COMMANDS);
     /** Every route that needs a Bearer access token; the filter and the authorization rules share it. */
     static final RequestMatcher PROTECTED_ROUTES = new OrRequestMatcher(USER_PROFILE, USER_PROFILE_READ,
             USER_PROFILE_COMMANDS, STAFF_PROFILE, MFA_ROUTES, ADMIN_USER_SEARCH, ADMIN_USER_DETAIL, ADMIN_ROLE_CHANGE,
-            STAFF_CATALOG_READS, STAFF_CATALOG_COMMANDS, STAFF_PRICING);
+            STAFF_CATALOG_READS, STAFF_CATALOG_COMMANDS, STAFF_PRICING, STAFF_PRODUCT_IMAGE_READS, STAFF_PRODUCT_IMAGE_COMMANDS);
     /** Registration and sign-in: public, exempt from CSRF (no session exists yet) and body-limited. */
     static final RequestMatcher CREDENTIAL_ROUTES = new OrRequestMatcher(
             route(HttpMethod.POST, "/api/auth/register"),
@@ -131,7 +138,7 @@ class SecurityConfiguration {
                 .addFilterAfter(new BearerAccessTokenFilter(PROTECTED_ROUTES, currentUsers, errors), LogoutFilter.class)
                 // Catalog authorization precedes body reading: denied pricing stays 403 for every JSON body.
                 .addFilterAfter(new AuthRequestBodyLimitFilter(
-                        new OrRequestMatcher(STAFF_CATALOG_COMMANDS, STAFF_PRICING), errors), AuthorizationFilter.class)
+                        new OrRequestMatcher(STAFF_CATALOG_COMMANDS, STAFF_PRICING, STAFF_PRODUCT_IMAGE_JSON), errors), AuthorizationFilter.class)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .requestCache(cache -> cache.disable())
                 .authorizeHttpRequests(auth -> auth
@@ -151,9 +158,15 @@ class SecurityConfiguration {
                         .requestMatchers(ADMIN_USER_SEARCH, ADMIN_USER_DETAIL, ADMIN_ROLE_CHANGE).hasRole("ADMIN")
                         .requestMatchers(STAFF_PRICING).hasRole("ADMIN")
                         .requestMatchers(STAFF_CATALOG_READS, STAFF_CATALOG_COMMANDS).hasAnyRole("ADMIN", "MODERATOR")
+                        .requestMatchers(STAFF_PRODUCT_IMAGE_READS, STAFF_PRODUCT_IMAGE_COMMANDS).hasAnyRole("ADMIN", "MODERATOR")
+                        .requestMatchers(PUBLIC_PRODUCT_IMAGES).permitAll()
                         .anyRequest().denyAll())
                 .exceptionHandling(handler -> handler
                         .authenticationEntryPoint((request, response, exception) -> {
+                            if (request.getRequestURI().startsWith("/api/public/product-images/")) {
+                                errors.write(ApiError.ACCESS_DENIED, request, response);
+                                return;
+                            }
                             response.setHeader("WWW-Authenticate", "Bearer");
                             errors.write(ApiError.AUTHENTICATION_REQUIRED, request, response);
                         })

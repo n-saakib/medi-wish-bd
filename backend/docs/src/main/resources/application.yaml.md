@@ -32,3 +32,6 @@ The file supports local startup, packaged startup and health checks with the sam
 ## Verification
 
 `HealthIT` verifies health groups, database readiness, bounded responses, recovery and migration persistence. `ConfigurationIT` proves malformed datasource settings fail without printing a password. `DependencyCompatibilityIT` verifies the profile-specific overrides remain restricted. `AuthPropertiesTest` and `MfaSecretCipherTest` cover the MFA settings, and `FirstAdminProvisioningIT` the provisioning property.
+
+
+Ticket 15 configures servlet multipart at 3 MB file / 4 MB request and Tomcat swallow at 8 MB so oversized and unauthorized uploads yield readable bounded errors. Storage provider/root/namespace are mandatory runtime settings. The local adapter is confined to exclusively local/test serving profiles.

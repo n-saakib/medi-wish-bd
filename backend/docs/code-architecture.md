@@ -4,11 +4,11 @@ This is the living code map for the current Spring Boot backend. Source files
 remain authoritative; this page records package ownership, dependency
 direction and the observable request boundaries.
 
-**Last reviewed:** 2026-10-05
+**Last reviewed:** 2026-10-13
 **Current scope:** health baseline, shared User profile/roles, Ticket 03
 password sessions with Bearer, CSRF, CORS and refresh-cookie adapters, and
 Ticket 06 first-Admin provisioning, staff TOTP MFA, security audit events and
-the staff route, and Ticket 11 profile editing with staged mobile changes.
+the staff route, Ticket 11 profile editing with staged mobile changes, Ticket 14 staff catalog and Ticket 15 Product images.
 **Later boundaries:** OTP, password recovery, staff management beyond the
 recovery/reset workflows, and deployment.
 
@@ -176,8 +176,9 @@ flowchart LR
   `ApiExceptionHandler` maps them; filters and security handlers write the
   same envelope through `ApiErrors.write`; `ApiErrorController` covers
   everything that reaches `/error`.
-- `RequestCorrelationFilter` is the only writer of `X-Request-ID` and
-  `Cache-Control: no-store`.
+- `RequestCorrelationFilter` writes `X-Request-ID` and the default
+  `Cache-Control: no-store`. Successful attached public image GET/HEAD responses
+  replace that default with `public, max-age=60` in `PublicProductImageController`.
 - `CurrentUserAuthentication` is the only current-session/User handoff for
   the bearer filter. Roles are loaded from the current User, never from JWT
   claims, and a staff role becomes an authority only for a session carrying
@@ -301,7 +302,7 @@ sequenceDiagram
 | Authorization | `GET /api/user/me` needs any of the four roles; `GET /api/staff/me` needs `ADMIN` or `MODERATOR`; the enrollment routes need `MFA_ENROLLMENT` and `/api/auth/mfa/verify` needs `MFA_CHALLENGE`. Persisted roles become authorities only through `StaffAccessPolicy`, so a staff role applies only to an MFA-verified session. A denied staff session that still needs MFA gets `403 MFA_REQUIRED`, any other denial `403 ACCESS_DENIED`. Unknown routes are denied. | `SecurityConfiguration`, `StaffAccessPolicy`, `CurrentUserAuthentication`, `UserRole` |
 | CSRF/CORS | Cookie CSRF with `XSRF-TOKEN`/`X-XSRF-TOKEN`; explicit credentialed origins with `Authorization`, `Content-Type` and `X-XSRF-TOKEN` headers; rejected origins use the bounded envelope. | `SecurityConfiguration`, `BoundedCorsFilter` |
 | Error contract | `{ code, message, requestId }` with English messages; unmapped 4xx become `INVALID_REQUEST`, 429 `TOO_MANY_ATTEMPTS` and 5xx `INTERNAL_ERROR`. MFA adds `MFA_CODE_INVALID` (400), `MFA_REQUIRED` (403) and `MFA_ENROLLMENT_STALE` (409). Unreadable-JSON and persistence messages never reach responses or logs. | `ApiError`, `ApiErrors`, `ApiExceptionHandler`, `ApiErrorController` |
-| Correlation/privacy | One server-generated `X-Request-ID` and `no-store` on every response; logs contain status and correlation only. Security audit events take the request ID from the MDC and store no codes, seeds or usernames. | `RequestCorrelationFilter`, `SecurityAuditLog` |
+| Correlation/privacy | One server-generated `X-Request-ID` on every response; default `no-store`, except successful attached public image GET/HEAD uses `public, max-age=60`. Logs contain status and correlation only. Security audit events take the request ID from the MDC and store no codes, seeds or usernames. | `RequestCorrelationFilter`, `SecurityAuditLog` |
 | Database | PostgreSQL 18; Liquibase migrations; Hibernate validation only; every statement bounded by the three-second socket timeout. | `db.changelog-master.yaml`, `application.yaml`, JPA mappings |
 
 Update this page when a backend package, route, adapter, persistence boundary,
@@ -315,3 +316,11 @@ ProfileController exposes only GET/PUT /api/user/me/profile and POST/DELETE /api
 ## Ticket 14 catalog boundary
 
 `bd.mediwish.catalog` owns pure Product and money rules, Category/Product/history JPA mappings, repositories, and transactional services. Categories and Products are created with PostgreSQL `INSERT ... ON CONFLICT (id) DO NOTHING`; a matching normalized request receives the stored record and a changed payload conflicts. Mutations lock one Product or Category row, reject stale changed intent, and keep history in the same transaction. Product search is paged; history username projections avoid loading each actor's role collection. The shared `bd.mediwish.web` package enforces the staff catalog/pricing route matrix, current-role MFA access, bounded catalog errors and authorized JSON body limits. CatalogController delegates through strict catalog-local request shapes without changing authentication JSON binding.
+
+## Ticket 15 Product images
+
+`bd.mediwish.catalog.ProductImageService` manages image metadata independently of the Product's catalog version/history. Staff image routes require the existing verified Admin/Moderator policy; the public GET/HEAD route serves only attached image IDs. Multipart input contains the client image UUID, one file, optional alt text and an optional same-Product replacement ID. Neither a storage key nor a remote URL enters that contract.
+
+Inspection validates PNG/JPEG input, 3 MiB and 4096-pixel limits, then re-encodes outside a database transaction. Two decode permits bound concurrent decoding. Mutations lock the Product row, preserve contiguous positions, enforce replay/retired-ID rules, and check the deferred unique-order constraint before committing. Remove and replace delete the previous object synchronously after commit; guarded compensation removes a newly created unreferenced object after rollback. Logged warnings exclude object keys and request data.
+
+`bd.mediwish.storage.ObjectStorage` is the provider boundary: create-only put, optional streamed get and idempotent delete. `LocalObjectStorage` confines canonical Product-owned keys to the configured root and namespace. `StorageConfiguration` checks required settings after singleton construction and refuses local storage outside local/test profiles. Servlet-only beans keep the first-Admin offline command independent of image storage. Hosted adapters and orphan sweeping remain Ticket 57 scope.

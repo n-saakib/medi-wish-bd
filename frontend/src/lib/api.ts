@@ -29,11 +29,17 @@ const maxErrorCodeLength = 64;
 export type ErrorMessageKey = 'authenticationFailed' | 'duplicateUser' | 'mfaRequired' | 'mfaCodeInvalid'
   | 'mfaEnrollmentStale' | 'tooManyAttempts' | 'invalidResponse' | 'genericError'
   | 'staleUpdate' | 'roleChangeRefused' | 'accessDenied' | 'notFound' | 'accountClosing' | 'checkDetails'
-  | 'priceRequired' | 'categoryNameTaken';
+  | 'priceRequired' | 'categoryNameTaken' | 'imageInvalid' | 'imageLimitReached' | 'storageUnavailable';
 
 /** The `errors` message key for a failure. Codes the UI does not tell apart share the generic message. */
 export function errorMessageKey(reason: unknown): ErrorMessageKey {
   switch (reason instanceof ApiError ? reason.code : undefined) {
+    case 'IMAGE_INVALID':
+      return 'imageInvalid';
+    case 'IMAGE_LIMIT_REACHED':
+      return 'imageLimitReached';
+    case 'STORAGE_UNAVAILABLE':
+      return 'storageUnavailable';
     case 'STALE_UPDATE':
       return 'staleUpdate';
     case 'ROLE_CHANGE_REFUSED':

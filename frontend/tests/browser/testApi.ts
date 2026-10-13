@@ -1,27 +1,40 @@
 import { execFileSync, spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { closeSync, openSync } from 'node:fs';
+import { closeSync, mkdirSync, openSync, readFileSync, rmSync } from 'node:fs';
 import { once } from 'node:events';
 import { connect } from 'node:net';
 import path from 'node:path';
 
 /** The locked test environment: the API origin the frontend is built against, and the frontend origin. */
-export const apiUrl = 'http://127.0.0.1:18080';
-export const frontendUrl = 'http://127.0.0.1:3100';
+export const apiUrl = 'http://127.0.0.1:18115';
+export const frontendUrl = 'http://127.0.0.1:3115';
 export const accessTokenLifetimeMs = 10_000;
 /** The API's log for this run, which the privacy spec scans for secrets. */
 export const apiLogPath = path.join(import.meta.dirname, '../../test-api.log');
 
 /** Set by global setup to this run's schema (named after its role), so specs in the worker processes can reach it. */
 export const testSchemaVariable = 'MEDI_WISH_TEST_SCHEMA';
+/** The run-owned namespace directory exposed only to Playwright workers, never to the API. */
+export const testStorageVariable = 'MEDI_WISH_TEST_STORAGE_DIR';
 
 const database = 'medi_wish_test';
 const jarPath = path.join(import.meta.dirname, '../../../backend/target/medi-wish.jar');
 
+/** Refuse an unset/default or remote cluster before any administrator SQL or setup allocation. */
+function testDatabaseTarget(): { host: string; port: string } {
+  const host = process.env.TEST_DB_HOST ?? '';
+  const port = process.env.TEST_DB_PORT ?? '';
+  if (!['127.0.0.1', 'localhost', '::1'].includes(host) || !['55432', '55433'].includes(port)) {
+    throw new Error('Browser tests require explicit loopback TEST_DB_HOST and TEST_DB_PORT 55432 or 55433');
+  }
+  return { host, port };
+}
+
 /** The `psql` command line for the test cluster's administrator on `medi_wish_test`. */
 function psqlArguments(): string[] {
+  const { host, port } = testDatabaseTarget();
   return [
-    '-h', process.env.TEST_DB_HOST ?? '127.0.0.1', '-p', process.env.TEST_DB_PORT ?? '5432',
+    '-h', host, '-p', port,
     '-U', process.env.TEST_DB_ADMIN ?? 'postgres', '-d', database, '-X', '-q', '-A', '-t', '-v', 'ON_ERROR_STOP=1',
   ];
 }
@@ -182,16 +195,24 @@ async function isListening(url: URL): Promise<boolean> {
   }
 }
 
-async function waitUntilReady(exited: () => boolean): Promise<void> {
+async function waitUntilReady(exited: () => boolean, started: () => boolean): Promise<void> {
   const deadline = Date.now() + 120_000;
   while (Date.now() < deadline) {
     if (exited()) throw new Error(`The test API exited during startup; see ${apiLogPath}`);
-    try {
-      if ((await fetch(`${apiUrl}/actuator/health/readiness`)).ok) return;
-    } catch {
-      // Not listening yet.
+    // A port may be claimed after preflight; wait for our own child to finish binding first.
+    if (started()) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), Math.min(5_000, deadline - Date.now()));
+      try {
+        if ((await fetch(`${apiUrl}/actuator/health/readiness`, { signal: controller.signal })).ok && !exited()) return;
+      } catch {
+        // Not listening yet, or readiness did not send headers within this attempt's deadline.
+      } finally {
+        clearTimeout(timeout);
+      }
     }
-    await new Promise((resolve) => setTimeout(resolve, 500));
+    const remaining = deadline - Date.now();
+    if (remaining > 0) await new Promise((resolve) => setTimeout(resolve, Math.min(500, remaining)));
   }
   throw new Error('The test API was not ready within 120 seconds');
 }
@@ -201,6 +222,7 @@ async function waitUntilReady(exited: () => boolean): Promise<void> {
  * with random JWT and MFA secrets and a 10-second access lifetime, and returns the teardown that stops it and drops both.
  */
 export default async function startTestApi(): Promise<() => Promise<void>> {
+  const { host, port } = testDatabaseTarget();
   // Otherwise another API already on the port could answer the readiness check for this run's API.
   if (await isListening(new URL(apiUrl))) throw new Error(`${apiUrl} is already in use; stop that process first`);
   if (psql("SELECT current_setting('server_version_num')::int / 10000") !== '18') {
@@ -209,34 +231,55 @@ export default async function startTestApi(): Promise<() => Promise<void>> {
   // The schema is named after the role, so the default `"$user"` search path puts every table in it.
   const role = `mw_browser_${randomBytes(6).toString('hex')}`;
   const password = randomBytes(24).toString('hex');
-  psql(`CREATE ROLE ${role} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '${password}';`
-    + ` GRANT CONNECT ON DATABASE ${database} TO ${role}; CREATE SCHEMA ${role} AUTHORIZATION ${role};`);
+  // psql commits each stdin statement separately unless allocation has an explicit transaction.
+  psql(`BEGIN; CREATE ROLE ${role} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD '${password}';`
+    + ` GRANT CONNECT ON DATABASE ${database} TO ${role}; CREATE SCHEMA ${role} AUTHORIZATION ${role}; COMMIT;`);
   const dropDatabaseObjects = () => psql(
     `DROP OWNED BY ${role} CASCADE; REVOKE ALL ON DATABASE ${database} FROM ${role}; DROP ROLE ${role};`);
 
-  const log = openSync(apiLogPath, 'w');
-  const api = spawn('java', ['-jar', jarPath], {
-    env: {
-      ...apiEnvironment(process.env),
-      SPRING_PROFILES_ACTIVE: 'test',
-      SERVER_ADDRESS: '127.0.0.1',
-      SERVER_PORT: new URL(apiUrl).port,
-      DB_HOST: process.env.TEST_DB_HOST ?? '127.0.0.1',
-      DB_PORT: process.env.TEST_DB_PORT ?? '5432',
-      DB_NAME: database,
-      DB_USERNAME: role,
-      DB_PASSWORD: password,
-      APP_AUTH_JWT_SECRET: randomBytes(32).toString('base64'),
-      // The API refuses to start without a Base64 key of exactly 32 bytes for authenticator seeds.
-      APP_AUTH_MFA_SECRET_KEY: randomBytes(32).toString('base64'),
-      APP_AUTH_COOKIE_SECURE: 'false',
-      APP_AUTH_ACCESS_TOKEN_LIFETIME: `PT${accessTokenLifetimeMs / 1000}S`,
-      APP_CORS_ALLOWED_ORIGINS: frontendUrl,
-    },
-    stdio: ['ignore', log, log],
-  });
+  const storageRoot = path.resolve(import.meta.dirname, '../../../backend/target/test-object-storage');
+  const namespace = `test-browser-${role.slice('mw_browser_'.length)}`;
+  const storageDirectory = path.join(storageRoot, namespace);
+  let log: number | undefined;
+  let api: ReturnType<typeof spawn>;
+  try {
+    mkdirSync(storageDirectory, { recursive: true });
+    log = openSync(apiLogPath, 'w');
+    api = spawn('java', ['-jar', jarPath], {
+      env: {
+        ...apiEnvironment(process.env),
+        SPRING_PROFILES_ACTIVE: 'test',
+        SERVER_ADDRESS: '127.0.0.1',
+        SERVER_PORT: new URL(apiUrl).port,
+        DB_HOST: host,
+        DB_PORT: port,
+        DB_NAME: database,
+        DB_USERNAME: role,
+        DB_PASSWORD: password,
+        APP_AUTH_JWT_SECRET: randomBytes(32).toString('base64'),
+        // The API refuses to start without a Base64 key of exactly 32 bytes for authenticator seeds.
+        APP_AUTH_MFA_SECRET_KEY: randomBytes(32).toString('base64'),
+        APP_AUTH_COOKIE_SECURE: 'false',
+        APP_AUTH_ACCESS_TOKEN_LIFETIME: `PT${accessTokenLifetimeMs / 1000}S`,
+        APP_CORS_ALLOWED_ORIGINS: frontendUrl,
+        APP_STORAGE_PROVIDER: 'local',
+        APP_STORAGE_LOCAL_ROOT: storageRoot,
+        APP_STORAGE_NAMESPACE: namespace,
+      },
+      stdio: ['ignore', log, log],
+    });
+  } catch (reason) {
+    try {
+      if (log !== undefined) closeSync(log);
+      dropDatabaseObjects();
+    } finally {
+      rmSync(storageDirectory, { recursive: true, force: true });
+    }
+    throw reason;
+  }
   // Set after the spawn so the API never sees it; Playwright workers inherit it.
   process.env[testSchemaVariable] = role;
+  process.env[testStorageVariable] = storageDirectory;
   let exited = false;
   // A failed spawn (for example, no jar) emits `error` instead of `exit`; both mean the API is not running.
   const exit = once(api, 'exit').catch(() => undefined).then(() => { exited = true; });
@@ -249,14 +292,19 @@ export default async function startTestApi(): Promise<() => Promise<void>> {
       }
     } finally {
       delete process.env[testSchemaVariable];
-      closeSync(log);
-      dropDatabaseObjects();
+      delete process.env[testStorageVariable];
+      try {
+        if (log !== undefined) closeSync(log);
+        dropDatabaseObjects();
+      } finally {
+        rmSync(storageDirectory, { recursive: true, force: true });
+      }
     }
   };
 
   try {
-    await waitUntilReady(() => exited);
-    // Liquibase's table in this run's schema proves the ready API is ours and migrated the run's own database.
+    await waitUntilReady(() => exited, () => readFileSync(apiLogPath, 'utf8').includes('Started MediWishApplication in '));
+    // The owned startup log and Liquibase table jointly establish startup and migration of this run's API.
     if (psql(`SELECT to_regclass('${role}.databasechangelog') IS NOT NULL`) !== 't') {
       throw new Error("The test API did not migrate this run's schema");
     }

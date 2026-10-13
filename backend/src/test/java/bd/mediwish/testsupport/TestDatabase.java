@@ -229,6 +229,7 @@ public final class TestDatabase implements AutoCloseable {
         // Keeps JobRunr's tables in this schema too when the compatibility profile puts it on the classpath.
         properties.put("jobrunr.database.table-prefix", schema + ".");
         properties.putAll(syntheticAuthProperties());
+        properties.putAll(syntheticStorageProperties(storageNamespace()));
         return properties;
     }
 
@@ -238,6 +239,36 @@ public final class TestDatabase implements AutoCloseable {
                 "app.auth.jwt-secret", SYNTHETIC_JWT_SECRET,
                 "app.auth.mfa.secret-key", TestAuthSettings.MFA_SECRET_KEY,
                 "app.auth.cookie.secure", "false");
+    }
+
+    private String storageNamespace() { return "test-it-" + schema.substring("mw_it_".length()); }
+
+    public static Map<String, Object> syntheticStorageProperties(String namespace) {
+        if (namespace == null || !namespace.matches("test-[a-z0-9-]{1,58}"))
+            throw new IllegalArgumentException("Invalid test storage namespace");
+        return Map.of("app.storage.provider", "local", "app.storage.local-root", storageRoot().toString(),
+                "app.storage.namespace", namespace);
+    }
+
+    private static Path storageRoot() {
+        Path working = Path.of(System.getProperty("user.dir")).toAbsolutePath().normalize();
+        Path parent = working.getParent();
+        for (Path candidate : new Path[] { working, working.resolve("backend"), parent,
+                parent == null ? null : parent.resolve("backend") }) {
+            if (candidate != null && Files.isRegularFile(candidate.resolve("pom.xml")))
+                return candidate.resolve("target/test-object-storage").toAbsolutePath().normalize();
+        }
+        throw new IllegalStateException("Backend root not found");
+    }
+
+    private void deleteStorage() {
+        Path root = storageRoot();
+        Path namespace = root.resolve(storageNamespace()).normalize();
+        if (!namespace.startsWith(root)) throw new IllegalStateException("Invalid test storage path");
+        if (!Files.exists(namespace)) return;
+        try (var paths = Files.walk(namespace)) {
+            for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) Files.delete(path);
+        } catch (IOException error) { throw new IllegalStateException("Unable to clean test storage", error); }
     }
 
     public String schema() { return schema; }
@@ -252,6 +283,7 @@ public final class TestDatabase implements AutoCloseable {
             verifyDatabase(connection);
             statement.execute("DROP SCHEMA " + schema + " CASCADE");
             created = false;
+            deleteStorage();
         }
     }
 }

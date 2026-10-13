@@ -113,6 +113,23 @@ class ApiExceptionHandlerTest {
                 .andExpect(content().string(not(containsString("PRIVATE_BODY"))));
     }
 
+    @ParameterizedTest
+    @CsvSource({"POST,true,max,IMAGE_INVALID", "PUT,true,max,INVALID_REQUEST", "POST,false,max,INVALID_REQUEST", "POST,true,multipart,INVALID_REQUEST"})
+    void multipartFailuresUseImageMessageOnlyForAnExactUploadRoute(String method, boolean uuid, String failure, String code) throws Exception {
+        String id = uuid ? "8a6e5b1c-2f3d-4e5f-8a9b-0c1d2e3f4a5b" : "not-uuid";
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.request(
+                        org.springframework.http.HttpMethod.valueOf(method), "/api/staff/products/" + id + "/images")
+                        .param("failure", failure)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value(code));
+        mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put("/api/user/me/profile")
+                        .param("failure", failure)).andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+    }
+    @ParameterizedTest
+    @CsvSource({"invalid,400,IMAGE_INVALID", "limit,409,IMAGE_LIMIT_REACHED", "storage,503,STORAGE_UNAVAILABLE", "order,409,STALE_UPDATE"})
+    void imageDomainFailuresRemainBounded(String failure, int expected, String code) throws Exception {
+        mvc.perform(post("/api/staff/products/8a6e5b1c-2f3d-4e5f-8a9b-0c1d2e3f4a5b/images").param("failure", failure))
+                .andExpect(status().is(expected)).andExpect(jsonPath("$.code").value(code));
+    }
+
     private static DataIntegrityViolationException unique(String constraint, String sqlState) {
         return new DataIntegrityViolationException("PRIVATE_ROW", new ConstraintViolationException(
                 "PRIVATE_ROW", new SQLException("PRIVATE_ROW", sqlState), constraint));
@@ -120,6 +137,18 @@ class ApiExceptionHandlerTest {
 
     @RestController
     static class FailingController {
+        @org.springframework.web.bind.annotation.RequestMapping({"/api/staff/products/{id}/images", "/api/user/me/profile"})
+        void imageFailure(@org.springframework.web.bind.annotation.RequestParam String failure) {
+            throw switch (failure) {
+                case "max" -> new org.springframework.web.multipart.MaxUploadSizeExceededException(3145728);
+                case "multipart" -> new org.springframework.web.multipart.MultipartException("PRIVATE_BODY");
+                case "invalid" -> new InvalidImageException();
+                case "limit" -> new ImageLimitReachedException();
+                case "storage" -> new bd.mediwish.storage.StorageUnavailableException();
+                case "order" -> unique("uk_product_images_order", "23505");
+                default -> new IllegalArgumentException();
+            };
+        }
         @PostMapping(value = {"/fail/{failure}", "/api/admin/users/{failure}"}, consumes = MediaType.APPLICATION_JSON_VALUE)
         void fail(@PathVariable String failure, @RequestBody Map<String, String> body) {
             throw FAILURES.get(failure).get();

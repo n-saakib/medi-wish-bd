@@ -1,0 +1,47 @@
+# Product images real API end-to-end tests
+
+`tests/browser/productImagesApi.spec.ts` covers the accepted Ticket 15 plan using the real API, PostgreSQL schema migrated by its jar and the harness's isolated local object storage. Every test uses synthetic sessions and Products. Successful and rejected requests verify observable persisted state and storage effects; there are no feature response mocks or skips.
+
+- E2E-15-01 proves the stored object key names its Product and `ck_product_images_key_owner` rejects moving the row to another Product.
+- E2E-15-02 covers R1–R5 for anonymous, Customer, Delivery Person and restricted staff, malformed credentials, non-disclosing unauthorized input and readable 2.7 MB pre-authorization refusals.
+- E2E-15-03 covers verified Admin/Moderator PNG/JPEG upload, strict response projection, trim/null alt handling, replay, changed-content/alt/cross-product id conflicts, dimension/alt boundaries and Product version/history independence.
+- E2E-15-04 refuses invalid bytes, type/extension/size/dimension violations, disallowed formats, duplicate/missing/file-valued multipart fields, filename-less files, unknown parts, non-multipart bodies and strict alt/order JSON. It checks unchanged rows, lists and files after each rejection.
+- E2E-15-05 runs a controlled HTTP listener to prove refused URL/key fields trigger zero outbound connections.
+- E2E-15-06 tests the eighth/ninth boundary and permits replay/replacement at capacity.
+- E2E-15-07 covers alt versions, persisted reorder, stale same-set order and stale alt edits.
+- E2E-15-08 compares anonymous bytes with stored objects, verifies each public header and one cache value, HEAD empty bodies, unknown/malformed/wrong-extension failures and disallowed public methods.
+- E2E-15-10 verifies replacement identity, retained position, immediate old-object deletion, retired id conflicts, remove compaction and repeated-remove refusal.
+- E2E-15-11 verifies namespace confinement and server-generated UUID object names.
+- E2E-15-12 proves frontend multipart POST/DELETE/PUT CORS and rejects another origin.
+- E2E-15-13 retains cross-product replace/edit/remove/order attacks as `@regression`, comparing both Products, files and public bytes.
+
+Tags are `@t15` and the accepted owning task `@t15-T5`; E2E-15-13 carries `@t15-T6`. Optimizer, races and recovery are in `productImagesRecovery.spec.ts`; browser journeys are in `productImagesUi.spec.ts`. Run via the documented native Windows ticket harness; absent Ticket 15 implementation is a failing contract or execution block, never a passing mock.
+
+Additional named cases prove exactly 3 MiB accepted input, PNG text/trailing-polyglot and JPEG EXIF removal, metadata-only database columns, successful/replayed/error response and log privacy, restricted Moderator MFA, cookie-only refusal and real logout revocation on every staff image route while the access token is still valid. The revocation case also sends the real large RGB image.
+
+E2E-15-06 measures the real eight-image response body, asserts its 16 KiB client bound and records the byte count in a resource annotation. This does not invent a latency SLA.
+
+
+The malformed-input tables also cover duplicate optional multipart `altText`/`replaces` fields, non-object JSON, missing order fields, wrong field and array-entry types, invalid versions, independently duplicated ids, mismatched id sets, malformed UUID path parameters and unknown image/Product targets. Every table leaves the stored list and files unchanged. Malformed bearer credentials also receive a readable 401 for the large image upload.
+
+Named API cases protect replay after PNG text or JPEG EXIF metadata changes (identity compares the sanitized stored image), replacement replay after the original target is retired, and an empty, uncached public HEAD failure when metadata exists but the stored object is missing. The missing-object fixture is restored in `finally`, then the original public bytes are checked again.
+
+Additional API cases reject a valid below-limit input whose sanitized PNG exceeds 3 MiB, with unchanged rows, objects and Product. A verified Moderator token is captured, its database role removed, and the same bearer reused directly for R1–R5: every route must return 403 ACCESS_DENIED within its original access lifetime, leaving all state unchanged.
+
+A seeded two-image replacement-refusal matrix now submits all invalid byte fixtures, invalid alt text and malformed replacement multipart. Each refusal preserves exact list/order/versions, both stored/public byte bodies, Product state and product-local object names, and leaves original, kept and attempted ids unretired. Admin and Moderator accept both 4096 × 1 and 1 × 4096 boundaries. Logout revocation first proves the captured bearer can list images and then proves every refusal finishes before its actual JWT `exp`.
+
+The upload/replay/conflict privacy case waits only until complete newline-delimited ECS status records exist for all three distinct response request ids and exact 201/200/409 statuses. It then checks the bounded completed log tail once for private values, including late conflict logging; successful direct responses must carry the shared image correlation/cache contract. Multipart and JSON alt-text cases preserve NBSP/BOM under the existing Java trim semantics, accept 80 supplementary characters (160 UTF-16 units), reject 161 units, and reject raw boundary controls before trimming. Refusals preserve the image list, object names and Product.
+
+A named reorder case distinguishes an actually empty Product (`[]`/`[]` returns 200) from populated Products with equal empty or incomplete lists (409 `STALE_UPDATE`). Each rejection preserves the entire list and image versions, rows, stored/public bytes, object names and Product state. The metadata/3 MiB case independently decodes source PNG fixtures and real public sanitized PNG output in the selected browser with color-space conversion disabled, then compares every RGBA pixel and dimensions exactly. Both PNG and JPEG public responses must keep their original accepted MIME type. JPEG source/output are independently decoded and compared with a small fixture-specific RGB tolerance that permits lossy re-encoding.
+
+The PNG lossless API oracle also uploads `rgbaPng()` and compares its transparent, partially transparent and opaque pixels with independently decoded public PNG output. A sanitizer that rejects RGBA PNG or flattens alpha therefore fails despite preserving dimensions and MIME.
+
+E2E-15-07 requires clearing alt text to null to increment the image version exactly once while preserving every other public field. It checks the persisted cleared projection, rejects an edit using the pre-clear version with 409 `STALE_UPDATE`, and preserves the cleared list, object names, stored/public bytes and Product state.
+
+The metadata matrix keeps JPEG EXIF removal separate from a valid JPEG with a unique marker appended after EOI. Both uploads must return 201 with JPEG MIME and 8 × 6 dimensions and serve exactly their stored sanitized bytes without the marker. The browser independently decodes the uploaded fixture and public sanitized JPEG, checks dimensions/opaque alpha, and limits maximum RGB channel difference to 3. This flat fixture has zero observed difference after native JDK 25 quality-0.90 re-encoding in Chrome and Edge; the small tolerance permits rounding while rejecting unrelated same-size JPEG substitution. This is a content oracle for these fixtures, not a universal lossy JPEG pixel-equality rule or a server-generated expected-byte oracle.
+
+E2E-15-08 independently refuses uppercase UUID text with a lowercase `.png` extension and a lowercase UUID with uppercase `.PNG`, as well as the combined violation. The attached PNG uses a random UUID with its first digit set to `a`, so uppercasing always changes the known existing identity. Every malformed name must return the same uncached bounded GET 404 and empty HEAD 404; one invalid spelling cannot mask acceptance of the other.
+
+E2E-15-08 retains the three CSRF-less anonymous public POST/PUT/DELETE 403 checks, then repeats each verb with a real `/api/auth/csrf` token and the cookie retained by the same anonymous API context. Before those verbs, the same pair must pass the existing public refresh route with 204 and an empty body (this context has no refresh session), so invalid CSRF cannot make the security assertions pass. Those CSRF-valid requests must be refused by security (401 or 403) with the corresponding exact bounded envelope, no-store/correlation, and the Bearer challenge for 401. A method-unrestricted public permitAll rule reaching MVC (including 405) fails this oracle. Append and replacement matrices also isolate declared MIME disagreement using complete bytes with their correct actual-format extension.
+
+The privacy fixture places short unique markers at the beginning of its synthetic filename and alt text. Completed upload/replay/conflict logs reject those markers, the standalone synthetic phone and the complete fields and credentials, so a 32-character bounded log cannot hide a partial leak. Success responses reject the filename marker/phone and complete credentials while permitting alt text only through the strict ImageView projection; the conflict response also rejects the alt marker. Correlated status completion and no-store checks remain in place.

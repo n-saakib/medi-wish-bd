@@ -4,10 +4,10 @@ This is the living database architecture map for the backend. It describes the
 schema that is currently created by Liquibase and mapped by JPA; it is not a
 design claim for tables that belong to later tickets.
 
-**Last reviewed:** 2026-10-05<br/>
+**Last reviewed:** 2026-10-13<br/>
 **Current scope:** Ticket 01 health baseline, Ticket 02 shared User
 registration/RBAC foundation, Ticket 03 durable password sessions and Ticket 06
-staff MFA, first-Admin bootstrap and security audit events, plus Ticket 08 single-role assignment and audit and Ticket 11 Customer profile and staged mobile changes.<br/>
+staff MFA, first-Admin bootstrap and security audit events, plus Ticket 08 single-role assignment and audit, Ticket 11 Customer profile and staged mobile changes, Ticket 14 catalog and Ticket 15 image metadata.<br/>
 **Schema source of truth:** [`src/main/resources/db/changelog/db.changelog-master.yaml`](../src/main/resources/db/changelog/db.changelog-master.yaml)<br/>
 **Runtime rule:** Liquibase owns schema changes; Hibernate runs with
 `ddl-auto: validate` and must not create or alter tables. Unique
@@ -293,3 +293,11 @@ Changeset `013-catalog` adds `product_categories`, `products`, and `product_chan
 Database checks enforce positive exact amounts, selling price no greater than MRP when present, no MRP without a selling price, and no active unpriced Product. Kind checks distinguish medicine-only attributes. History rows retain fixed change types, actor/time/request identity, and old/new price, MRP and validation values without free-text product content. The Product history foreign key restricts deletion. There are no stock, quantity, batch, expiry or pack-conversion columns.
 
 The forward `013-catalog-finite-money` changeset preserves applied catalog history and adds upper-bound checks to nullable Product prices. Combined with the original positive checks, only finite BDT values 0.01–9999999.99 can be stored; PostgreSQL numeric NaN is refused.
+
+## Ticket 15 image metadata
+
+Additive Liquibase changeset `015-product-images` creates `product_images` and `retired_product_image_ids`; earlier changesets and Product rows stay unchanged. The image table holds metadata and a canonical object key, never image bytes. Its Product foreign key restricts deletion of a Product with images; nullable audit User references become null when a User is deleted.
+
+Database checks enforce Product/key ownership, JPEG/PNG content type, positive size up to 3,145,728 bytes, dimensions1–4096, lowercase SHA-256, normalized optional alt text, order0–7 and nonnegative version. Unique object keys prevent two rows claiming an object; deferred uniqueness of `(product_id, display_order)` permits a reorder/replacement inside one transaction and caps the Product at eight rows. Image commands explicitly check that constraint before commit.
+
+Removed/replaced UUIDs remain retired permanently so public image URLs cannot be reused. Blob data lives in the namespace owned by `ObjectStorage`. A forward fix adds a new changeset after015; a destructive backout must first remove that namespace's objects to avoid orphaning them. Ticket14's Product reads/edits remain compatible with the additive tables; executable upgrade/forward-compatibility verification belongs to ProductImageMigrationIT.

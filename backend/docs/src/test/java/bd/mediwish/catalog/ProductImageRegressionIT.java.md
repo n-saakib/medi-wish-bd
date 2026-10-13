@@ -1,0 +1,5 @@
+# ProductImageRegressionIT.java
+
+Tagged integration/regression/security checks use real HTTP, PostgreSQL and local object storage. Cross-Product commands preserve both owners' rows and bytes; removing/replacing one Product's image leaves the other directory untouched. A second application sharing the schema cannot read another namespace, and a planted prod namespace object is never a fallback when the attached test object is absent. Extra namespace directories are removed in finally blocks.
+
+Output capture checks tokens, synthetic personal filenames, alt text and encoded file data are absent from logs; staff responses expose no object key or hash. A test-only BeanPostProcessor wraps the existing storage boundary to force after-commit deletion failure and pre-commit rollback. Committed removal still returns 204 and public reads return 404; rollback leaves no row, compensates the new object when possible, and logs only the exception class when deletion fails. Actual execution evidence remains separate from test authorship.

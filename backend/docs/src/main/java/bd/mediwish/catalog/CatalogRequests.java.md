@@ -13,3 +13,6 @@ Known query values are parsed locally before service calls: page defaults to 0 a
 Duplicate JSON member rejection remains excluded by the accepted T1 contract. CatalogRegressionIT characterizes the pinned Spring Boot 4.1.1 / Jackson 3.1.5 HTTP JsonNode binding: the last occurrence wins before catalog shape/type validation. A repeated name retains the final string; a final boolean is still rejected as bounded INVALID_REQUEST. No shared mapper strictness or authentication behavior is changed. The shared service page guard additionally rejects offsets beyond the signed integer JPA limit.
 
 Correction verification on 2026-10-07 at 22:06:45 Asia/Dhaka, revision `8b6924c` plus current WIP: guarded offline Maven `verify -Dit.test=CatalogRegressionIT` passed all 746 unit tests and all 5 catalog regression integration tests with zero failures/errors/skips. Disposable roles/schemas were released. Logs: main-checkout `.scratch/ticket14-verification/review-pagination-{red-units,green-units,focused-backend}-20261007.log`; red units had 4 expected overflow-refusal failures, green units passed 12/12. The full cumulative normal and compatibility gates are still pending for this corrected candidate.
+
+
+Ticket 15 reuses package-private object, string and version helpers for image JSON shapes without changing existing catalog behavior.

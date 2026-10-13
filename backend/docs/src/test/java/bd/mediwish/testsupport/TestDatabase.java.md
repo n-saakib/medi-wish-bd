@@ -20,3 +20,7 @@ Owns one disposable schema `mw_it_<32 hex>` in `medi_wish_test`, never a databas
 `TestDatabaseGuardTest` covers the guards without a database; every `*IT` exercises creation, properties and cleanup.
 
 Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` passed all 238 unit tests. The integration tests that use it passed in the targeted run.
+
+## Ticket 15 image storage
+
+Owns one guarded disposable PostgreSQL18 test schema and a matching test-it- storage namespace under the discovered backend target/test-object-storage root. Application properties include synthetic auth and storage settings. close validates ownership, drops only its schema and deletes only its namespace. Credential values are never printed; development credentials are never fallback inputs.

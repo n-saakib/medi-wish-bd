@@ -105,6 +105,49 @@ class CatalogSecurityTest {
         }
     }
 
+    @Test
+    void imageRoutesAuthorizeEveryActorBeforeReadingBodiesAndOnlyPublicGetHeadAreAllowed() throws Exception {
+        try (var context = context()) {
+            var mvc = mvc(context); var users = context.getBean(CurrentUserAuthentication.class);
+            Route[] images = {
+                    new Route(HttpMethod.GET, "/api/staff/products/" + ID + "/images", false),
+                    new Route(HttpMethod.POST, "/api/staff/products/" + ID + "/images", false),
+                    new Route(HttpMethod.PUT, "/api/staff/products/" + ID + "/images/" + ID, false),
+                    new Route(HttpMethod.PUT, "/api/staff/products/" + ID + "/image-order", false),
+                    new Route(HttpMethod.DELETE, "/api/staff/products/" + ID + "/images/" + ID, false)};
+            for (String actor : new String[]{"ANONYMOUS", "ADMIN", "MODERATOR", "CUSTOMER", "DELIVERY_PERSON", "ENROLLMENT_REQUIRED", "VERIFICATION_REQUIRED"}) {
+                if (!actor.equals("ANONYMOUS")) when(users.authenticate("actor")).thenReturn(actor(actor));
+                for (Route route : images) {
+                    var command = request(route.method(), route.path()).contentType("application/json").content("PRIVATE_BODY");
+                    if (!actor.equals("ANONYMOUS")) command.header("Authorization", "Bearer actor");
+                    int expected = actor.equals("ANONYMOUS") ? 401 : actor.equals("ADMIN") || actor.equals("MODERATOR") ? 200 : 403;
+                    mvc.perform(command).andExpect(status().is(expected)).andExpect(header().string("Cache-Control", "no-store"));
+                }
+            }
+            for (var method : new HttpMethod[]{HttpMethod.GET, HttpMethod.HEAD})
+                mvc.perform(request(method, "/api/public/product-images/" + ID + ".png")).andExpect(status().isOk());
+            for (var method : new HttpMethod[]{HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE})
+                mvc.perform(request(method, "/api/public/product-images/" + ID + ".png"))
+                        .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ACCESS_DENIED"))
+                        .andExpect(header().string("Cache-Control", "no-store"));
+            for (var method : new HttpMethod[]{HttpMethod.POST, HttpMethod.PUT, HttpMethod.DELETE})
+                mvc.perform(request(method, "/api/public/product-images/" + ID + ".png")
+                                .cookie(new jakarta.servlet.http.Cookie("XSRF-TOKEN", "synthetic-csrf"))
+                                .header("X-XSRF-TOKEN", "synthetic-csrf"))
+                        .andExpect(status().isForbidden()).andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+            mvc.perform(request(HttpMethod.DELETE, "/api/staff/products/" + ID).header("Authorization", "Bearer actor"))
+                    .andExpect(status().isForbidden());
+            when(users.authenticate("actor")).thenReturn(actor("ADMIN"));
+            mvc.perform(request(HttpMethod.POST, images[1].path()).header("Authorization", "Bearer actor")
+                            .contentType("multipart/form-data; boundary=b").content("x".repeat(17 * 1024)))
+                    .andExpect(status().isOk());
+            for (Route route : new Route[]{images[2], images[3]})
+                mvc.perform(request(route.method(), route.path()).header("Authorization", "Bearer actor")
+                                .contentType("application/json").content("x".repeat(17 * 1024)))
+                        .andExpect(status().isBadRequest());
+        }
+    }
+
     private static CurrentUser actor(String actor) {
         boolean restricted = actor.endsWith("REQUIRED");
         UserRole role = restricted ? UserRole.ADMIN : UserRole.valueOf(actor);
@@ -144,7 +187,8 @@ class CatalogSecurityTest {
     @RestController
     static class ProbeController {
         @RequestMapping({"/api/staff/categories", "/api/staff/categories/{id}", "/api/staff/products",
-                "/api/staff/products/{id}", "/api/staff/products/{id}/pricing"})
+                "/api/staff/products/{id}", "/api/staff/products/{id}/pricing", "/api/staff/products/{id}/images",
+                "/api/staff/products/{id}/images/{imageId}", "/api/staff/products/{id}/image-order", "/api/public/product-images/{fileName}"})
         Map<String, Boolean> accepted() { return Map.of("accepted", true); }
     }
 }

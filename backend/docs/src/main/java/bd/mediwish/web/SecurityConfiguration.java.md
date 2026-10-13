@@ -44,3 +44,6 @@ The catalog wildcard captures exactly one segment and excludes pricing. Explicit
 ## Verification
 
 `SecurityConfigurationTest` covers the Secure-cookie profile rule, credentialed CORS limits and methods, the local origin fallback, wildcard rejection, the `XSRF-TOKEN` cookie attributes, the role hierarchy, exact catalog wildcard separation, and that the profile, admin and catalog routes are Bearer-protected Bearer commands. `BoundedCorsFilterTest`, `AuthRequestBodyLimitFilterTest`, `ProfileBodyLimitTest` and `BearerAccessTokenFilterTest` cover the installed filters. `CatalogSecurityTest` runs the production chain over every catalog route for each actor, including oversized-body authorization order and `PUT` preflight. `SessionIT`, `HealthIT`, `ProfileIT`, `RoleAuthorizationIT`, `StaffMfaIT`, `StaffMfaRegressionIT`, `StaffRoleIT` and `UserProfilePermissionIT` cover CSRF, route rules, MFA and role denials and error statuses over real HTTP and PostgreSQL.
+
+
+Ticket 15 adds explicit staff image reads/commands for verified Admin and Moderator. Multipart uploads bypass the JSON limiter and are bounded globally at 3 MiB per file and 4 MiB request. Alt/order JSON remains limited after authorization. Public images permit GET/HEAD only; denied image-path methods get ACCESS_DENIED even for anonymous callers with valid CSRF. All error responses remain no-store.

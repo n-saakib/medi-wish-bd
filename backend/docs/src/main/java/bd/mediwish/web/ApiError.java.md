@@ -38,3 +38,6 @@ Package-private enum that is the single owner of public API error codes, their H
 `ApiErrorsTest` checks that every constant has an externalized message and covers the status classification, including 429.
 
 Ticket 14 adds 409 STALE_UPDATE (changed stale intent), PRICE_REQUIRED (unpriced activation), CATEGORY_NAME_TAKEN (case-insensitive name collision) and ID_CONFLICT (different payload reusing a create UUID). Each has an externalized message.
+
+
+Ticket 15 adds bounded externalized IMAGE_INVALID (400), IMAGE_LIMIT_REACHED (409) and STORAGE_UNAVAILABLE (503).

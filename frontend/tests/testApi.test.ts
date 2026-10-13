@@ -1,14 +1,16 @@
 import { EventEmitter } from 'node:events';
 import { connect, Socket } from 'node:net';
 import { execFileSync, spawn } from 'node:child_process';
+import { closeSync, mkdirSync, openSync, readFileSync, rmSync } from 'node:fs';
+import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import startTestApi, {
-  apiEnvironment, apiUrl, checkedTarget, grantRole, makeSuperAdmin, markMobileVerified, removeRole, rolledBackSql,
-  sessionStates, tableFingerprints, testSchemaVariable,
+  apiEnvironment, apiUrl, checkedTarget, psql as executeSql, grantRole, makeSuperAdmin, markMobileVerified, removeRole, rolledBackSql,
+  sessionStates, tableFingerprints, testSchemaVariable, testStorageVariable,
 } from './browser/testApi';
 
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn(), spawn: vi.fn() }));
-vi.mock('node:fs', () => ({ openSync: vi.fn(() => 99), closeSync: vi.fn() }));
+vi.mock('node:fs', () => ({ openSync: vi.fn(() => 99), closeSync: vi.fn(), mkdirSync: vi.fn(), readFileSync: vi.fn(), rmSync: vi.fn() }));
 vi.mock('node:net', async (importOriginal) => {
   const actual = await importOriginal<typeof import('node:net')>();
   return { ...actual, connect: vi.fn() };
@@ -36,6 +38,19 @@ function fakeApiProcess(exitsAtStartup: boolean) {
   });
 }
 
+/** Stays pending until the supplied request signal actually aborts, as a listener withholding HTTP headers does. */
+function stalledReadiness(): AbortSignal[] {
+  const signals: AbortSignal[] = [];
+  vi.stubGlobal('fetch', vi.fn((_url: string, options?: RequestInit) => new Promise<Response>((_resolve, reject) => {
+    const signal = options?.signal;
+    if (signal) {
+      signals.push(signal);
+      signal.addEventListener('abort', () => reject(new Error('controlled readiness abort')), { once: true });
+    }
+  })));
+  return signals;
+}
+
 /** Answers the version check with PostgreSQL 18, the migration check with `migrated`, and anything else with ''. */
 function databaseAnswers(migrated: 't' | 'f') {
   psql.mockImplementation((_file, _args, options) => {
@@ -46,11 +61,17 @@ function databaseAnswers(migrated: 't' | 'f') {
 }
 
 beforeEach(() => {
+  vi.stubEnv('TEST_DB_HOST', '127.0.0.1');
+  vi.stubEnv('TEST_DB_PORT', '55433');
+  vi.mocked(openSync).mockReturnValue(99);
+  vi.mocked(readFileSync).mockReturnValue('Started MediWishApplication in 1 second');
   portProbe('error');
   vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
 });
 
 afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllEnvs();
   vi.unstubAllGlobals();
   vi.resetAllMocks();
 });
@@ -78,7 +99,84 @@ describe('apiEnvironment', () => {
   });
 });
 
+describe('database target safety', () => {
+  it.each([
+    ['missing host', undefined, '55433'], ['missing port', '127.0.0.1', undefined],
+    ['default cluster', '127.0.0.1', '5432'], ['remote cluster', 'db.example.test', '55433'],
+    ['LAN cluster', '192.168.1.2', '55432'], ['deceptive host', '127.0.0.1.example.test', '55433'],
+    ['socket directory', '/tmp', '55433'], ['wrong port', 'localhost', '55434'],
+  ])('refuses %s before setup or raw SQL mutates anything', async (_, host, port) => {
+    vi.stubEnv('TEST_DB_HOST', host);
+    vi.stubEnv('TEST_DB_PORT', port);
+    await expect(startTestApi()).rejects.toThrow('explicit loopback TEST_DB_HOST');
+    expect(() => executeSql('CREATE ROLE should_never_run;')).toThrow('explicit loopback TEST_DB_HOST');
+    expect(psql).not.toHaveBeenCalled();
+    expect(connect).not.toHaveBeenCalled();
+    expect(spawn).not.toHaveBeenCalled();
+    expect(mkdirSync).not.toHaveBeenCalled();
+    expect(openSync).not.toHaveBeenCalled();
+  });
+
+  it.each([['127.0.0.1', '55432'], ['localhost', '55433'], ['::1', '55433']])(
+    'uses the explicitly allowed target %s:%s for SQL', (host, port) => {
+      vi.stubEnv('TEST_DB_HOST', host);
+      vi.stubEnv('TEST_DB_PORT', port);
+      psql.mockReturnValue('18');
+      expect(executeSql('SELECT 18;')).toBe('18');
+      expect(psql.mock.calls[0]?.[1]).toEqual(expect.arrayContaining(['-h', host, '-p', port, '-d', 'medi_wish_test']));
+    });
+});
+
 describe('startTestApi', () => {
+  it('refuses a healthy foreign API when the owned child never completes startup', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    vi.setSystemTime(0);
+    databaseAnswers('t');
+    vi.mocked(readFileSync).mockReturnValue('Port already in use');
+    const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
+    vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+    const pending = startTestApi();
+    const failure = expect(pending).rejects.toThrow('The test API exited during startup');
+    await vi.advanceTimersByTimeAsync(0);
+    const role = process.env[testSchemaVariable];
+    const directory = process.env[testStorageVariable];
+    expect(fetch).not.toHaveBeenCalled();
+    child.emit('exit', 1);
+    await vi.advanceTimersByTimeAsync(500);
+    await failure;
+    expect(child.kill).not.toHaveBeenCalled();
+    expect(sqlSent().filter((sql) => sql.includes('DROP OWNED'))).toEqual([
+      `DROP OWNED BY ${role} CASCADE; REVOKE ALL ON DATABASE medi_wish_test FROM ${role}; DROP ROLE ${role};`,
+    ]);
+    expect(rmSync).toHaveBeenCalledExactlyOnceWith(directory, { recursive: true, force: true });
+    expect(process.env[testSchemaVariable]).toBeUndefined();
+    expect(process.env[testStorageVariable]).toBeUndefined();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('refuses readiness success after the owned child has exited', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    vi.setSystemTime(0);
+    databaseAnswers('t');
+    const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
+    vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+    let answer: ((response: Response) => void) | undefined;
+    vi.mocked(fetch).mockImplementationOnce(() => new Promise<Response>((resolve) => { answer = resolve; }));
+    const pending = startTestApi();
+    const failure = expect(pending).rejects.toThrow('The test API exited during startup');
+    await vi.advanceTimersByTimeAsync(0);
+    child.emit('exit', 1);
+    await vi.advanceTimersByTimeAsync(0);
+    answer?.(new Response(null, { status: 200 }));
+    await vi.advanceTimersByTimeAsync(500);
+    await failure;
+    expect(child.kill).not.toHaveBeenCalled();
+    expect(sqlSent().some((sql) => sql.includes('databasechangelog'))).toBe(false);
+    expect(sqlSent().filter((sql) => sql.includes('DROP OWNED'))).toHaveLength(1);
+    expect(process.env[testSchemaVariable]).toBeUndefined();
+    expect(process.env[testStorageVariable]).toBeUndefined();
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it('refuses to start while another process holds the API port, before touching the database', async () => {
     portProbe('connect');
     await expect(startTestApi()).rejects.toThrow(`${apiUrl} is already in use`);
@@ -101,10 +199,127 @@ describe('startTestApi', () => {
     expect(env?.[testSchemaVariable]).toBeUndefined();
     expect(process.env[testSchemaVariable]).toBe(role);
     expect(sqlSent().at(-1)).toBe(`SELECT to_regclass('${role}.databasechangelog') IS NOT NULL`);
+    const directory = process.env[testStorageVariable];
+    expect(env?.APP_STORAGE_PROVIDER).toBe('local');
+    expect(path.isAbsolute(String(env?.APP_STORAGE_LOCAL_ROOT))).toBe(true);
+    expect(env?.APP_STORAGE_NAMESPACE).toBe(`test-browser-${String(role).slice('mw_browser_'.length)}`);
+    expect(directory).toBe(path.join(String(env?.APP_STORAGE_LOCAL_ROOT), String(env?.APP_STORAGE_NAMESPACE)));
+    expect(env?.[testStorageVariable]).toBeUndefined();
+    expect(mkdirSync).toHaveBeenCalledWith(directory, { recursive: true });
 
     await stop();
     expect(sqlSent().at(-1)).toContain(`DROP ROLE ${role};`);
     expect(process.env[testSchemaVariable]).toBeUndefined();
+    expect(process.env[testStorageVariable]).toBeUndefined();
+    expect(rmSync).toHaveBeenCalledWith(directory, { recursive: true, force: true });
+  });
+
+  it('aborts stalled readiness at the total deadline and cleans owned resources only after the child exits', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    vi.setSystemTime(0);
+    databaseAnswers('t');
+    const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
+    vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+    const signals = stalledReadiness();
+    const pending = startTestApi();
+    const failure = expect(pending).rejects.toThrow('The test API was not ready within 120 seconds');
+    await vi.advanceTimersByTimeAsync(0);
+    const role = process.env[testSchemaVariable];
+    const directory = process.env[testStorageVariable];
+    expect(signals).toHaveLength(1);
+    expect(signals[0]?.aborted).toBe(false);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(signals[0]?.aborted).toBe(true);
+    expect(child.kill).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(115_000);
+    expect(Date.now()).toBe(120_000);
+    expect(signals.length).toBeGreaterThan(1);
+    expect(signals.every((signal) => signal.aborted)).toBe(true);
+    expect(child.kill).toHaveBeenCalledExactlyOnceWith();
+    // Teardown must await the child exit before dropping its database or storage resources.
+    expect(sqlSent().some((sql) => sql.includes('DROP OWNED'))).toBe(false);
+    expect(closeSync).not.toHaveBeenCalled();
+    expect(rmSync).not.toHaveBeenCalled();
+    child.emit('exit', 143);
+    await failure;
+    expect(sqlSent().filter((sql) => sql.includes('DROP OWNED'))).toEqual([
+      `DROP OWNED BY ${role} CASCADE; REVOKE ALL ON DATABASE medi_wish_test FROM ${role}; DROP ROLE ${role};`,
+    ]);
+    expect(closeSync).toHaveBeenCalledExactlyOnceWith(99);
+    expect(mkdirSync).toHaveBeenCalledExactlyOnceWith(directory, { recursive: true });
+    expect(rmSync).toHaveBeenCalledExactlyOnceWith(directory, { recursive: true, force: true });
+    expect(process.env[testSchemaVariable]).toBeUndefined();
+    expect(process.env[testStorageVariable]).toBeUndefined();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('notices a child exit during a stalled request after aborting that request and cleans its resources', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    vi.setSystemTime(0);
+    databaseAnswers('t');
+    const child = Object.assign(new EventEmitter(), { kill: vi.fn() });
+    vi.mocked(spawn).mockReturnValue(child as unknown as ReturnType<typeof spawn>);
+    const signals = stalledReadiness();
+    const pending = startTestApi();
+    const failure = expect(pending).rejects.toThrow('The test API exited during startup');
+    await vi.advanceTimersByTimeAsync(0);
+    const role = process.env[testSchemaVariable];
+    const directory = process.env[testStorageVariable];
+    child.emit('exit', 1);
+    await vi.advanceTimersByTimeAsync(5_500);
+    await failure;
+    expect(signals).toHaveLength(1);
+    expect(signals[0]?.aborted).toBe(true);
+    expect(child.kill).not.toHaveBeenCalled();
+    expect(sqlSent().filter((sql) => sql.includes('DROP OWNED'))).toEqual([
+      `DROP OWNED BY ${role} CASCADE; REVOKE ALL ON DATABASE medi_wish_test FROM ${role}; DROP ROLE ${role};`,
+    ]);
+    expect(closeSync).toHaveBeenCalledExactlyOnceWith(99);
+    expect(rmSync).toHaveBeenCalledExactlyOnceWith(directory, { recursive: true, force: true });
+    expect(process.env[testSchemaVariable]).toBeUndefined();
+    expect(process.env[testStorageVariable]).toBeUndefined();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('retries after one stalled request and clears the abort timer when readiness succeeds', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
+    vi.setSystemTime(0);
+    databaseAnswers('t');
+    fakeApiProcess(false);
+    const signals = stalledReadiness();
+    const pending = startTestApi();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(signals).toHaveLength(1);
+    expect(signals[0]?.aborted).toBe(true);
+    expect(sqlSent().some((sql) => sql.includes('DROP OWNED'))).toBe(false);
+    vi.mocked(fetch).mockResolvedValueOnce(new Response(null, { status: 200 }));
+    await vi.advanceTimersByTimeAsync(500);
+    const stop = await pending;
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(vi.getTimerCount()).toBe(0);
+    await stop();
+  });
+
+  it('keeps role, grant and schema allocation in one transaction when SQL allocation fails', async () => {
+    const failure = new Error('controlled SQL allocation failure');
+    psql.mockImplementation((_file, _args, options) => {
+      const sql = String((options as { input: string }).input);
+      if (sql.includes('server_version_num')) return '18';
+      throw failure;
+    });
+
+    await expect(startTestApi()).rejects.toThrow(failure);
+    const allocation = sqlSent()[1];
+    // Real PostgreSQL rollback is checked separately; these units enforce the fixture boundary and fail-fast path.
+    expect(allocation).toMatch(/^BEGIN; CREATE ROLE mw_browser_[0-9a-f]{12} LOGIN /);
+    expect(allocation).toMatch(/; GRANT CONNECT ON DATABASE medi_wish_test TO mw_browser_[0-9a-f]{12}; /);
+    expect(allocation).toMatch(/CREATE SCHEMA (mw_browser_[0-9a-f]{12}) AUTHORIZATION \1; COMMIT;$/);
+    expect(psql).toHaveBeenCalledTimes(2);
+    expect(mkdirSync).not.toHaveBeenCalled();
+    expect(openSync).not.toHaveBeenCalled();
+    expect(spawn).not.toHaveBeenCalled();
+    expect(process.env[testSchemaVariable]).toBeUndefined();
+    expect(process.env[testStorageVariable]).toBeUndefined();
   });
 
   it('replaces an inherited MFA key with its own', async () => {
@@ -131,7 +346,35 @@ describe('startTestApi', () => {
 
     await expect(startTestApi()).rejects.toThrow(message);
     expect(sqlSent().at(-1)).toMatch(/DROP OWNED BY mw_browser_[0-9a-f]{12} CASCADE; .* DROP ROLE mw_browser_[0-9a-f]{12};/);
+    expect(rmSync).toHaveBeenCalledWith(expect.stringMatching(/test-browser-[0-9a-f]{12}$/),
+      { recursive: true, force: true });
+    expect(process.env[testStorageVariable]).toBeUndefined();
   });
+
+  it.each(['directory', 'log', 'spawn'] as const)('cleans the owned resources when %s creation throws', async (stage) => {
+    databaseAnswers('t');
+    const failure = new Error('controlled allocation failure');
+    if (stage === 'directory') vi.mocked(mkdirSync).mockImplementationOnce(() => { throw failure; });
+    if (stage === 'log') vi.mocked(openSync).mockImplementationOnce(() => { throw failure; });
+    if (stage === 'spawn') vi.mocked(spawn).mockImplementationOnce(() => { throw failure; });
+    await expect(startTestApi()).rejects.toThrow(failure);
+    expect(sqlSent().at(-1)).toMatch(/DROP ROLE mw_browser_[0-9a-f]{12};/);
+    expect(rmSync).toHaveBeenCalledWith(expect.stringMatching(/test-browser-[0-9a-f]{12}$/),
+      { recursive: true, force: true });
+    expect(process.env[testStorageVariable]).toBeUndefined();
+  });
+
+  it('removes only the owned namespace even when database teardown fails', async () => {
+    databaseAnswers('t');
+    fakeApiProcess(false);
+    const stop = await startTestApi();
+    const directory = process.env[testStorageVariable];
+    psql.mockImplementationOnce(() => { throw new Error('controlled teardown failure'); });
+    await expect(stop()).rejects.toThrow('controlled teardown failure');
+    expect(rmSync).toHaveBeenCalledWith(directory, { recursive: true, force: true });
+    expect(process.env[testStorageVariable]).toBeUndefined();
+  });
+
 });
 
 describe('grantRole', () => {

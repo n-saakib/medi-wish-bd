@@ -60,6 +60,36 @@ class ConfigurationIT {
         }
     }
 
+    @ParameterizedTest
+    @CsvSource({
+            "app.storage.provider, '', app.storage.provider must be local",
+            "app.storage.provider, s3, app.storage.provider must be local",
+            "app.storage.local-root, relative, app.storage.local-root must be an absolute path",
+            "app.storage.namespace, '', app.storage.namespace must be a valid namespace",
+            "app.storage.namespace, Invalid_Name, app.storage.namespace must be a valid namespace",
+            "app.storage.namespace, dev-images, test storage namespace must start with test-"})
+    void invalidStorageConfigurationRefusesStartupWithoutLeakingValues(String property, String value, String rule,
+            CapturedOutput output) throws Exception {
+        try (var database = TestDatabase.create()) {
+            var properties = new HashMap<>(database.applicationProperties());
+            properties.put(property, value);
+            assertThatThrownBy(() -> run(properties, "test")).isInstanceOf(IllegalStateException.class).hasMessage(rule);
+            assertThat(output.getAll()).doesNotContain(String.valueOf(properties.get("spring.datasource.password")),
+                    String.valueOf(properties.get("app.auth.jwt-secret")));
+        }
+    }
+
+    @Test void localAdapterRefusesHostedProfiles(CapturedOutput output) throws Exception {
+        try (var database = TestDatabase.create()) {
+            var properties = new HashMap<>(database.applicationProperties());
+            properties.put("app.auth.cookie.secure", "true");
+            properties.put("app.cors.allowed-origins", "https://shop.example.test");
+            properties.put("app.storage.namespace", "prod-check");
+            assertThatThrownBy(() -> run(properties))
+                    .isInstanceOf(IllegalStateException.class).hasMessage(bd.mediwish.storage.StorageConfiguration.LOCAL_PROFILE_RULE);
+            assertThat(output.getAll()).doesNotContain(String.valueOf(properties.get("spring.datasource.password")));
+        }
+    }
     private static void run(Map<String, Object> properties, String... profiles) {
         var application = new SpringApplication(MediWishApplication.class);
         application.setAdditionalProfiles(profiles);
