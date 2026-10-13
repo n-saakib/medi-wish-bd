@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatDateTime } from '../src/lib/dateTime';
+import { formatDate, formatDateTime } from '../src/lib/dateTime';
 
 describe('formatDateTime', () => {
   it.each([
@@ -9,4 +9,8 @@ describe('formatDateTime', () => {
   ])('shows %s in Asia/Dhaka as the designs do', (instant, shown) => {
     expect(formatDateTime(instant)).toBe(shown);
   });
+});
+
+it('formats a calendar date without shifting it across timezones', () => {
+  expect(formatDate('2026-10-10')).toBe('10 Oct 2026');
 });

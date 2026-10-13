@@ -38,3 +38,7 @@ Product MRP and price headers/cells use .num for right alignment and tabular num
 Tickets 08 and 14 each added `.sr-only`, `.chip-success` and `.chip-warn`; the merge keeps one shared rule per selector with the design's token values, next to the other chip variants.
 
 Closing-pass fix (2026-10-08): `.catalog-form-grid` aligns its fields to the top, so a field error under one input no longer pushes the neighbouring inputs out of line. A field error after a `.catalog-check` label (the Product's Active error) is a block under the label instead of running into its text. `.profile-pending-note` replaces the old `.profile-pending p` rule because the note is always rendered as the pending mobile's status region.
+
+## Ticket 16
+
+Ticket 16 reuses catalog controls and adds pill status tabs with 44 px minimum controls, count spans, selected state, and a modal discount dialog. The dialog bounds width and dynamic-viewport height and scrolls vertically for shorter/mobile viewports.

@@ -32,7 +32,7 @@ export const copy = {
   categorySaved: 'Category saved.',
   priceRequired: 'Add a price before activating this product.',
   priceRequiredModerator: 'An Admin must add a price before this product can be active.',
-  moderatorPricingNote: 'Moderators can’t change prices.',
+  moderatorPricingNote: 'Moderators can’t change prices or discounts. Ask an Admin.',
   productStale: 'Someone saved this product while you were editing. Review their changes first.',
   categoryStale: 'Someone saved this category while you were editing. Review their changes first.',
   categoryNameTaken: 'A category with this name already exists.',
@@ -55,7 +55,8 @@ export const copy = {
 export type ProductKind = 'MEDICINE' | 'EQUIPMENT';
 export type ProductStatus = 'ACTIVE' | 'INACTIVE' | 'NEEDS_PRICE';
 export type ChangeType =
-  'CREATED' | 'CATALOG_UPDATED' | 'PRICE_CHANGED' | 'REQUIRE_VALIDATION_CHANGED' | 'ACTIVATED' | 'DEACTIVATED';
+  'CREATED' | 'CATALOG_UPDATED' | 'PRICE_CHANGED' | 'REQUIRE_VALIDATION_CHANGED' | 'ACTIVATED' | 'DEACTIVATED'
+  | 'DISCOUNT_STARTED' | 'DISCOUNT_ENDED';
 
 export type Category = { id: string; name: string; active: boolean; productCount: number; version: number };
 
@@ -69,6 +70,7 @@ export type ProductChange = {
   newMrp: string | null;
   oldRequireValidation: boolean | null;
   newRequireValidation: boolean | null;
+  discount: { targetType: 'PRODUCT' | 'CATEGORY'; kind: 'PERCENTAGE' | 'FLAT'; value: string } | null;
 };
 
 export type ProductSummary = {
@@ -87,6 +89,9 @@ export type ProductSummary = {
   active: boolean;
   requireValidation: boolean;
   status: ProductStatus;
+  effectivePrice: string | null;
+  appliedDiscount: { id: string; targetType: 'PRODUCT' | 'CATEGORY'; targetName: string;
+    kind: 'PERCENTAGE' | 'FLAT'; value: string; saving: string } | null;
 };
 
 export type Product = ProductSummary & {
@@ -106,13 +111,14 @@ export const pageKeys = ['items', 'page', 'size', 'totalItems'];
 /** The exact response keys of §4.2; no stock, quantity or other private field may appear. */
 export const categoryKeys = ['active', 'id', 'name', 'productCount', 'version'];
 export const productSummaryKeys = [
-  'active', 'brandName', 'categoryId', 'categoryName', 'dosageForm', 'genericName', 'id', 'kind', 'manufacturer', 'mrp',
+  'active', 'appliedDiscount', 'brandName', 'categoryId', 'categoryName', 'dosageForm', 'effectivePrice',
+  'genericName', 'id', 'kind', 'manufacturer', 'mrp',
   'name', 'requireValidation', 'saleUnit', 'sellingPrice', 'status',
 ];
 export const productKeys = [...productSummaryKeys, 'description', 'history', 'updatedAt', 'updatedByUsername', 'version']
   .sort();
 export const historyKeys = [
-  'actorUsername', 'changeType', 'newMrp', 'newRequireValidation', 'newSellingPrice', 'occurredAt', 'oldMrp',
+  'actorUsername', 'changeType', 'discount', 'newMrp', 'newRequireValidation', 'newSellingPrice', 'occurredAt', 'oldMrp',
   'oldRequireValidation', 'oldSellingPrice',
 ];
 

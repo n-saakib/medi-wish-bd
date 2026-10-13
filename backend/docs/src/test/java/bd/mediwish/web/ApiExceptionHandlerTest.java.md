@@ -16,3 +16,5 @@ Ticket 11 extends this bounded error seam with InvalidProfileException, STALE_UP
 Standalone MockMvc checks each domain failure maps to its bounded correlated status/code, including Ticket 08's STALE_UPDATE, ROLE_CHANGE_REFUSED and NOT_FOUND. Unreadable JSON never echoes private body text. Unsupported media retains 415 for existing routes and returns the frozen 400 INVALID_REQUEST on administrative User commands. Response envelopes expose no diagnostic values.
 
 Catalog additions cover invalid field/money, denied direct commands, absent records, stale writes, unpriced activation, duplicate category names and reused create ids. Named category SQL uniqueness failures translate to CATEGORY_NAME_TAKEN; another constraint or SQL state remains INTERNAL_ERROR without private row data.
+
+Ticket 16 checks both new conflict exceptions map to 409 with their exact externalized English messages and a server requestId.

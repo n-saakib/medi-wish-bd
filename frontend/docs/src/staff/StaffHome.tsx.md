@@ -19,3 +19,7 @@ The staff dashboard (`staff-dashboard.html`) and full staff navigation belong to
 ## Verification
 
 [`tests/StaffHome.test.ts`](../../tests/StaffHome.test.ts.md); browser checks E2E-08-29 (Admin-only Users and roles) and E2E-14-04 (the full link order for Admin and Moderator).
+
+## Ticket 16
+
+The Discounts link to /staff/discounts is available only to verified Admin staff, alongside the established Product/Category navigation.

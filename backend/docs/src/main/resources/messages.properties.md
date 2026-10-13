@@ -37,3 +37,5 @@ Ticket 14 adds the exact messages: PRICE_REQUIRED = Add a price before activatin
 ## Ticket 11 messages
 
 error.STALE_UPDATE (409) asks the caller to reload after a changed profile version. error.ACCOUNT_CLOSING (409) explains why a closing account cannot mutate its profile or pending mobile. Neither identifies a conflicting user or echoes private values.
+
+Ticket 16: error.DISCOUNT_ENDED = This discount has ended and can no longer be changed.; error.DISCOUNT_EXCEEDS_PRICE = The discount must be smaller than the product's selling price.

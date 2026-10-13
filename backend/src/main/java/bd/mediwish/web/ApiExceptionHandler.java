@@ -17,6 +17,8 @@ import bd.mediwish.catalog.CatalogNotFoundException;
 import bd.mediwish.catalog.PriceRequiredException;
 import bd.mediwish.catalog.CategoryNameTakenException;
 import bd.mediwish.catalog.IdConflictException;
+import bd.mediwish.catalog.DiscountEndedException;
+import bd.mediwish.catalog.DiscountExceedsPriceException;
 import org.hibernate.exception.ConstraintViolationException;
 import bd.mediwish.user.InvalidProfileException;
 import bd.mediwish.user.AccountClosingException;
@@ -100,6 +102,16 @@ class ApiExceptionHandler {
     @ExceptionHandler(CategoryNameTakenException.class)
     ResponseEntity<ApiErrors.Body> categoryNameTaken(HttpServletRequest request) {
         return error(ApiError.CATEGORY_NAME_TAKEN, request);
+    }
+
+    @ExceptionHandler(DiscountEndedException.class)
+    ResponseEntity<ApiErrors.Body> discountEnded(HttpServletRequest request) {
+        return error(ApiError.DISCOUNT_ENDED, request);
+    }
+
+    @ExceptionHandler(DiscountExceedsPriceException.class)
+    ResponseEntity<ApiErrors.Body> discountExceedsPrice(HttpServletRequest request) {
+        return error(ApiError.DISCOUNT_EXCEEDS_PRICE, request);
     }
 
     @ExceptionHandler(IdConflictException.class)

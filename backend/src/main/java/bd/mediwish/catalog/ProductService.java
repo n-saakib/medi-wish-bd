@@ -7,6 +7,7 @@ import org.slf4j.MDC;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.annotation.Isolation;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -22,17 +23,24 @@ public class ProductService {
     private final ProductChangeRepository changes;
     private final UserRepository users;
     private final Clock clock;
+    private final CurrentPrices prices;
+    private final DiscountHistory discountHistory;
+    private final DiscountCalendar calendar;
 
     ProductService(ProductRepository products, CategoryRepository categories,
-                   ProductChangeRepository changes, UserRepository users, Clock clock) {
+                   ProductChangeRepository changes, UserRepository users, Clock clock,
+                   CurrentPrices prices, DiscountHistory discountHistory, DiscountCalendar calendar) {
         this.products = products;
         this.categories = categories;
         this.changes = changes;
         this.users = users;
         this.clock = clock;
+        this.prices = prices;
+        this.discountHistory = discountHistory;
+        this.calendar = calendar;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     CatalogPage<ProductSummary> list(String query, UUID categoryId, ProductStatus status,
                                      boolean reviewRequired, int page, int size) {
         CategoryService.page(page, size);
@@ -41,11 +49,12 @@ public class ProductService {
                 .replace("!", "!!").replace("%", "!%").replace("_", "!_") + "%";
         var found = products.search(pattern, categoryId, status == null ? null : status.name(),
                 reviewRequired ? true : null, PageRequest.of(page, size));
-        return new CatalogPage<>(found.getContent().stream().map(ProductService::summary).toList(),
+        var currentPrices = prices.forProducts(found.getContent());
+        return new CatalogPage<>(found.getContent().stream().map(p -> summary(p, currentPrices.get(p.id()))).toList(),
                 page, size, found.getTotalElements());
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     ProductView get(UUID id) {
         return view(products.findById(id).orElseThrow(CatalogNotFoundException::new));
     }
@@ -136,6 +145,8 @@ public class ProductService {
 
     private ProductView view(Product product) {
         var fields = product.fields();
+        var today = calendar.today();
+        var price = prices.forProducts(List.of(product), today).get(product.id());
         String editor = product.updatedBy() == null ? null : users.findById(product.updatedBy())
                 .map(user -> user.username()).orElse(null);
         List<ProductHistory> history = changes.findLatest(product.id(), PageRequest.of(0, 20)).stream()
@@ -143,20 +154,38 @@ public class ProductService {
                         change.getChangeType(), decimal(change.getOldSellingPrice()),
                         decimal(change.getNewSellingPrice()), decimal(change.getOldMrp()),
                         decimal(change.getNewMrp()), change.getOldRequireValidation(),
-                        change.getNewRequireValidation())).toList();
+                        change.getNewRequireValidation(), null)).toList();
+        history = java.util.stream.Stream.concat(history.stream(),
+                discountHistory.forProduct(product.id(), fields.categoryId(), today).stream())
+                .sorted(java.util.Comparator.comparing(ProductHistory::occurredAt).reversed()
+                        .thenComparing(entry -> entry.discount() == null ? 0 : 1))
+                .limit(20).toList();
         return new ProductView(product.id(), product.kind(), fields.name(), fields.brandName(),
                 fields.genericName(), fields.dosageForm(), fields.manufacturer(), fields.categoryId(),
                 product.category().name(), fields.saleUnit(), decimal(product.sellingPrice()),
                 decimal(product.mrp()), product.active(), product.requireValidation(), product.status(),
-                fields.description(), product.version(), product.updatedAt(), editor, history);
+                fields.description(), product.version(), product.updatedAt(), editor, history,
+                price == null ? null : price.price().toString(), applied(price, product));
     }
 
-    private static ProductSummary summary(Product product) {
+    private static ProductSummary summary(Product product, EffectivePrice price) {
         var fields = product.fields();
         return new ProductSummary(product.id(), product.kind(), fields.name(), fields.brandName(),
                 fields.genericName(), fields.dosageForm(), fields.manufacturer(), fields.categoryId(),
                 product.category().name(), fields.saleUnit(), decimal(product.sellingPrice()),
-                decimal(product.mrp()), product.active(), product.requireValidation(), product.status());
+                decimal(product.mrp()), product.active(), product.requireValidation(), product.status(),
+                price == null ? null : price.price().toString(), applied(price, product));
+    }
+
+    private static AppliedDiscount applied(EffectivePrice price, Product product) {
+        if (price == null || price.discountId() == null) return null;
+        String name = price.discountTarget() == DiscountTargetType.PRODUCT
+                ? product.fields().name() : product.category().name();
+        String value = price.discountKind() == DiscountKind.PERCENTAGE
+                ? price.discountValue().stripTrailingZeros().toPlainString()
+                : Money.parse(price.discountValue().toPlainString()).toString();
+        return new AppliedDiscount(price.discountId(), price.discountTarget(), name,
+                price.discountKind(), value, price.saving().toPlainString());
     }
 
     private static String decimal(Money amount) { return amount == null ? null : amount.toString(); }

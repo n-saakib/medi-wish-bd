@@ -120,6 +120,22 @@ class SecurityConfigurationTest {
         assertThat(SecurityConfiguration.BEARER_COMMAND_ROUTES.matches(new MockHttpServletRequest("POST", "/api/auth/refresh"))).isFalse();
     }
 
+    @Test
+    void discountMatchersAreProtectedAndEndMatchesOnlyItsRoute() {
+        for (String[] route : new String[][]{{"GET", "/api/staff/discounts"}, {"POST", "/api/staff/discounts"},
+                {"PUT", "/api/staff/discounts/id"}, {"POST", "/api/staff/discounts/id/end"}}) {
+            var request = new MockHttpServletRequest(route[0], route[1]);
+            assertThat(SecurityConfiguration.PROTECTED_ROUTES.matches(request)).isTrue();
+            if (!route[0].equals("GET")) assertThat(SecurityConfiguration.BEARER_COMMAND_ROUTES.matches(request)).isTrue();
+        }
+        assertThat(SecurityConfiguration.STAFF_DISCOUNT_COMMANDS.matches(new MockHttpServletRequest("PUT", "/api/staff/discounts/id/end"))).isFalse();
+        assertThat(SecurityConfiguration.STAFF_DISCOUNT_COMMANDS.matches(new MockHttpServletRequest("PUT", "/api/staff/discounts/id/x/y"))).isFalse();
+        var price = new MockHttpServletRequest("GET", "/api/products/id/price");
+        assertThat(SecurityConfiguration.PUBLIC_PRODUCT_PRICE.matches(price)).isTrue();
+        assertThat(SecurityConfiguration.PROTECTED_ROUTES.matches(price)).isFalse();
+        assertThat(SecurityConfiguration.PUBLIC_PRODUCT_PRICE.matches(new MockHttpServletRequest("GET", "/api/products/id/x/price"))).isFalse();
+    }
+
     private static CorsConfiguration cors(SecurityConfiguration configuration, String allowedOrigins) {
         return configuration.corsConfigurationSource(allowedOrigins)
                 .getCorsConfiguration(new MockHttpServletRequest("GET", "/api/auth/csrf"));

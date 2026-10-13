@@ -32,8 +32,12 @@ class ProductServiceTest {
     private final CategoryRepository categories = mock(CategoryRepository.class);
     private final ProductChangeRepository changes = mock(ProductChangeRepository.class);
     private final UserRepository users = mock(UserRepository.class);
+    private final CurrentPrices prices = mock(CurrentPrices.class);
+    private final DiscountHistory discountHistory = mock(DiscountHistory.class);
+    private final DiscountCalendar calendar = new DiscountCalendar(Clock.fixed(
+            Instant.parse("2026-10-05T00:00:00Z"), ZoneOffset.UTC));
     private final ProductService service = new ProductService(products, categories, changes, users,
-            Clock.fixed(Instant.parse("2026-10-05T00:00:00.123456789Z"), ZoneOffset.UTC));
+            Clock.fixed(Instant.parse("2026-10-05T00:00:00.123456789Z"), ZoneOffset.UTC), prices, discountHistory, calendar);
     private final UUID id = UUID.fromString("256ffb7c-78ba-43ea-8128-43513d42ac7b");
     private final UUID categoryId = UUID.fromString("83a4290b-a567-4c30-a2ef-1ed8b1ba8930");
 
@@ -147,6 +151,62 @@ class ProductServiceTest {
                 .isInstanceOf(StaleUpdateException.class);
         verify(products, never()).flush();
         verifyNoInteractions(changes, users, categories);
+    }
+    @Test
+    void listPricesOneBatchAndLeavesUnpricedProductsWithoutDiscountProjection() {
+        var product = editableProduct();
+        when(products.search(any(), any(), any(), any(), any()))
+                .thenReturn(new org.springframework.data.domain.PageImpl<>(java.util.List.of(product)));
+        when(prices.forProducts(java.util.List.of(product))).thenReturn(java.util.Map.of());
+
+        var response = service.list(null, null, null, false, 0, 20);
+
+        assertThat(response.items()).hasSize(1);
+        assertThat(response.items().getFirst().effectivePrice()).isNull();
+        assertThat(response.items().getFirst().appliedDiscount()).isNull();
+        verify(prices).forProducts(java.util.List.of(product));
+    }
+
+    @Test
+    void detailMapsCurrentEffectivePriceAndWinningDiscount() {
+        var product = editableProduct();
+        when(products.findById(id)).thenReturn(Optional.of(product));
+        var discountId = UUID.fromString("11111111-1111-4111-8111-111111111111");
+        var price = new EffectivePrice(id, Money.parse("100"), null, Money.parse("90"),
+                new java.math.BigDecimal("10.00"), discountId, DiscountTargetType.PRODUCT,
+                DiscountKind.PERCENTAGE, java.math.BigDecimal.TEN, calendar.today());
+        when(prices.forProducts(java.util.List.of(product), calendar.today()))
+                .thenReturn(java.util.Map.of(id, price));
+
+        var response = service.get(id);
+
+        assertThat(response.effectivePrice()).isEqualTo("90.00");
+        assertThat(response.appliedDiscount()).isEqualTo(new AppliedDiscount(discountId,
+                DiscountTargetType.PRODUCT, "Napa", DiscountKind.PERCENTAGE, "10", "10.00"));
+    }
+
+    @Test
+    void detailMergesAndCapsHistoryWithStoredRowsFirstAtEqualTimesWithoutWritingDerivedRows() {
+        var product = editableProduct();
+        when(products.findById(id)).thenReturn(Optional.of(product));
+        Instant tie = Instant.parse("2026-10-05T00:00:00Z");
+        var stored = mock(ProductChangeRepository.HistoryRow.class);
+        when(stored.getOccurredAt()).thenReturn(tie);
+        when(stored.getChangeType()).thenReturn(ProductChangeType.PRICE_CHANGED);
+        when(changes.findLatest(eq(id), any())).thenReturn(java.util.List.of(stored));
+        var derived = java.util.stream.IntStream.range(0, 21).mapToObj(index -> new ProductHistory(
+                tie.minusSeconds(index), null, ProductChangeType.DISCOUNT_STARTED,
+                null, null, null, null, null, null,
+                new HistoryDiscount(DiscountTargetType.CATEGORY, DiscountKind.PERCENTAGE, "10"))).toList();
+        when(discountHistory.forProduct(id, categoryId, calendar.today())).thenReturn(derived);
+
+        var response = service.get(id);
+
+        assertThat(response.history()).hasSize(20);
+        assertThat(response.history().getFirst().changeType()).isEqualTo(ProductChangeType.PRICE_CHANGED);
+        assertThat(response.history().get(1).changeType()).isEqualTo(ProductChangeType.DISCOUNT_STARTED);
+        assertThat(response.history().getLast().occurredAt()).isEqualTo(tie.minusSeconds(18));
+        verify(changes, never()).save(any());
     }
     private Product editableProduct() {
         var product = mock(Product.class);

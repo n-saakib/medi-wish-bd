@@ -8,3 +8,9 @@ export function formatDateTime(instant: string): string {
   const part = (name: Intl.DateTimeFormatPartTypes) => parts.find((value) => value.type === name)?.value ?? '';
   return `${part('day')} ${part('month')} ${part('year')}, ${part('hour')}:${part('minute')} ${part('dayPeriod').toLowerCase()}`;
 }
+
+/** A calendar date without shifting it through the viewer's timezone. */
+export function formatDate(isoDate: string): string {
+  return new Intl.DateTimeFormat('en-GB', { timeZone: 'UTC', day: 'numeric', month: 'short', year: 'numeric' })
+    .format(new Date(`${isoDate}T12:00:00Z`));
+}

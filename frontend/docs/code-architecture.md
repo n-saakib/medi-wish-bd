@@ -5,7 +5,7 @@ remains authoritative; this page documents the route structure, the
 server/client boundary, the shared session state and the small API client
 seams.
 
-**Last reviewed:** 2026-10-08<br/>
+**Last reviewed:** 2026-10-12<br/>
 **Current scope:** application shell, English localization, health probe
 boundary, and the Ticket 03.01 designed storefront routes: home, sign-in,
 registration (Ticket 02), account with sign-out (Ticket 03 browser session),
@@ -42,6 +42,7 @@ flowchart TD
         PRODUCTNEWPAGE["(staff)/staff/products/new/page.tsx<br/>/staff/products/new"]
         PRODUCTEDITPAGE["(staff)/staff/products/[productId]/page.tsx<br/>/staff/products/{id}"]
         CATEGORYPAGE["(staff)/staff/categories/page.tsx<br/>/staff/categories"]
+        DISCOUNTPAGE["(staff)/staff/discounts/page.tsx<br/>/staff/discounts"]
     end
 
     subgraph AUTHF[src/auth - client]
@@ -68,6 +69,8 @@ flowchart TD
         PRODUCTLIST[ProductList.tsx]
         PRODUCTEDITOR[ProductEditor.tsx]
         CATEGORYMANAGER[CategoryManager.tsx]
+        DISCOUNTMANAGER[DiscountManager.tsx]
+        DISCOUNTDIALOG[DiscountDialog.tsx]
     end
     ADMINPAGES[Admin user route wrappers]
     ADMINCOMP[UserList / UserRoleForm]
@@ -92,11 +95,22 @@ flowchart TD
         USER[user.ts<br/>registration + profile client]
         STAFF[staff.ts<br/>staff access client]
         CATALOG[catalog.ts<br/>staff Product and Category client]
+        DISCOUNTS[discounts.ts<br/>bounded discount client]
         PROFILE[profile.ts<br/>editable profile client]
         IDENTIFIERS[identifiers.ts<br/>profile email format]
         APIMOD[api.ts<br/>request, timeout, bounded errors]
         HEALTH[health.ts<br/>health response probe]
     end
+
+    DISCOUNTPAGE --> DISCOUNTMANAGER
+    DISCOUNTMANAGER --> PROVIDER
+    DISCOUNTMANAGER --> STAFF
+    DISCOUNTMANAGER --> DISCOUNTDIALOG
+    DISCOUNTMANAGER --> DISCOUNTS
+    DISCOUNTDIALOG --> DISCOUNTS
+    DISCOUNTDIALOG --> CATALOG
+    DISCOUNTS --> SESSION
+    DISCOUNTS --> APIMOD
 
     I18N[src/i18n/request.ts + messages/en.json]
     API[Spring Boot API<br/>127.0.0.1:8080 by default]
@@ -365,3 +379,7 @@ component, library API, message namespace, network contract or test/tool
 boundary changes. Keep the diagrams aligned with the current source and tested
 behavior. Add future OTP, storefront search, cart or order nodes only when their
 implementation and contract are actually introduced.
+
+## Ticket 16 discount flow
+
+`/staff/discounts` is a server metadata/route wrapper over `DiscountManager`. The verified Admin view owns list status/page/counts and refresh; `DiscountDialog` owns one create/edit/end interaction and target-picker state. `discounts.ts` projects bounded API responses and passes exact commands through the session seam. Unknown create outcomes retain the original command and UUID until identical retry or cancel/refresh. Catalog Product/history projections and displays consume the backend's effective price and applied discount; browsers never perform customer-price arithmetic. Focused unit tests protect error recovery, stale reads, field focus, request bodies and current-price/history copy. Real HTTP and browser acceptance remain separate verification gates.

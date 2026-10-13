@@ -1,0 +1,19 @@
+# tests/DiscountManager.test.ts
+
+Mounted real translation/session tests cover tab counts and queries, empty/permission/read/picker/projection failures, focus, field/date/flat validation, stale/ended/exceeds-price errors, create UUID/intent preservation after an unknown outcome, scheduled-create cancellation followed by an unrelated Active refresh and exact retry, End now confirmation/count refresh and obsolete tab/search responses. A successful list refresh cannot unlock New/Edit or discard the retained command.
+
+Create, update and End regressions hold the post-mutation list response and assert that the selected enabled status-tab button owns focus immediately after closing and after the refreshed list arrives. The success message is still announced; it does not take keyboard focus. All three regressions failed against the original focused success alert before the correction.
+
+Verified on 2026-10-13 at working HEAD 7555e2d: `VITEST_MAX_WORKERS=1 npm exec -- vitest run --project unit tests/DiscountManager.test.ts` passed all 25 tests after the correction. Red evidence: `.scratch/ticket-16-implementation/focus-regression-red.log` (three new failures, 22 passes); green evidence: `focus-regression-green.log`. Parent owns the cumulative frontend and browser reruns.
+
+Dialog boundary regressions cover Category and Product creation, edit and End confirmation: Shift+Tab from the first enabled control wraps to the last, and Tab wraps back without closing or issuing commands. The Product case pins the checked-radio boundary. Verified on 2026-10-13 at working HEAD 7555e2d: the same focused command passed 29 tests in `dialog-focus-regression-green.log`. The initial three boundary regressions failed before the handler existed, with the previous 25 tests passing (`dialog-focus-regression-red.log`). Real keyboard/browser proof and cumulative verification remain parent-run gates.
+
+End-confirmation replacement also has a meaningful regression: pressing focused End now must move focus to Confirm, and cancelling must focus the newly restored End now control without writing. It failed before the transition-focus correction (29 other tests passed in `confirmation-focus-regression-red.log`); all 30 focused tests passed after it (`confirmation-focus-regression-green.log`) on 2026-10-13 at working HEAD 7555e2d.
+
+Cancel/Escape tests simulate native modal inertness by rejecting focus on background elements while the dialog remains open. Opener restoration failed before native-close ordering was corrected (30 other tests passed in `modal-close-focus-regression-red.log`). A separate unknown-create test verifies that its disabled opener is replaced by an enabled status-tab focus destination without an extra write. All 33 focused tests passed in `modal-close-focus-regression-green.log` on 2026-10-13 at working HEAD 7555e2d. Parent owns actual Chrome/Edge and cumulative verification.
+
+Verified 2026-10-12 at working HEAD 7555e2d: the focused DiscountManager suite passed 22 tests. Cumulative frontend unit verification passed 588 tests across 28 files. Detailed final integrated verification is recorded by T8.
+
+Full npm run verify passed on 2026-10-12: ESLint with zero warnings, TypeScript, 588 units across 28 files and optimized Next.js build including /staff/discounts. No backend/integration/browser execution was run by T3; those remain T5-T8 integration gates.
+
+After the unknown-create cancellation correction, the meaningful regression failed at New becoming enabled after an unrelated successful Active refresh, then passed with all 22 focused cases. Final `npm run verify` with `VITEST_MAX_WORKERS=1` passed again on 2026-10-12 at working HEAD 7555e2d: lint, TypeScript, 588 units/28 files and production build. Logs: `.scratch/ticket-16-implementation/retry-regression-red.log`, `retry-regression-green.log`, `frontend-final-verify.log` in the worktree. The extended browser case remains for the integrated browser run.

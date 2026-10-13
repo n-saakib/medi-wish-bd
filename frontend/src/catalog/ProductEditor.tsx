@@ -7,7 +7,7 @@ import { useTranslations } from 'next-intl';
 import { useSession } from '../auth/SessionProvider';
 import { useSessionRedirect } from '../auth/sessionRedirect';
 import { ApiError, errorMessageKey, type ErrorMessageKey } from '../lib/api';
-import { createCatalogClient, formatTaka, isUuid, newId, type Category, type Product,
+import { createCatalogClient, formatTaka, isUuid, moneyCents, newId, type Category, type Product,
   type ProductDraft, type ProductKind, type ProductUpdate } from '../lib/catalog';
 import { formatDateTime } from '../lib/dateTime';
 import { fetchStaffAccess } from '../lib/staff';
@@ -22,22 +22,6 @@ const empty: Draft = { kind: 'MEDICINE', name: '', brandName: null, genericName:
  * that editor confirms the save once and focuses the confirmation. Kept in memory only, never in the address.
  */
 let justCreated: string | null = null;
-const money = /^\d{1,7}(?:\.\d{1,2})?$/;
-const decimal = /^\d+(?:\.\d{1,2})?$/;
-const maxCents = 999_999_999n;
-
-/**
- * Exact BDT minor units for the accepted positive input grammar; never converts through floating point. A decimal
- * outside 0.01–9,999,999.99 is `'range'`; anything else outside the grammar is `'format'`.
- */
-function moneyCents(value: string): bigint | 'format' | 'range' {
-  if (!decimal.test(value)) return 'format';
-  const [whole, fraction = ''] = value.split('.');
-  const cents = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0') || '0');
-  if (cents === 0n || cents > maxCents) return 'range';
-  return money.test(value) ? cents : 'format';
-}
-
 function fromProduct(product: Product): Draft {
   return { kind: product.kind, name: product.name, brandName: product.brandName, genericName: product.genericName,
     dosageForm: product.dosageForm, manufacturer: product.manufacturer, categoryId: product.categoryId,
@@ -320,12 +304,26 @@ export function ProductEditor({ productId }: { productId?: string }) {
           {fieldErrors.sellingPrice && <span className="field-error" id="catalog-sellingPrice-error">{fieldErrors.sellingPrice}</span>}</div>
         {admin && <button className="btn btn-primary" type="submit" disabled={saving}>{t('savePricing')}</button>}
       </form>{!admin && <p id="catalog-pricing-note">{t('moderatorPricingNote')}</p>}
+      {product.appliedDiscount && <p className="small">{t('activeDiscount', {
+        name: product.appliedDiscount.targetName,
+        target: t(product.appliedDiscount.targetType === 'CATEGORY' ? 'discountCategoryLower' : 'discountProductLower'),
+        amount: product.appliedDiscount.kind === 'PERCENTAGE' ? `${product.appliedDiscount.value}%` : formatTaka(product.appliedDiscount.value, t('currency')),
+        price: formatTaka(product.effectivePrice!, t('currency')),
+      })}</p>}
     </section>}
     {product && <section className="card card-pad stack"><h2>{t('changeHistory')}</h2>
       <ol aria-label={t('changeHistory')} className="catalog-history">{product.history.map((change, index) => {
         const username = change.actorUsername ?? '—';
         let line: string;
         switch (change.changeType) {
+          case 'DISCOUNT_STARTED':
+          case 'DISCOUNT_ENDED': {
+            const discount = change.discount!;
+            line = t(change.changeType === 'DISCOUNT_STARTED' ? 'discountStarted' : change.actorUsername ? 'discountEndedBy' : 'discountEnded', {
+              target: t(discount.targetType === 'CATEGORY' ? 'discountCategory' : 'discountProduct'),
+              amount: discount.kind === 'PERCENTAGE' ? `${discount.value}%` : formatTaka(discount.value, t('currency')), username,
+            }); break;
+          }
           case 'CREATED': line = t('createdBy', { username }); break;
           case 'ACTIVATED': line = t('activatedBy', { username }); break;
           case 'DEACTIVATED': line = t('deactivatedBy', { username }); break;

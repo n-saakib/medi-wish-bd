@@ -9,3 +9,7 @@ Units through real session/translation providers for loading verified staff acce
 The link group is asserted as a navigation landmark named `Staff pages`.
 
 Closing-pass regression (2026-10-08): when access loads with nothing focused, the heading takes focus; a focused Sign out button keeps it. It failed before the fix.
+
+## Ticket 16
+
+Ticket 16 asserts the Discounts link is present for Admin and absent for Moderator.

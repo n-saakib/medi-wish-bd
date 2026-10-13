@@ -89,12 +89,16 @@ export function ProductList() {
     {result && result.totalItems > 0 && <div className="card">
       <div className="catalog-table-scroll"><table className="catalog-table" aria-label={t('products')}><thead><tr>
         <th>{t('product')}</th><th>{t('category')}</th><th>{t('saleUnitColumn')}</th><th className="num">{t('mrp')}</th>
-        <th className="num">{t('price')}</th><th>{t('flags')}</th><th>{t('status')}</th><th><span className="sr-only">{t('edit')}</span></th>
+        <th className="num">{t('price')}</th><th>{t('discount')}</th><th>{t('flags')}</th><th>{t('status')}</th><th><span className="sr-only">{t('edit')}</span></th>
       </tr></thead><tbody>{result.items.map((item) => <tr key={item.id}>
         <td><strong>{item.name}</strong><span className="catalog-secondary">{[item.genericName, item.dosageForm, item.manufacturer].filter(Boolean).join(' · ')}</span></td>
         <td>{item.categoryName}</td><td>{item.saleUnit}</td>
         <td className="num">{item.mrp ? formatTaka(item.mrp, t('currency')) : t('notSet')}</td>
         <td className="num">{item.sellingPrice ? formatTaka(item.sellingPrice, t('currency')) : t('notSet')}</td>
+        <td>{item.appliedDiscount ? <span className="chip chip-brand">{t(item.appliedDiscount.kind === 'PERCENTAGE' ? 'discountChipPercentage' : 'discountChipFlat', {
+          target: t(item.appliedDiscount.targetType === 'CATEGORY' ? 'discountCategory' : 'discountProduct'),
+          value: item.appliedDiscount.kind === 'PERCENTAGE' ? item.appliedDiscount.value : formatTaka(item.appliedDiscount.value, t('currency')),
+        })}</span> : t('noDiscount')}</td>
         <td>{item.requireValidation && <span className="chip chip-info">{t('review')}</span>}</td>
         <td><span className={item.status === 'ACTIVE' ? 'chip chip-success' : item.status === 'NEEDS_PRICE' ? 'chip chip-warn' : 'chip'}>{t(item.status === 'ACTIVE' ? 'activeStatus' : item.status === 'INACTIVE' ? 'inactiveStatus' : 'needsPrice')}</span></td>
         <td><Link className="btn btn-secondary" href={`/staff/products/${item.id}`}

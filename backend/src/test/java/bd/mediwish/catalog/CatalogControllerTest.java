@@ -66,7 +66,7 @@ class CatalogControllerTest {
              "updatedByUsername":"catalog.admin","history":[{"occurredAt":"2026-10-06T00:00:00Z",
              "actorUsername":"catalog.admin","changeType":"CREATED","oldSellingPrice":null,
              "newSellingPrice":null,"oldMrp":null,"newMrp":null,"oldRequireValidation":null,
-             "newRequireValidation":false}]}
+             "newRequireValidation":false,"discount":null}],"effectivePrice":null,"appliedDiscount":null}
             """.formatted(PRODUCT_ID, CATEGORY_ID);
     private static final String PRODUCT_UPDATE = changed(changed(removed(removed(PRODUCT_CREATE, "id"), "kind"),
             "active", "true"), "version", "7");
@@ -145,7 +145,7 @@ class CatalogControllerTest {
         when(products.list(null, null, null, false, 0, 20)).thenReturn(new CatalogPage<>(List.of(
                 new ProductSummary(PRODUCT_ID, ProductKind.MEDICINE, "Synthetic medicine", "Synthetic brand",
                         "Synthetic compound", "Tablet 5 mg", "Synthetic maker", CATEGORY_ID, "Synthetic supplies",
-                        "Strip of 10 tablets", "11.50", null, false, false, ProductStatus.INACTIVE)), 0, 20, 1));
+                        "Strip of 10 tablets", "11.50", null, false, false, ProductStatus.INACTIVE, "11.50", null)), 0, 20, 1));
 
         var response = mvc.perform(get("/api/staff/products"))
                 .andExpect(status().isOk())
@@ -157,7 +157,7 @@ class CatalogControllerTest {
                 {"items":[{"id":"%s","kind":"MEDICINE","name":"Synthetic medicine","brandName":"Synthetic brand",
                 "genericName":"Synthetic compound","dosageForm":"Tablet 5 mg","manufacturer":"Synthetic maker",
                 "categoryId":"%s","categoryName":"Synthetic supplies","saleUnit":"Strip of 10 tablets",
-                "sellingPrice":"11.50","mrp":null,"active":false,"requireValidation":false,"status":"INACTIVE"}],
+                "sellingPrice":"11.50","mrp":null,"active":false,"requireValidation":false,"status":"INACTIVE","effectivePrice":"11.50","appliedDiscount":null}],
                 "page":0,"size":20,"totalItems":1}
                 """.formatted(PRODUCT_ID, CATEGORY_ID)));
     }
@@ -358,6 +358,7 @@ class CatalogControllerTest {
 
         ObjectNode expected = (ObjectNode) JSON.readTree(PRODUCT_RESPONSE);
         expected.put("sellingPrice", "11.50");
+        expected.put("effectivePrice", "11.50");
         expected.put("mrp", "12.00");
         expected.put("active", true);
         expected.put("status", "ACTIVE");
@@ -387,7 +388,7 @@ class CatalogControllerTest {
                 "1 piece", null, CATEGORY_ID, true, false);
         var equipment = new ProductView(PRODUCT_ID, ProductKind.EQUIPMENT, "Synthetic thermometer", null,
                 null, null, null, CATEGORY_ID, "Synthetic supplies", "1 piece", null, null, false,
-                true, ProductStatus.NEEDS_PRICE, null, 0, NOW, "catalog.admin", List.of());
+                true, ProductStatus.NEEDS_PRICE, null, 0, NOW, "catalog.admin", List.of(), null, null);
         when(products.updateCatalog(PRODUCT_ID, submitted, 0L, ADMIN)).thenReturn(equipment);
         String body = """
                 {"name":"Synthetic thermometer","saleUnit":"1 piece","categoryId":"%s",
@@ -467,6 +468,7 @@ class CatalogControllerTest {
 
         ObjectNode expected = (ObjectNode) JSON.readTree(PRODUCT_RESPONSE);
         expected.put("sellingPrice", "11.50");
+        expected.put("effectivePrice", "11.50");
         expected.put("mrp", "12.00");
         expected.put("status", "INACTIVE");
         expected.put("version", 8);
@@ -669,7 +671,7 @@ class CatalogControllerTest {
                 "1 piece", null, CATEGORY_ID, true, false);
         var equipment = new ProductView(PRODUCT_ID, ProductKind.EQUIPMENT, "Synthetic thermometer", null,
                 null, null, null, CATEGORY_ID, "Synthetic supplies", "1 piece", null, null, false,
-                true, ProductStatus.NEEDS_PRICE, null, 0, NOW, "catalog.admin", List.of());
+                true, ProductStatus.NEEDS_PRICE, null, 0, NOW, "catalog.admin", List.of(), null, null);
         when(products.create(PRODUCT_ID, ProductKind.EQUIPMENT, submitted, ADMIN))
                 .thenReturn(new CatalogCreation<>(equipment, true));
 
@@ -793,6 +795,6 @@ class CatalogControllerTest {
                 "Strip of 10 tablets", sellingPrice, mrp, active, false,
                 active ? ProductStatus.ACTIVE : sellingPrice == null ? ProductStatus.NEEDS_PRICE : ProductStatus.INACTIVE,
                 "Synthetic description", version, NOW, "catalog.admin", List.of(new ProductHistory(NOW,
-                "catalog.admin", ProductChangeType.CREATED, null, null, null, null, null, false)));
+                "catalog.admin", ProductChangeType.CREATED, null, null, null, null, null, false, null)), sellingPrice, null);
     }
 }

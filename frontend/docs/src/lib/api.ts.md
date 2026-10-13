@@ -18,3 +18,7 @@ The shared HTTP boundary supports session, user, staff, Admin user, editable-pro
 
 Session and user tests cover body limits, timeouts, failed response reading and bounded errors. [`tests/profile.test.ts`](../../tests/profile.test.ts.md) checks the profile API boundary; mounted profile tests check stale, closing and duplicate-user copy. No credentials, response bodies or personal data are logged.
 [`tests/catalog.test.ts`](../../tests/catalog.test.ts.md) covers the catalog bound without widening the default.
+
+## Ticket 16
+
+Ticket 16 maps DISCOUNT_ENDED and DISCOUNT_EXCEEDS_PRICE to externalized bounded error copy.

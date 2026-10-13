@@ -23,3 +23,7 @@ Accessibility regressions (2026-10-08): both lists keep the page and keyboard fo
 UX regressions (2026-10-08): the history time reads exactly `27 Sep 2026, 5:00 pm`; an MRP removal names it; malformed and edit pages link back to Products and not-found is the heading; zero, too-large, malformed and leading-zero amounts get the range or format message without a request; spaces around amounts are trimmed before sending. All seven failed before the change.
 
 Closing-pass regressions (2026-10-08): the confirmation is focused after a catalog or pricing update re-enables the form and after unchanged catalog and pricing saves; the Product and Category stale warnings take focus; a Moderator's price-required message names an Admin, is focused on Active and sends nothing; Moderator price inputs are described by the pricing note; both tables are named; Add category and Edit focus the name field, which sits outside the table, and Cancel returns focus to the opener. All 12 new or extended cases failed against the previous components.
+
+## Ticket 16
+
+Ticket 16 fixtures keep effectivePrice aligned with synthetic pricing responses. Mounted tests verify both chip forms, no-discount dash, exact percentage/flat editor copy for Admin and Moderator, absence of no-discount editor line, derived started/ended/actor history, and the Moderator permission note.

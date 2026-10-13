@@ -10,10 +10,20 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface ProductRepository extends JpaRepository<Product, UUID> {
+    interface ProductName {
+        UUID getProductId();
+        String getName();
+    }
+
+    @Query("select p.id as productId, p.name as name from Product p where p.id in :ids")
+    List<ProductName> findNamesById(@Param("ids") Collection<UUID> ids);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Product p where p.id = :id")
     Optional<Product> findByIdForUpdate(@Param("id") UUID id);

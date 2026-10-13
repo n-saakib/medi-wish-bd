@@ -35,3 +35,7 @@ These are the shared helpers of the Ticket 14 (staff Product catalog) browser sp
 - `tabTo(page, target)` presses Tab until the target has focus, proving it is keyboard-reachable. `chooseWithArrowKeys(page, select, label)` picks an option in a focused native select with Home and ArrowDown only. `literal(text)` escapes text for a substring match.
 
 `copy.moneyRange` holds the range message added on 2026-10-08.
+
+## Ticket 16 contract preparation
+
+The shared Product shapes and exact key lists now include `effectivePrice`, `appliedDiscount` and the history `discount` projection. History permits the two derived Discount event types. The Moderator note targets the accepted price-and-discount wording. These are test-first contract changes; older Ticket 14 response assertions will remain red against the pre-discount backend until Ticket 16 supplies the additive fields. Production implementation is not claimed.

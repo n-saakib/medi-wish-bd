@@ -4,6 +4,8 @@ import messages from '../messages/en.json';
 
 describe('shared administration errors', () => {
   it.each([
+    ['DISCOUNT_ENDED', 409, 'discountEnded', 'This discount has ended and can no longer be changed.'],
+    ['DISCOUNT_EXCEEDS_PRICE', 409, 'discountExceedsPrice', "The discount must be smaller than the product's selling price."],
     ['STALE_UPDATE', 409, 'staleUpdate', 'This record changed after you opened it. Reload and try again.'],
     ['ROLE_CHANGE_REFUSED', 409, 'roleChangeRefused', 'This role change is not allowed.'],
     ['ACCESS_DENIED', 403, 'accessDenied', 'You don’t have permission to do that.'],

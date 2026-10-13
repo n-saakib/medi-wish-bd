@@ -19,3 +19,7 @@ Used by [`ProductEditor`](../catalog/ProductEditor.tsx.md) inside a `<time dateT
 ## Verification
 
 [`tests/dateTime.test.ts`](../../tests/dateTime.test.ts.md) covers afternoon, after-midnight and just-after-noon Dhaka times. `tests/catalogPages.test.ts` and `tests/UserRoleForm.test.ts` assert the rendered history text.
+
+## Ticket 16
+
+formatDate renders a YYYY-MM-DD calendar date as 10 Oct 2026 in UTC so viewer timezone does not shift the date; formatDateTime retains Dhaka audit-instant rendering.

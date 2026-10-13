@@ -50,6 +50,8 @@ class ApiExceptionHandlerTest {
             Map.entry("price-required", PriceRequiredException::new),
             Map.entry("category-name-taken", CategoryNameTakenException::new),
             Map.entry("id-conflict", IdConflictException::new),
+            Map.entry("discount-ended", DiscountEndedException::new),
+            Map.entry("discount-exceeds-price", DiscountExceedsPriceException::new),
             Map.entry("category-unique", () -> unique("uk_product_categories_name", "23505")),
             Map.entry("other-unique", () -> unique("other_constraint", "23505")),
             Map.entry("other-category-failure", () -> unique("uk_product_categories_name", "23514")),
@@ -84,6 +86,7 @@ class ApiExceptionHandlerTest {
             "catalog-access,403,ACCESS_DENIED", "catalog-not-found,404,NOT_FOUND",
             "stale-update,409,STALE_UPDATE", "price-required,409,PRICE_REQUIRED",
             "category-name-taken,409,CATEGORY_NAME_TAKEN", "id-conflict,409,ID_CONFLICT",
+            "discount-ended,409,DISCOUNT_ENDED", "discount-exceeds-price,409,DISCOUNT_EXCEEDS_PRICE",
             "category-unique,409,CATEGORY_NAME_TAKEN", "other-unique,500,INTERNAL_ERROR",
             "other-category-failure,500,INTERNAL_ERROR", "role-refused,409,ROLE_CHANGE_REFUSED",
             "user-not-found,404,NOT_FOUND"})
@@ -111,6 +114,16 @@ class ApiExceptionHandlerTest {
                 .andExpect(status().is(status)).andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
                 .andExpect(jsonPath("$.requestId", matchesPattern(UUID_PATTERN)))
                 .andExpect(content().string(not(containsString("PRIVATE_BODY"))));
+    }
+
+    @ParameterizedTest
+    @CsvSource(delimiter = '|', value = {
+            "discount-ended|This discount has ended and can no longer be changed.",
+            "discount-exceeds-price|The discount must be smaller than the product's selling price."})
+    void discountConflictsHaveExternalizedEnglishMessages(String failure, String message) throws Exception {
+        mvc.perform(post("/fail/" + failure).contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isConflict()).andExpect(jsonPath("$.message").value(message))
+                .andExpect(jsonPath("$.requestId", matchesPattern(UUID_PATTERN)));
     }
 
     private static DataIntegrityViolationException unique(String constraint, String sqlState) {

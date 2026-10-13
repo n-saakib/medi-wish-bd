@@ -35,3 +35,5 @@ The stale-update handler consumes the shared web.StaleUpdateException so catalog
 `ApiExceptionHandlerTest` maps each listed failure, including the three MFA failures and Ticket 08's role and not-found failures, to its status and code and proves unreadable JSON is `400` without echoing the body. The auth integration tests cover these errors over real HTTP and PostgreSQL, including captured-log privacy.
 
 It also covers Ticket 14's catalog failures, including the named category uniqueness translation, without echoing row data.
+
+Ticket 16 maps DiscountEndedException to 409 DISCOUNT_ENDED and DiscountExceedsPriceException to 409 DISCOUNT_EXCEEDS_PRICE. Both retain the exact three-field correlated envelope without exception details.

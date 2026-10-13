@@ -14,3 +14,5 @@ Every profile read and command must also match PROTECTED_ROUTES so Bearer authen
 Focused settings/security tests: insecure cookies only for exclusively local/test profiles, hosted explicit credentialed CORS including PUT, allowed headers, no wildcard, local fallback and CSRF cookie attributes. The hierarchy gives ADMIN every lower role while an MFA authority grants none. Administrative search/role commands share Bearer protection and body-limit matchers; refresh stays outside that exemption.
 
 The catalog PUT wildcard matches exactly one segment and never captures pricing; pricing and catalog commands belong to the protected Bearer command matchers. CatalogSecurityTest executes the production security chain for actor admission and body-limit ordering.
+
+Ticket 16 pins protected read/command membership, Bearer command exemptions, exact end wildcard matching, and the anonymous product-price matcher outside PROTECTED_ROUTES.

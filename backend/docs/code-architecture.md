@@ -315,3 +315,7 @@ ProfileController exposes only GET/PUT /api/user/me/profile and POST/DELETE /api
 ## Ticket 14 catalog boundary
 
 `bd.mediwish.catalog` owns pure Product and money rules, Category/Product/history JPA mappings, repositories, and transactional services. Categories and Products are created with PostgreSQL `INSERT ... ON CONFLICT (id) DO NOTHING`; a matching normalized request receives the stored record and a changed payload conflicts. Mutations lock one Product or Category row, reject stale changed intent, and keep history in the same transaction. Product search is paged; history username projections avoid loading each actor's role collection. The shared `bd.mediwish.web` package enforces the staff catalog/pricing route matrix, current-role MFA access, bounded catalog errors and authorized JSON body limits. CatalogController delegates through strict catalog-local request shapes without changing authentication JSON binding.
+
+## Ticket 16 current-pricing boundary
+
+The catalog feature owns Discount entities, command rules/audit repositories, Dhaka calendar, exact-decimal calculator, CurrentPrices and derived Product history. Staff commands reuse pricing authorization, lock one Discount row and commit its audit snapshot atomically. Repeatable-read Product/Discount reads capture the business date once and batch candidate lookup, target labels/counts and usernames. CurrentPrices is the shared immutable-snapshot boundary for future carts and accepted Orders; no Order persistence or background scheduler is added here.

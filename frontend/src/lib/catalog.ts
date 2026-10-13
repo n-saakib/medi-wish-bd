@@ -1,10 +1,13 @@
 import { boundedError, boundedText, invalidResponse, isRecord, readJsonResponse } from './api';
 import type { SessionClient } from './session';
+import { projectDiscountValue, type DiscountKind, type DiscountTargetType } from './discounts';
 
 export type ProductKind = 'MEDICINE' | 'EQUIPMENT';
 export type ProductStatus = 'ACTIVE' | 'INACTIVE' | 'NEEDS_PRICE';
 export type ProductChangeType = 'CREATED' | 'CATALOG_UPDATED' | 'PRICE_CHANGED'
-  | 'REQUIRE_VALIDATION_CHANGED' | 'ACTIVATED' | 'DEACTIVATED';
+  | 'REQUIRE_VALIDATION_CHANGED' | 'ACTIVATED' | 'DEACTIVATED' | 'DISCOUNT_STARTED' | 'DISCOUNT_ENDED';
+export type HistoryDiscount = { targetType: DiscountTargetType; kind: DiscountKind; value: string };
+export type AppliedDiscount = HistoryDiscount & { id: string; targetName: string; saving: string };
 
 export type Category = { id: string; name: string; active: boolean; productCount: number; version: number };
 export type ProductSummary = {
@@ -12,11 +15,13 @@ export type ProductSummary = {
   dosageForm: string | null; manufacturer: string | null; categoryId: string; categoryName: string;
   saleUnit: string; sellingPrice: string | null; mrp: string | null; active: boolean;
   requireValidation: boolean; status: ProductStatus;
+  effectivePrice: string | null; appliedDiscount: AppliedDiscount | null;
 };
 export type ProductChange = {
   occurredAt: string; actorUsername: string | null; changeType: ProductChangeType;
   oldSellingPrice: string | null; newSellingPrice: string | null; oldMrp: string | null;
   newMrp: string | null; oldRequireValidation: boolean | null; newRequireValidation: boolean | null;
+  discount: HistoryDiscount | null;
 };
 export type Product = ProductSummary & {
   description: string | null; version: number; updatedAt: string; updatedByUsername: string | null;
@@ -29,7 +34,7 @@ const moneyPattern = /^\d{1,7}\.\d{2}$/;
 const kinds: readonly unknown[] = ['MEDICINE', 'EQUIPMENT'];
 const statuses: readonly unknown[] = ['ACTIVE', 'INACTIVE', 'NEEDS_PRICE'];
 const changeTypes: readonly unknown[] = [
-  'CREATED', 'CATALOG_UPDATED', 'PRICE_CHANGED', 'REQUIRE_VALIDATION_CHANGED', 'ACTIVATED', 'DEACTIVATED',
+  'CREATED', 'CATALOG_UPDATED', 'PRICE_CHANGED', 'REQUIRE_VALIDATION_CHANGED', 'ACTIVATED', 'DEACTIVATED', 'DISCOUNT_STARTED', 'DISCOUNT_ENDED',
 ];
 
 export function isUuid(value: unknown): value is string {
@@ -63,11 +68,14 @@ export function projectCategory(body: unknown): Category | undefined {
 }
 
 export function projectProductSummary(body: unknown): ProductSummary | undefined {
+  const applied = isRecord(body) && body.appliedDiscount !== null ? projectAppliedDiscount(body.appliedDiscount) : null;
   if (!isRecord(body) || !isUuid(body.id) || !kinds.includes(body.kind) || !boundedText(body.name, 160)
       || !isNullableText(body.brandName, 120) || !isNullableText(body.genericName, 200)
       || !isNullableText(body.dosageForm, 120) || !isNullableText(body.manufacturer, 120)
       || !isUuid(body.categoryId) || !boundedText(body.categoryName, 80) || !boundedText(body.saleUnit, 80)
       || !isNullableMoney(body.sellingPrice) || !isNullableMoney(body.mrp)
+      || !isNullableMoney(body.effectivePrice) || (body.sellingPrice === null) !== (body.effectivePrice === null)
+      || applied === undefined || (body.sellingPrice === null && applied !== null)
       || typeof body.active !== 'boolean' || typeof body.requireValidation !== 'boolean'
       || !statuses.includes(body.status)) return undefined;
   return {
@@ -76,14 +84,24 @@ export function projectProductSummary(body: unknown): ProductSummary | undefined
     categoryId: body.categoryId, categoryName: body.categoryName, saleUnit: body.saleUnit,
     sellingPrice: body.sellingPrice, mrp: body.mrp, active: body.active,
     requireValidation: body.requireValidation, status: body.status as ProductStatus,
+    effectivePrice: body.effectivePrice, appliedDiscount: applied,
   };
 }
 
+function projectAppliedDiscount(body: unknown): AppliedDiscount | undefined {
+  const discount = projectDiscountValue(body);
+  if (!discount || !isRecord(body) || !isUuid(body.id) || !boundedText(body.targetName, 160) || !isMoney(body.saving)) return undefined;
+  return { ...discount, id: body.id, targetName: body.targetName, saving: body.saving };
+}
+
 function projectChange(body: unknown): ProductChange | undefined {
+  const derived = isRecord(body) && ['DISCOUNT_STARTED', 'DISCOUNT_ENDED'].includes(String(body.changeType));
+  const discount = isRecord(body) && derived ? projectDiscountValue(body.discount) : null;
   if (!isRecord(body) || !isDate(body.occurredAt) || !isNullableText(body.actorUsername, 50)
       || !changeTypes.includes(body.changeType) || !isNullableMoney(body.oldSellingPrice)
       || !isNullableMoney(body.newSellingPrice) || !isNullableMoney(body.oldMrp)
       || !isNullableMoney(body.newMrp)
+      || (derived ? !discount : body.discount !== null)
       || (body.changeType === 'PRICE_CHANGED' && body.newSellingPrice === null)
       || (body.changeType === 'REQUIRE_VALIDATION_CHANGED'
         && (typeof body.oldRequireValidation !== 'boolean' || typeof body.newRequireValidation !== 'boolean'))
@@ -94,6 +112,7 @@ function projectChange(body: unknown): ProductChange | undefined {
     changeType: body.changeType as ProductChangeType, oldSellingPrice: body.oldSellingPrice,
     newSellingPrice: body.newSellingPrice, oldMrp: body.oldMrp, newMrp: body.newMrp,
     oldRequireValidation: body.oldRequireValidation, newRequireValidation: body.newRequireValidation,
+    discount: discount!,
   };
 }
 
@@ -113,6 +132,15 @@ export function projectProduct(body: unknown): Product | undefined {
 export function formatTaka(amount: string, symbol: string): string {
   const [whole, fraction] = amount.split('.');
   return `${symbol}${whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}.${fraction}`;
+}
+
+/** Exact positive BDT minor units for form validation; prices never pass through floating point. */
+export function moneyCents(value: string): bigint | 'format' | 'range' {
+  if (!/^\d+(?:\.\d{1,2})?$/.test(value)) return 'format';
+  const [whole, fraction = ''] = value.split('.');
+  const cents = BigInt(whole) * 100n + BigInt(fraction.padEnd(2, '0') || '0');
+  if (cents === 0n || cents > 999_999_999n) return 'range';
+  return /^\d{1,7}(?:\.\d{1,2})?$/.test(value) ? cents : 'format';
 }
 
 export type CatalogSession = Pick<SessionClient, 'authenticatedFetch'>;

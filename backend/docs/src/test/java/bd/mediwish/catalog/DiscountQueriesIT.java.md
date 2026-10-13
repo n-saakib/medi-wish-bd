@@ -1,0 +1,13 @@
+# DiscountQueriesIT.java
+
+Representative real HTTP query/payload measurements using Hibernate statistics. A page of 20 priced Products executes one candidate query with either zero or five Discounts and equal prepared-statement counts. Detail history with many Promotions/ending actors adds at most two statements and stays capped at 20 entries.
+
+Discount listing grows from two mixed Product/Category targets to 50 distinct targets with maximum-length names (Products 160, Categories 80 characters) and five distinct verified Admin actors; detail history also uses five ending actors. These distinct identities prevent an ORM identity cache from hiding lookup N+1 queries. Names, Product counts and actors must stay batched; at most one extra total-count query is permitted when the full page prevents partial-page inference. The 50-row payload stays below 64 KiB. Output records only absolute statement counts and payload bytes, never request data or money.
+
+Requires the planned `DiscountRepository.CANDIDATES` constant and production queries. Measurements do not establish a latency or production load SLA. Earlier `CatalogQueriesIT` bounds still require cumulative validation.
+
+The history cap now compares all twenty retained entries exactly against the twenty most recent captured End-now response timestamps, distinct values and ending usernames. Earlier Product events and promotion starts predate those ends. This rejects earliest/arbitrary subsets that were merely sorted after truncation.
+
+The 50-target fixture independently records each discount identity with its target type, ID, catalog name and creating Admin. The list must contain those exact identities and associations; Product targets have null counts, the original Category has one member and the other Category targets have zero. Each of the 25 Product targets belongs to a distinct Category, preventing shared-category caching from concealing lazy Category lookups during Product-name projection. Swapped bulk name/count/username lookups now fail even when cardinalities and query counts stay correct.
+
+The heterogeneous twenty-Product page matches exactly the source fixture IDs in both baseline and discounted reads. Baseline rows retain selling/effective price 100.00 with no descriptor. The first Product alone receives its 15% Product winner (85.00, saving 15.00); the other nineteen receive Category 10% (90.00, saving 10.00), including Products with smaller 2.00-flat and 5% contenders. Each applied descriptor is bound to the independently expected ID, target type, kind, value and saving. This exposes batch-only wrong-key or shared-result leaks while retaining the same single-query and statement-count limits.

@@ -20,7 +20,7 @@ const category = { id: '0b8e3f52-9c1a-4d67-a2e4-7f3b5c9d1e20', name: 'Pain relie
 const product: Product = {
   id: '6c1d9a0e-2b7f-4e11-8d3a-5f0e9b2c7a14', kind: 'MEDICINE', name: 'Napa 500', brandName: 'Napa',
   genericName: 'Paracetamol', dosageForm: 'Tablet 500 mg', manufacturer: 'Beximco', categoryId: category.id,
-  categoryName: category.name, saleUnit: 'Strip of 10 tablets', sellingPrice: '11.50', mrp: '12.00',
+  categoryName: category.name, saleUnit: 'Strip of 10 tablets', sellingPrice: '11.50', effectivePrice: '11.50', appliedDiscount: null, mrp: '12.00',
   active: true, requireValidation: false, status: 'ACTIVE', description: null, version: 2,
   updatedAt: '2026-09-27T11:00:00Z', updatedByUsername: 'owner.admin', history: [],
 };
@@ -56,7 +56,7 @@ describe('Product editor', () => {
     ['INACTIVE', 'Inactive', 'chip'],
   ] as const)('uses the design status tone in the %s product editor', async (status, label, tone) => {
     const item: Product = { ...product, status, active: status === 'ACTIVE',
-      sellingPrice: status === 'NEEDS_PRICE' ? null : product.sellingPrice };
+      effectivePrice: status === 'NEEDS_PRICE' ? null : product.sellingPrice, sellingPrice: status === 'NEEDS_PRICE' ? null : product.sellingPrice };
     const { session } = source(fixture('ADMIN', item));
     const page = await renderWithSession(createElement(ProductEditor, { productId: item.id }), session);
     const chip = requiredElement(page, '.catalog-heading .chip');
@@ -68,9 +68,9 @@ describe('Product editor', () => {
     const event = { occurredAt: '2026-09-27T11:00:00Z', actorUsername: 'owner.admin',
       oldSellingPrice: null, newSellingPrice: null, oldMrp: null, newMrp: null };
     const withHistory: Product = { ...product, history: [
-      { ...event, changeType: 'CATALOG_UPDATED', oldRequireValidation: false, newRequireValidation: false },
-      { ...event, changeType: 'REQUIRE_VALIDATION_CHANGED', oldRequireValidation: false, newRequireValidation: true },
-      { ...event, changeType: 'REQUIRE_VALIDATION_CHANGED', oldRequireValidation: true, newRequireValidation: false },
+      { ...event, changeType: 'CATALOG_UPDATED', oldRequireValidation: false, discount: null, newRequireValidation: false },
+      { ...event, changeType: 'REQUIRE_VALIDATION_CHANGED', oldRequireValidation: false, discount: null, newRequireValidation: true },
+      { ...event, changeType: 'REQUIRE_VALIDATION_CHANGED', oldRequireValidation: true, discount: null, newRequireValidation: false },
     ] };
     const { session } = source(fixture('ADMIN', withHistory));
     const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
@@ -84,7 +84,7 @@ describe('Product editor', () => {
     const withHistory: Product = { ...product, history: [{
       occurredAt: '2026-09-27T11:00:00Z', actorUsername: 'owner.admin', changeType: 'CREATED',
       oldSellingPrice: null, newSellingPrice: null, oldMrp: null, newMrp: null,
-      oldRequireValidation: null, newRequireValidation: null,
+      oldRequireValidation: null, discount: null, newRequireValidation: null,
     }] };
     const { session } = source(fixture('ADMIN', withHistory));
     const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
@@ -97,7 +97,7 @@ describe('Product editor', () => {
     const withHistory: Product = { ...product, mrp: null, history: [{
       occurredAt: '2026-09-27T11:00:00Z', actorUsername: 'owner.admin', changeType: 'PRICE_CHANGED',
       oldSellingPrice: '11.50', newSellingPrice: '12.50', oldMrp: '12.00', newMrp: null,
-      oldRequireValidation: null, newRequireValidation: null,
+      oldRequireValidation: null, discount: null, newRequireValidation: null,
     }] };
     const { session } = source(fixture('ADMIN', withHistory));
     const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
@@ -141,16 +141,16 @@ describe('Product editor', () => {
     expect(select.options[1].textContent).toBe('Pain relief (inactive)');
     expect(requiredElement<HTMLInputElement>(page, '#catalog-mrp').disabled).toBe(true);
     expect(requiredElement<HTMLInputElement>(page, '#catalog-sellingPrice').disabled).toBe(true);
-    expect(page.textContent).toContain('Moderators can’t change prices.');
+    expect(page.textContent).toContain('Moderators can’t change prices or discounts. Ask an Admin.');
     expect(page.textContent).not.toContain('Save pricing');
     for (const id of ['#catalog-mrp', '#catalog-sellingPrice']) {
       expect(requiredElement(page, id).getAttribute('aria-describedby')).toBe('catalog-pricing-note');
     }
-    expect(requiredElement(page, '#catalog-pricing-note').textContent).toBe('Moderators can’t change prices.');
+    expect(requiredElement(page, '#catalog-pricing-note').textContent).toBe('Moderators can’t change prices or discounts. Ask an Admin.');
   });
 
   it('tells a Moderator that an Admin must price a Product before it can be active', async () => {
-    const unpriced: Product = { ...product, active: false, status: 'NEEDS_PRICE', sellingPrice: null, mrp: null };
+    const unpriced: Product = { ...product, active: false, status: 'NEEDS_PRICE', sellingPrice: null, effectivePrice: null, mrp: null };
     const { requests, session } = source(fixture('MODERATOR', unpriced));
     const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
     await act(async () => requiredElement<HTMLInputElement>(page, '#catalog-active').click());
@@ -187,7 +187,7 @@ describe('Product editor', () => {
       if (path === '/api/staff/products' && init.method === 'POST') {
         body = JSON.parse(String(init.body));
         return Response.json({ ...product, kind: 'EQUIPMENT', genericName: null, dosageForm: null,
-          sellingPrice: null, mrp: null, active: false, status: 'NEEDS_PRICE', version: 0 });
+          sellingPrice: null, effectivePrice: null, mrp: null, active: false, status: 'NEEDS_PRICE', version: 0 });
       }
       return fixture()(path, init);
     };
@@ -238,7 +238,7 @@ describe('Product editor', () => {
         if (stored) return JSON.stringify(stored.draft) === JSON.stringify(body)
           ? Response.json(stored.item)
           : Response.json({ code: 'ID_CONFLICT' }, { status: 409 });
-        records.set(body.id, { draft: body, item: { ...product, ...body, sellingPrice: null, mrp: null,
+        records.set(body.id, { draft: body, item: { ...product, ...body, sellingPrice: null, effectivePrice: null, mrp: null,
           active: false, status: 'NEEDS_PRICE', version: 0 } });
         throw new TypeError('Synthetic lost response after commit');
       }
@@ -337,7 +337,7 @@ describe('Product editor', () => {
     ['catalog', 'Product saved.'], ['pricing', 'Pricing saved.'],
   ] as const)('keeps keyboard focus on the confirmation after a %s update re-enables the form', async (operation, copy) => {
     const reply: Reply = (path, init) => init.method === 'PUT'
-      ? Response.json({ ...product, name: 'Napa updated', sellingPrice: '11.00', version: 3 }) : fixture()(path, init);
+      ? Response.json({ ...product, name: 'Napa updated', effectivePrice: '11.00', sellingPrice: '11.00', version: 3 }) : fixture()(path, init);
     const { session } = source(reply);
     const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
     if (operation === 'catalog') {
@@ -393,7 +393,7 @@ describe('Product editor', () => {
     expect(controls.length).toBeGreaterThan(0);
     for (const control of controls) expect(control.disabled, control.id || control.textContent).toBe(true);
     const updated = { ...product, name: operation === 'catalog' ? 'Catalog draft' : product.name,
-      sellingPrice: operation === 'pricing' ? '10.00' : product.sellingPrice, version: 3 };
+      effectivePrice: operation === 'pricing' ? '10.00' : product.sellingPrice, sellingPrice: operation === 'pricing' ? '10.00' : product.sellingPrice, version: 3 };
     await act(async () => held.resolve(succeeds ? Response.json(updated)
       : Response.json({ code: 'REQUEST_FAILED' }, { status: 500 })));
     await settle();
@@ -442,7 +442,7 @@ describe('Product editor', () => {
     await act(async () => { pricingForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
     await act(async () => { pricingForm.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
     expect(requests.filter(({ path }) => path.endsWith('/pricing'))).toHaveLength(1);
-    await act(async () => held.resolve(Response.json({ ...product, sellingPrice: '10.00', version: 3 })));
+    await act(async () => held.resolve(Response.json({ ...product, effectivePrice: '10.00', sellingPrice: '10.00', version: 3 })));
     await settle();
   });
 
@@ -452,7 +452,7 @@ describe('Product editor', () => {
       if (path.endsWith('/pricing') && init.method === 'PUT') {
         const body = JSON.parse(String(init.body));
         prices.push(body);
-        return Response.json({ ...product, sellingPrice: '1.50', mrp: '2.00', version: 3 });
+        return Response.json({ ...product, effectivePrice: '1.50', sellingPrice: '1.50', mrp: '2.00', version: 3 });
       }
       return fixture()(path, init);
     };
@@ -475,7 +475,7 @@ describe('Product editor', () => {
 
   it('clears the selling-price error after correcting only MRP and saving pricing', async () => {
     const reply: Reply = (path, init) => path.endsWith('/pricing') && init.method === 'PUT'
-      ? Response.json({ ...product, sellingPrice: '13.00', mrp: '14.00', version: 3 }) : fixture()(path, init);
+      ? Response.json({ ...product, effectivePrice: '13.00', sellingPrice: '13.00', mrp: '14.00', version: 3 }) : fixture()(path, init);
     const { requests, session } = source(reply);
     const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
     const pricing = requiredElement(page, '[aria-label="Pricing"]');
@@ -492,8 +492,8 @@ describe('Product editor', () => {
     expect(requests.filter(({ init }) => init.method === 'PUT')).toHaveLength(1);
   });
   it('clears the activation price error after saving pricing while retaining the catalog draft', async () => {
-    const unpriced: Product = { ...product, active: false, status: 'NEEDS_PRICE', sellingPrice: null, mrp: null };
-    const priced: Product = { ...unpriced, sellingPrice: '10.00', status: 'INACTIVE', version: 3 };
+    const unpriced: Product = { ...product, active: false, status: 'NEEDS_PRICE', sellingPrice: null, effectivePrice: null, mrp: null };
+    const priced: Product = { ...unpriced, effectivePrice: '10.00', sellingPrice: '10.00', status: 'INACTIVE', version: 3 };
     const reply: Reply = (path, init) => {
       if (path.endsWith('/pricing') && init.method === 'PUT') return Response.json(priced);
       if (path === '/api/staff/products/' + product.id && init.method === 'PUT')
@@ -540,7 +540,7 @@ describe('Product editor', () => {
     const reply: Reply = (path, init) => {
       if (!path.endsWith('/pricing')) return fixture()(path, init);
       prices.push(JSON.parse(String(init.body)));
-      return Response.json({ ...product, sellingPrice: '9999999.99', mrp: null, version: 3 });
+      return Response.json({ ...product, effectivePrice: '9999999.99', sellingPrice: '9999999.99', mrp: null, version: 3 });
     };
     const { session } = source(reply);
     const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), session);
@@ -578,7 +578,7 @@ describe('catalog lists', () => {
     ['INACTIVE', 'Inactive', 'chip'],
   ] as const)('uses the design tone and readable text for %s products', async (status, label, tone) => {
     const item: Product = { ...product, status, active: status === 'ACTIVE',
-      sellingPrice: status === 'NEEDS_PRICE' ? null : product.sellingPrice, requireValidation: true };
+      effectivePrice: status === 'NEEDS_PRICE' ? null : product.sellingPrice, sellingPrice: status === 'NEEDS_PRICE' ? null : product.sellingPrice, requireValidation: true };
     const { session } = source(fixture('ADMIN', item));
     const page = await renderWithSession(createElement(ProductList), session);
     const chips = [...requiredElement(page, 'tbody tr').querySelectorAll('.chip')];
@@ -587,7 +587,7 @@ describe('catalog lists', () => {
   });
 
   it('explains both unset amounts as Not set', async () => {
-    const unpriced: Product = { ...product, sellingPrice: null, mrp: null, active: false, status: 'NEEDS_PRICE' };
+    const unpriced: Product = { ...product, sellingPrice: null, effectivePrice: null, mrp: null, active: false, status: 'NEEDS_PRICE' };
     const { session } = source(fixture('ADMIN', unpriced));
     const page = await renderWithSession(createElement(ProductList), session);
     expect([...requiredElement(page, 'tbody tr').querySelectorAll('td')]
@@ -937,5 +937,44 @@ describe('catalog lists', () => {
     await settle();
     expect(page.querySelector('#category-name')).toBeNull();
     expect(page.textContent).toContain('Category saved.');
+  });
+});
+
+describe('Current discount display', () => {
+  it.each(['ADMIN', 'MODERATOR'] as const)('shows server supplied percentage and flat prices to %s without recalculating', async (role) => {
+    const percentage: Product = { ...product, sellingPrice: '150.00', effectivePrice: '135.00', mrp: null,
+      appliedDiscount: { id: category.id, targetType: 'CATEGORY', targetName: 'Antibiotics', kind: 'PERCENTAGE', value: '10', saving: '15.00' } };
+    const api = source(fixture(role, percentage));
+    const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), api.session);
+    expect(page.textContent).toContain('Active discount: Antibiotics category −10% → ৳135.00');
+    await unmountAll();
+    const flat: Product = { ...percentage, effectivePrice: '130.00', appliedDiscount: { id: product.id, targetType: 'PRODUCT',
+      targetName: 'Demo Amoxicillin 500', kind: 'FLAT', value: '20.00', saving: '20.00' } };
+    const flatPage = await renderWithSession(createElement(ProductEditor, { productId: product.id }), source(fixture(role, flat)).session);
+    expect(flatPage.textContent).toContain('Active discount: Demo Amoxicillin 500 product −৳20.00 → ৳130.00');
+  });
+  it.each([
+    [null, '—'],
+    [{ id: category.id, targetType: 'CATEGORY', targetName: category.name, kind: 'PERCENTAGE', value: '10', saving: '1.15' }, 'Category −10%'],
+    [{ id: product.id, targetType: 'PRODUCT', targetName: product.name, kind: 'FLAT', value: '2.00', saving: '2.00' }, 'Product −৳2.00'],
+  ] as const)('shows the applied discount column %j', async (appliedDiscount, shown) => {
+    const item: Product = { ...product, appliedDiscount };
+    const page = await renderWithSession(createElement(ProductList), source(fixture('ADMIN', item)).session);
+    const column = Array.from(page.querySelectorAll('thead th')).findIndex((heading) => heading.textContent === 'Discount');
+    expect(requiredElement(page, 'tbody tr').children[column].textContent).toBe(shown);
+  });
+  it('hides the editor discount line when no discount applies and renders derived history with its original actor', async () => {
+    const event = { occurredAt: '2026-10-01T18:00:00Z', actorUsername: null, oldSellingPrice: null, newSellingPrice: null,
+      oldMrp: null, newMrp: null, oldRequireValidation: null, newRequireValidation: null };
+    const item: Product = { ...product, history: [
+      { ...event, changeType: 'DISCOUNT_STARTED', discount: { targetType: 'CATEGORY', kind: 'PERCENTAGE', value: '10' } },
+      { ...event, changeType: 'DISCOUNT_ENDED', discount: { targetType: 'PRODUCT', kind: 'FLAT', value: '20.00' } },
+      { ...event, changeType: 'DISCOUNT_ENDED', actorUsername: 'owner.admin', discount: { targetType: 'CATEGORY', kind: 'PERCENTAGE', value: '10' } },
+    ] };
+    const page = await renderWithSession(createElement(ProductEditor, { productId: product.id }), source(fixture('ADMIN', item)).session);
+    expect(page.textContent).not.toContain('Active discount:');
+    expect(page.textContent).toContain('Category discount −10% started');
+    expect(page.textContent).toContain('Product discount −৳20.00 ended');
+    expect(page.textContent).toContain('Category discount −10% ended by owner.admin');
   });
 });

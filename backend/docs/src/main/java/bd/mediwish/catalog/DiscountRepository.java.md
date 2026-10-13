@@ -1,0 +1,3 @@
+# `DiscountRepository.java`
+
+Batched current-date candidate query and deterministic paged tab reads/counts. Commands lock an existing row and insert UUIDs with ON CONFLICT for replay-safe creation. History excludes Discounts manually ended before their Dhaka start instant before selecting the bounded newest twenty candidates by derived transition time. This prevents never-applied scheduled promotions from crowding actual history out of the source limit; an end exactly at the start remains eligible, matching the pure event derivation. Queries retain restrictive target references and require no per-Product candidate lookup.

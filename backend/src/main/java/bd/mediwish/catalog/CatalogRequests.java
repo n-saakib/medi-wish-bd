@@ -53,7 +53,7 @@ final class CatalogRequests {
         return new CategoryUpdate(string(body, "name", true), bool(body, "active"), version(body));
     }
 
-    private static long version(JsonNode body) {
+    static long version(JsonNode body) {
         JsonNode value = body.get("version");
         if (value == null || !value.isIntegralNumber() || !value.canConvertToLong() || value.longValue() < 0) {
             throw new InvalidCatalogException("version");
@@ -66,14 +66,14 @@ final class CatalogRequests {
         return new CategoryCreate(uuid(string(body, "id", true)), string(body, "name", true));
     }
 
-    private static void object(JsonNode body, Set<String> allowed) {
+    static void object(JsonNode body, Set<String> allowed) {
         if (body == null || !body.isObject()
                 || body.properties().stream().anyMatch(property -> !allowed.contains(property.getKey()))) {
             throw new InvalidCatalogException("body");
         }
     }
 
-    private static String string(JsonNode body, String name, boolean required) {
+    static String string(JsonNode body, String name, boolean required) {
         JsonNode value = body.get(name);
         if (value == null || value.isNull()) {
             if (required) throw new InvalidCatalogException(name);
