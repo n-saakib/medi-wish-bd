@@ -24,7 +24,7 @@ The session client keeps the access token in memory, refuses off-origin Bearer r
 
 | Project file | Documentation |
 | --- | --- |
-| [`src/app/globals.css`](../src/app/globals.css) | [`src/app/globals.css.md`](src/app/globals.css.md) — design tokens and components ported from the page designs |
+| [`src/app/globals.css`](../src/app/globals.css) | [`src/app/globals.css.md`](src/app/globals.css.md) — design tokens and components, including saved-address buttons with 44 px targets |
 | [`src/app/layout.tsx`](../src/app/layout.tsx) | [`src/app/layout.tsx.md`](src/app/layout.tsx.md) |
 | [`src/app/icon.svg`](../src/app/icon.svg) | [`src/app/icon.svg.md`](src/app/icon.svg.md) — site icon (the logo mark) |
 | [`src/app/(store)/layout.tsx`](../src/app/(store)/layout.tsx) | [`src/app/(store)/layout.tsx.md`](src/app/(store)/layout.tsx.md) |
@@ -96,7 +96,7 @@ The session client keeps the access token in memory, refuses off-origin Bearer r
 | [`tests/catalogSupport.test.ts`](../tests/catalogSupport.test.ts) | [`tests/catalogSupport.test.ts.md`](tests/catalogSupport.test.ts.md) — unit checks of the catalog specs' token renewal and staff-context cleanup |
 | [`tests/browser/catalogDatabase.spec.ts`](../tests/browser/catalogDatabase.spec.ts) | [`tests/browser/catalogDatabase.spec.ts.md`](tests/browser/catalogDatabase.spec.ts.md) |
 | [`tests/browser/catalogApi.spec.ts`](../tests/browser/catalogApi.spec.ts) | [`tests/browser/catalogApi.spec.ts.md`](tests/browser/catalogApi.spec.ts.md) |
-| [`tests/browser/catalogUi.spec.ts`](../tests/browser/catalogUi.spec.ts) | [`tests/browser/catalogUi.spec.ts.md`](tests/browser/catalogUi.spec.ts.md) |
+| [`tests/browser/catalogUi.spec.ts`](../tests/browser/catalogUi.spec.ts) | [`tests/browser/catalogUi.spec.ts.md`](tests/browser/catalogUi.spec.ts.md) — catalog journeys support empty and populated lists |
 | [`tests/browser/catalogSupport.ts`](../tests/browser/catalogSupport.ts) | [`tests/browser/catalogSupport.ts.md`](tests/browser/catalogSupport.ts.md) — shared catalog-spec helpers and contract strings, not a spec |
 | [`tests/browser/journey.spec.ts`](../tests/browser/journey.spec.ts) | [`tests/browser/journey.spec.ts.md`](tests/browser/journey.spec.ts.md) |
 | [`tests/browser/privacy.spec.ts`](../tests/browser/privacy.spec.ts) | [`tests/browser/privacy.spec.ts.md`](tests/browser/privacy.spec.ts.md) — credential/MFA privacy and restored-session navigation |
@@ -185,7 +185,7 @@ Ticket 14 completion corrections restore shared helper documentation parity, exa
 
 Ticket 12 acceptance coverage and actual verification status: [ticket-12-e2e.md](ticket-12-e2e.md). Critical review and corrections: [ticket-12-e2e-review.md](ticket-12-e2e-review.md). Fresh five-round follow-up: [ticket-12-e2e-review-fresh.md](ticket-12-e2e-review-fresh.md). Third five-cycle critical review: [ticket-12-e2e-review-third.md](ticket-12-e2e-review-third.md). These historical reports cover tests originally written before the address implementation existed; discovery and static checks alone do not imply feature acceptance. Current executable results are recorded in ticket-12-e2e-current.md.
 
-Ticket 12 current coverage additions and verification: [ticket-12-e2e-current.md](ticket-12-e2e-current.md). Includes empty-book concurrency, expired/cookie-only credentials, duplicate display headings, label clearing, unchanged saves at zero allowance and default uniqueness after edits.
+Ticket 12 current coverage additions and verification: [ticket-12-e2e-current.md](ticket-12-e2e-current.md). The 2026-10-13 follow-up records one uninterrupted 690-case Chrome/Edge pass, the empty-list catalog locator correction and successful expiry probes, while retaining the blocked in-app recheck and historical verification boundaries.
 
 
 ## Ticket 12 delivery addresses

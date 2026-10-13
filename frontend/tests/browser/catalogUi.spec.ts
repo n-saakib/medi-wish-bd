@@ -251,7 +251,7 @@ test.describe('product pages', () => {
         await page.getByRole('link', { name: 'Products', exact: true }).click();
         await expect(page).toHaveURL('/staff/products');
         await expect(page.getByRole('heading', { level: 1, name: 'Products' })).toBeVisible();
-        await page.getByRole('link', { name: 'New product' }).click();
+        await page.getByRole('link', { name: 'New product' }).first().click();
         await expect(page).toHaveURL('/staff/products/new');
         await editor.medicine.check();
         await editor.name.fill(productName);
