@@ -40,12 +40,21 @@ final class CatalogTestApi implements AutoCloseable {
         return start(3);
     }
 
+    static CatalogTestApi start(Class<?>... testConfigurations) throws Exception {
+        return start(3, testConfigurations);
+    }
+
     /** Concurrency fixtures keep the JDBC read timeout beyond their bounded lock-observation deadline. */
     static CatalogTestApi start(int socketTimeoutSeconds) throws Exception {
+        return start(socketTimeoutSeconds, new Class<?>[0]);
+    }
+
+    static CatalogTestApi start(int socketTimeoutSeconds, Class<?>... testConfigurations) throws Exception {
         TestDatabase database = TestDatabase.create();
         try {
             return new CatalogTestApi(database,
-                    TestApplication.start(applicationProperties(database.applicationProperties(), socketTimeoutSeconds)));
+                    TestApplication.start(applicationProperties(database.applicationProperties(), socketTimeoutSeconds),
+                            testConfigurations));
         } catch (Exception failure) {
             database.close();
             throw failure;

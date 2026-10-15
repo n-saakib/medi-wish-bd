@@ -20,3 +20,7 @@ Session and user tests cover body limits, timeouts, failed response reading and 
 [`tests/catalog.test.ts`](../../tests/catalog.test.ts.md) covers the catalog bound without widening the default.
 
 Ticket 15 maps IMAGE_INVALID to imageInvalid, IMAGE_LIMIT_REACHED to imageLimitReached and STORAGE_UNAVAILABLE to storageUnavailable. The existing bounded error object, response limits and operation timeout remain shared.
+
+## Ticket 16
+
+Ticket 16 maps DISCOUNT_ENDED and DISCOUNT_EXCEEDS_PRICE to externalized bounded error copy.

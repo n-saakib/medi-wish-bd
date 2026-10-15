@@ -23,6 +23,8 @@ import bd.mediwish.storage.StorageUnavailableException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import bd.mediwish.catalog.DiscountEndedException;
+import bd.mediwish.catalog.DiscountExceedsPriceException;
 import org.hibernate.exception.ConstraintViolationException;
 import bd.mediwish.user.InvalidProfileException;
 import bd.mediwish.user.AccountClosingException;
@@ -106,6 +108,16 @@ class ApiExceptionHandler {
     @ExceptionHandler(CategoryNameTakenException.class)
     ResponseEntity<ApiErrors.Body> categoryNameTaken(HttpServletRequest request) {
         return error(ApiError.CATEGORY_NAME_TAKEN, request);
+    }
+
+    @ExceptionHandler(DiscountEndedException.class)
+    ResponseEntity<ApiErrors.Body> discountEnded(HttpServletRequest request) {
+        return error(ApiError.DISCOUNT_ENDED, request);
+    }
+
+    @ExceptionHandler(DiscountExceedsPriceException.class)
+    ResponseEntity<ApiErrors.Body> discountExceedsPrice(HttpServletRequest request) {
+        return error(ApiError.DISCOUNT_EXCEEDS_PRICE, request);
     }
 
     @ExceptionHandler(IdConflictException.class)

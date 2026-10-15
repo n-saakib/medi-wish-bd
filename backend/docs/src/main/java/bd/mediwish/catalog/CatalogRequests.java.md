@@ -16,3 +16,4 @@ Correction verification on 2026-10-07 at 22:06:45 Asia/Dhaka, revision `8b6924c`
 
 
 Ticket 15 reuses package-private object, string and version helpers for image JSON shapes without changing existing catalog behavior.
+Ticket 16 reuses the existing package-visible strict object, string, UUID and version decoding helpers in DiscountRequests; existing catalog behavior is unchanged.

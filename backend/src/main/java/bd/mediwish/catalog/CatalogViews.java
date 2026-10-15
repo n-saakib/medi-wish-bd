@@ -10,12 +10,14 @@ record CategoryView(UUID id, String name, boolean active, long productCount, lon
 record ProductSummary(UUID id, ProductKind kind, String name, String brandName, String genericName,
                       String dosageForm, String manufacturer, UUID categoryId, String categoryName,
                       String saleUnit, String sellingPrice, String mrp, boolean active,
-                      boolean requireValidation, ProductStatus status) {}
+                      boolean requireValidation, ProductStatus status, String effectivePrice, AppliedDiscount appliedDiscount) {}
 record ProductHistory(Instant occurredAt, String actorUsername, ProductChangeType changeType,
                       String oldSellingPrice, String newSellingPrice, String oldMrp, String newMrp,
-                      Boolean oldRequireValidation, Boolean newRequireValidation) {}
+                      Boolean oldRequireValidation, Boolean newRequireValidation, HistoryDiscount discount) {}
 record ProductView(UUID id, ProductKind kind, String name, String brandName, String genericName,
                    String dosageForm, String manufacturer, UUID categoryId, String categoryName,
                    String saleUnit, String sellingPrice, String mrp, boolean active,
                    boolean requireValidation, ProductStatus status, String description, long version,
-                   Instant updatedAt, String updatedByUsername, List<ProductHistory> history) {}
+                   Instant updatedAt, String updatedByUsername, List<ProductHistory> history, String effectivePrice, AppliedDiscount appliedDiscount) {}
+
+record HistoryDiscount(DiscountTargetType targetType, DiscountKind kind, String value) {}

@@ -8,7 +8,11 @@ Starts the real application against a guarded, run-owned PostgreSQL schema. Synt
 
 `start()` retains the three-second JDBC socket timeout used by the guarded test database harness. `start(int socketTimeoutSeconds)` lets only the catalog concurrency fixture request a 15-second application JDBC timeout while observing a controlled PostgreSQL lock for up to seven seconds. The property helper copies the startup map and replaces only the URL's existing `socketTimeout` parameter; database, schema, credentials, connection timeout and the caller's map remain unchanged. Zero or negative timeouts are rejected so the fixture cannot disable its read deadline. The direct database observation connections and global test helpers retain their defaults. Startup failure closes the owned schema.
 
+Ticket 16 adds `start(Class<?>... testConfigurations)` and `start(int socketTimeoutSeconds, Class<?>... testConfigurations)`. Existing calls retain their defaults; explicit sources pass straight to `TestApplication.start`, allowing only requesting fixtures to launch the movable Discount calendar. The thin `DiscountTestApi` wrapper reuses all existing registration/MFA and catalog fixture behavior.
+
 ## Verification
+
+The new launch overloads are prepared for Ticket 16 test-first integration; their real calendar/race verification remains pending until its production contracts exist. Historical results below describe the preceding catalog harness.
 
 The real HTTP fixture was exercised by all 11 selected catalog integration tests; its three helper units also passed.
 

@@ -25,3 +25,9 @@ UX regressions (2026-10-08): the history time reads exactly `27 Sep 2026, 5:00 p
 Closing-pass regressions (2026-10-08): the confirmation is focused after a catalog or pricing update re-enables the form and after unchanged catalog and pricing saves; the Product and Category stale warnings take focus; a Moderator's price-required message names an Admin, is focused on Active and sends nothing; Moderator price inputs are described by the pricing note; both tables are named; Add category and Edit focus the name field, which sits outside the table, and Cancel returns focus to the opener. All 12 new or extended cases failed against the previous components.
 
 Ticket 15 answers the real image-list request in the shared session fixture with an empty accepted list. The editor integration test verifies that Images appears on existing Products and is absent on the create form, while preserving the existing catalog/Pricing assertions.
+
+## Ticket 16
+
+Ticket 16 fixtures keep effectivePrice aligned with synthetic pricing responses. Mounted tests verify both chip forms, no-discount dash, exact percentage/flat editor copy for Admin and Moderator, absence of no-discount editor line, derived started/ended/actor history, and the Moderator permission note.
+
+The shared session fixture answers image-list GETs before custom Product replies, so every existing-Product case, including the Ticket 16 display scenarios, receives the accepted empty image list without falling through to an unrelated reply.

@@ -47,3 +47,6 @@ The catalog wildcard captures exactly one segment and excludes pricing. Explicit
 
 
 Ticket 15 adds explicit staff image reads/commands for verified Admin and Moderator. Multipart uploads bypass the JSON limiter and are bounded globally at 3 MiB per file and 4 MiB request. Alt/order JSON remains limited after authorization. Public images permit GET/HEAD only; denied image-path methods get ACCESS_DENIED even for anonymous callers with valid CSRF. All error responses remain no-store.
+## Ticket 16 discount routes
+
+STAFF_DISCOUNT_READS is GET /api/staff/discounts; STAFF_DISCOUNT_COMMANDS is POST at that collection, PUT at one id segment, and POST at one id/end. Both require fresh Bearer authentication and ADMIN through an MFA-verified session. Commands are CSRF-exempt and use the body limiter after AuthorizationFilter so denied requests keep their authentication/authorization error for every body size. PUBLIC_PRODUCT_PRICE matches only GET /api/products/*/price, permits anonymous access and stays outside PROTECTED_ROUTES, so Authorization headers do not affect the public read. DiscountSecurityTest executes the production chain; matcher tests pin wildcard separation.

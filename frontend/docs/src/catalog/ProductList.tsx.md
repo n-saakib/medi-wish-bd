@@ -15,3 +15,7 @@ Money headers and cells use the design numeric style for right alignment and tab
 Accessibility correction (2026-10-08): Previous and Next keep the current rows and pager mounted while the next page loads, and [`usePagerFocus`](../shell/usePagerFocus.ts.md) keeps keyboard focus in the pager when the pressed button becomes disabled on the first or last page. The range text is a polite live region, and each Edit link is named `Edit {product}`.
 
 Closing-pass fixes (2026-10-08): the table is named `Products`.
+
+## Ticket 16
+
+The Discount column renders the server-selected Category/Product percentage or flat chip, or a dash when none applies. Ordinary price fields retain their existing meanings; effective prices are read from the API.

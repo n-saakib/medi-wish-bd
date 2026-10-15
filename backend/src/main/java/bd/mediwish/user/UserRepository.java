@@ -59,4 +59,12 @@ public interface UserRepository extends JpaRepository<User, UUID> {
               and (cast(:role as text) is null or r.role = :role)
             """, nativeQuery = true)
     Page<User> search(@Param("prefix") String prefix, @Param("role") String role, Pageable pageable);
+    interface Username {
+        UUID getUserId();
+        String getUsername();
+    }
+
+    /** Batch scalar projection: discount views and derived history need no role collections. */
+    @Query("select u.id as userId, u.username as username from User u where u.id in :ids")
+    List<Username> findUsernamesById(@Param("ids") Collection<UUID> ids);
 }

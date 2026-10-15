@@ -15,3 +15,7 @@ UX corrections (2026-10-08): pricing trims spaces around each amount before vali
 Closing-pass fixes (2026-10-08): after any save of an existing Product (catalog Save or Save pricing, including an unchanged save that sends nothing) the `Product saved.` or `Pricing saved.` status takes focus once the form is enabled again, so keyboard position is not lost to the page. A stale refusal focuses its warning, which holds the Reload button. A Moderator who turns on Active for an unpriced Product is told “An Admin must add a price before this product can be active.” for both the client check and a server `PRICE_REQUIRED`; Admins keep the shared price-required copy. A Moderator's disabled price inputs are described by the “Moderators can’t change prices.” note.
 
 Ticket 15 adds the ProductImages card between product details and Pricing only for an existing Product. Its Product identity is the React key, so navigation discards the previous image editor's in-flight state. New-product creation has no image card. Product and Pricing workflows remain covered by catalogPages.test.ts.
+
+## Ticket 16
+
+Admin and Moderator both see the server-supplied active discount description and effective price below the pricing fields. Derived discount history renders started/ended transitions and manual-end actor copy without rewriting historical amounts. The Moderator note explicitly includes discounts. Shared moneyCents validation retains the accepted pricing input contract.

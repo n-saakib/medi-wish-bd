@@ -38,3 +38,4 @@ It also covers Ticket 14's catalog failures, including the named category unique
 
 
 Ticket 15 maps invalid images, image limit and storage outages to IMAGE_INVALID, IMAGE_LIMIT_REACHED and STORAGE_UNAVAILABLE. Multipart size exceptions use IMAGE_INVALID only for POST on the exact UUID-shaped image upload route; all other multipart shape/size errors use INVALID_REQUEST. The product image ordering unique constraint maps to STALE_UPDATE. Inputs and storage diagnostics never enter ordinary error bodies.
+Ticket 16 maps DiscountEndedException to 409 DISCOUNT_ENDED and DiscountExceedsPriceException to 409 DISCOUNT_EXCEEDS_PRICE. Both retain the exact three-field correlated envelope without exception details.

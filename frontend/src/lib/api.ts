@@ -29,7 +29,8 @@ const maxErrorCodeLength = 64;
 export type ErrorMessageKey = 'authenticationFailed' | 'duplicateUser' | 'mfaRequired' | 'mfaCodeInvalid'
   | 'mfaEnrollmentStale' | 'tooManyAttempts' | 'invalidResponse' | 'genericError'
   | 'staleUpdate' | 'roleChangeRefused' | 'accessDenied' | 'notFound' | 'accountClosing' | 'checkDetails'
-  | 'priceRequired' | 'categoryNameTaken' | 'imageInvalid' | 'imageLimitReached' | 'storageUnavailable';
+  | 'priceRequired' | 'categoryNameTaken' | 'imageInvalid' | 'imageLimitReached' | 'storageUnavailable'
+  | 'discountEnded' | 'discountExceedsPrice';
 
 /** The `errors` message key for a failure. Codes the UI does not tell apart share the generic message. */
 export function errorMessageKey(reason: unknown): ErrorMessageKey {
@@ -70,6 +71,8 @@ export function errorMessageKey(reason: unknown): ErrorMessageKey {
       return 'priceRequired';
     case 'CATEGORY_NAME_TAKEN':
       return 'categoryNameTaken';
+    case 'DISCOUNT_ENDED': return 'discountEnded';
+    case 'DISCOUNT_EXCEEDS_PRICE': return 'discountExceedsPrice';
     default:
       return 'genericError';
   }

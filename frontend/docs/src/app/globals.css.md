@@ -42,3 +42,7 @@ Closing-pass fix (2026-10-08): `.catalog-form-grid` aligns its fields to the top
 Ticket 15 ports the image grid, thumbnail and dashed upload slot from the staff-product-edit design. The grid has two columns up to 700px and four on wider screens; the main thumbnail has a brand border. Dialog previews fit the viewport, actions wrap and image controls retain 44px targets. Labelled placeholders occupy the thumbnail. The image-upload-slot override makes the shared empty-slot square without changing its base design.
 
 The remove-confirmation button uses the design danger token and filled button style, retaining its explicit Remove label.
+
+## Ticket 16
+
+Ticket 16 reuses catalog controls and adds pill status tabs with 44 px minimum controls, count spans, selected state, and a modal discount dialog. The dialog bounds width and dynamic-viewport height and scrolls vertically for shorter/mobile viewports.

@@ -21,3 +21,4 @@ Catalog additions cover invalid field/money, denied direct commands, absent reco
 Ticket 15 covers image errors and exact multipart upload-route size mapping, including non-POST, non-UUID and unrelated route exclusions.
 
 Verified 2026-10-12 on working changes over 7555e2d: focused Maven unit invocation passed 60 tests with no failures or skips, including ProductImageServiceTest. Evidence: .scratch/ticket15-implementation-20261012/t4-units.log. Full integration/browser acceptance remains separate.
+Ticket 16 checks both new conflict exceptions map to 409 with their exact externalized English messages and a server requestId.

@@ -5,14 +5,15 @@ remains authoritative; this page documents the route structure, the
 server/client boundary, the shared session state and the small API client
 seams.
 
-**Last reviewed:** 2026-10-13<br/>
+**Last reviewed:** 2026-10-15<br/>
 **Current scope:** application shell, English localization, health probe
 boundary, and the Ticket 03.01 designed storefront routes: home, sign-in,
 registration (Ticket 02), account with sign-out (Ticket 03 browser session),
 the staff authenticator setup, code and verified staff landing (Ticket 06),
 the editable customer profile with pending mobile changes (Ticket 11), the
 Admin Users and roles pages (Ticket 08) and the staff Product and Category
-catalog pages (Ticket 14), including the existing Product image editor (Ticket 15). Storefront search, cart, orders, the staff
+catalog pages (Ticket 14), including the existing Product image editor (Ticket 15)
+and Admin Discounts with current effective prices and derived history (Ticket 16). Storefront search, cart, orders, the staff
 dashboard, OTP, backup-code sign-in, recovery and OAuth screens are not
 implemented in this slice.
 
@@ -42,6 +43,7 @@ flowchart TD
         PRODUCTNEWPAGE["(staff)/staff/products/new/page.tsx<br/>/staff/products/new"]
         PRODUCTEDITPAGE["(staff)/staff/products/[productId]/page.tsx<br/>/staff/products/{id}"]
         CATEGORYPAGE["(staff)/staff/categories/page.tsx<br/>/staff/categories"]
+        DISCOUNTPAGE["(staff)/staff/discounts/page.tsx<br/>/staff/discounts"]
     end
 
     subgraph AUTHF[src/auth - client]
@@ -68,6 +70,8 @@ flowchart TD
         PRODUCTLIST[ProductList.tsx]
         PRODUCTEDITOR[ProductEditor.tsx]
         CATEGORYMANAGER[CategoryManager.tsx]
+        DISCOUNTMANAGER[DiscountManager.tsx]
+        DISCOUNTDIALOG[DiscountDialog.tsx]
     end
     ADMINPAGES[Admin user route wrappers]
     ADMINCOMP[UserList / UserRoleForm]
@@ -92,11 +96,22 @@ flowchart TD
         USER[user.ts<br/>registration + profile client]
         STAFF[staff.ts<br/>staff access client]
         CATALOG[catalog.ts<br/>staff Product and Category client]
+        DISCOUNTS[discounts.ts<br/>bounded discount client]
         PROFILE[profile.ts<br/>editable profile client]
         IDENTIFIERS[identifiers.ts<br/>profile email format]
         APIMOD[api.ts<br/>request, timeout, bounded errors]
         HEALTH[health.ts<br/>health response probe]
     end
+
+    DISCOUNTPAGE --> DISCOUNTMANAGER
+    DISCOUNTMANAGER --> PROVIDER
+    DISCOUNTMANAGER --> STAFF
+    DISCOUNTMANAGER --> DISCOUNTDIALOG
+    DISCOUNTMANAGER --> DISCOUNTS
+    DISCOUNTDIALOG --> DISCOUNTS
+    DISCOUNTDIALOG --> CATALOG
+    DISCOUNTS --> SESSION
+    DISCOUNTS --> APIMOD
 
     I18N[src/i18n/request.ts + messages/en.json]
     API[Spring Boot API<br/>127.0.0.1:8080 by default]
@@ -331,7 +346,7 @@ One in-flight marker excludes competing profile commands. The provider publishes
 | `src/auth/` | Session provider and reducer, redirect rules, sign-in and registration forms, sign-out notice, authenticator setup, code entry, code field and backup-code panel. | Client UI and state; network only through `src/lib`. |
 | `src/account/` | Account summary, editable profile and native mobile-change dialog; dirty drafts, optimistic version, stale reload and closure state. | Client UI; calls use `user.ts` or `profile.ts` through the provider. |
 | `src/staff/` | Staff landing: loads `GET /api/staff/me` for a verified session and shows the username, role, Super Admin label and role-appropriate links (Users and roles for Admins; Products and Categories for Admins and Moderators). | Client UI; the call goes through `staff.ts` and the provider. |
-| `src/catalog/` | Products table and filters, Product new/edit forms, separate Admin pricing form, and inline Categories manager. | Client UI; every route waits for verified MFA and uses `catalog.ts` through the provider. |
+| `src/catalog/` | Products table and filters, Product new/edit forms, image management, separate Admin pricing form, inline Categories manager and Admin Discounts. | Client UI; every route waits for verified MFA and uses the catalog, image or discount client through the provider. |
 | `src/shell/` | Store, auth and staff headers, logo, decorative icons and the alert component. | Presentation; `SiteHeader` reads session state. |
 | `src/lib/api.ts` | Base URL, request defaults, 10-second timeout, 16 KiB default JSON bound with a caller-specified larger success bound, `ApiError` and error-code-to-copy key. | Shared HTTP boundary for the API clients. |
 | `src/lib/session.ts` | Login, CSRF bootstrap, MFA status, enrollment start and verification with token replacement, memory-only access token, cross-tab cookie-mutation Web Lock, refresh single-flight, restore (`204` none, `401` expired), Bearer requests with one refresh and retry, epoch invalidation and logout. | Injectable browser session seam; refresh credentials remain cookie-backed. |
@@ -371,3 +386,7 @@ implementation and contract are actually introduced.
 `src/catalog/ProductImages.tsx` adds the accepted Images card to an existing Product editor. It uses the current session client through `src/lib/productImages.ts`; one pending command disables controls and the upload retry retains its original UUID, File, description and replacement identity. Metadata saves carry the displayed image version, and Make main image carries the entire displayed order as its stale-update precondition. Loading/error states, native dialog confirmation and focus targets follow the staff edit design.
 
 `ProductImage.tsx` provides dimensions, alt text and an accessible failure placeholder through `next/image`. `src/lib/imageConfig.ts` defines the optimizer's exact API-origin/public-image path boundary; Next's image settings disallow local paths and redirects, retain no disk cache and cap cache lifetime at60seconds. It produces WebP for display while uploads remain PNG/JPEG only. The public Product page remains Ticket17 scope.
+
+## Ticket 16 discount flow
+
+`/staff/discounts` is a server metadata/route wrapper over `DiscountManager`. The verified Admin view owns list status/page/counts and refresh; `DiscountDialog` owns one create/edit/end interaction and target-picker state. `discounts.ts` projects bounded API responses and passes exact commands through the session seam. Unknown create outcomes retain the original command and UUID until identical retry or cancel/refresh. Catalog Product/history projections and displays consume the backend's effective price and applied discount; browsers never perform customer-price arithmetic. Focused unit tests protect error recovery, stale reads, field focus, request bodies and current-price/history copy. Real HTTP and browser acceptance remain separate verification gates.

@@ -214,3 +214,58 @@ Authentication and role boundaries: [UserRepository](src/main/java/bd/mediwish/u
 
 Product image uploads claim their image identity with a PostgreSQL transaction-scoped advisory lock before the authoritative replay check. Cross-Product and cross-instance uploads cannot recreate a retired public identity; the concurrency regression observes the real database lock queue, rejects the contender, and verifies retired replay and public takedown.
 Upload command fields must originate in singleton plain multipart body parts; query parameters cannot supply a missing id, alt text or replacement intent. Real HTTP regressions require bounded rejection without row/object writes and retain valid Unicode text uploads.
+## Ticket 16 acceptance tests
+
+Implemented Discount behavior passed final native, compatibility, concurrency and cumulative browser verification. See [coverage and verification evidence](ticket-16-e2e.md) for actual results, guarded commands, historical test-first preparation and deferred boundaries. Shared request dates, complete history and deterministic duplicate-command races remain covered.
+
+| Source | Documentation |
+| --- | --- |
+| [src/test/java/bd/mediwish/catalog/CatalogTestApi.java](../src/test/java/bd/mediwish/catalog/CatalogTestApi.java) | [src/test/java/bd/mediwish/catalog/CatalogTestApi.java.md](src/test/java/bd/mediwish/catalog/CatalogTestApi.java.md) |
+| [src/test/java/bd/mediwish/catalog/ConcurrentDiscountIT.java](../src/test/java/bd/mediwish/catalog/ConcurrentDiscountIT.java) | [src/test/java/bd/mediwish/catalog/ConcurrentDiscountIT.java.md](src/test/java/bd/mediwish/catalog/ConcurrentDiscountIT.java.md) |
+| [src/test/java/bd/mediwish/catalog/DiscountCalendarTest.java](../src/test/java/bd/mediwish/catalog/DiscountCalendarTest.java) | [src/test/java/bd/mediwish/catalog/DiscountCalendarTest.java.md](src/test/java/bd/mediwish/catalog/DiscountCalendarTest.java.md) |
+| [src/test/java/bd/mediwish/catalog/DiscountMigrationIT.java](../src/test/java/bd/mediwish/catalog/DiscountMigrationIT.java) | [src/test/java/bd/mediwish/catalog/DiscountMigrationIT.java.md](src/test/java/bd/mediwish/catalog/DiscountMigrationIT.java.md) |
+| [src/test/java/bd/mediwish/catalog/DiscountQueriesIT.java](../src/test/java/bd/mediwish/catalog/DiscountQueriesIT.java) | [src/test/java/bd/mediwish/catalog/DiscountQueriesIT.java.md](src/test/java/bd/mediwish/catalog/DiscountQueriesIT.java.md) |
+| [src/test/java/bd/mediwish/catalog/DiscountRegressionIT.java](../src/test/java/bd/mediwish/catalog/DiscountRegressionIT.java) | [src/test/java/bd/mediwish/catalog/DiscountRegressionIT.java.md](src/test/java/bd/mediwish/catalog/DiscountRegressionIT.java.md) |
+| [src/test/java/bd/mediwish/catalog/DiscountTestApi.java](../src/test/java/bd/mediwish/catalog/DiscountTestApi.java) | [src/test/java/bd/mediwish/catalog/DiscountTestApi.java.md](src/test/java/bd/mediwish/catalog/DiscountTestApi.java.md) |
+| [src/test/java/bd/mediwish/catalog/DiscountTestApiTest.java](../src/test/java/bd/mediwish/catalog/DiscountTestApiTest.java) | [src/test/java/bd/mediwish/catalog/DiscountTestApiTest.java.md](src/test/java/bd/mediwish/catalog/DiscountTestApiTest.java.md) |
+| [src/test/java/bd/mediwish/catalog/EffectivePriceTest.java](../src/test/java/bd/mediwish/catalog/EffectivePriceTest.java) | [src/test/java/bd/mediwish/catalog/EffectivePriceTest.java.md](src/test/java/bd/mediwish/catalog/EffectivePriceTest.java.md) |
+| [src/test/java/bd/mediwish/catalog/MovableDiscountCalendar.java](../src/test/java/bd/mediwish/catalog/MovableDiscountCalendar.java) | [src/test/java/bd/mediwish/catalog/MovableDiscountCalendar.java.md](src/test/java/bd/mediwish/catalog/MovableDiscountCalendar.java.md) |
+| [src/test/java/bd/mediwish/catalog/PublicPriceIT.java](../src/test/java/bd/mediwish/catalog/PublicPriceIT.java) | [src/test/java/bd/mediwish/catalog/PublicPriceIT.java.md](src/test/java/bd/mediwish/catalog/PublicPriceIT.java.md) |
+| [src/test/java/bd/mediwish/catalog/StaffDiscountIT.java](../src/test/java/bd/mediwish/catalog/StaffDiscountIT.java) | [src/test/java/bd/mediwish/catalog/StaffDiscountIT.java.md](src/test/java/bd/mediwish/catalog/StaffDiscountIT.java.md) |
+
+## Ticket 16 discount implementation
+
+| Documentation | Source |
+| --- | --- |
+| [CurrentPrices.java.md](src/main/java/bd/mediwish/catalog/CurrentPrices.java.md) | src/main/java/bd/mediwish/catalog/CurrentPrices.java |
+| [Discount.java.md](src/main/java/bd/mediwish/catalog/Discount.java.md) | src/main/java/bd/mediwish/catalog/Discount.java |
+| [DiscountCalendar.java.md](src/main/java/bd/mediwish/catalog/DiscountCalendar.java.md) | src/main/java/bd/mediwish/catalog/DiscountCalendar.java |
+| [DiscountChange.java.md](src/main/java/bd/mediwish/catalog/DiscountChange.java.md) | src/main/java/bd/mediwish/catalog/DiscountChange.java |
+| [DiscountChangeRepository.java.md](src/main/java/bd/mediwish/catalog/DiscountChangeRepository.java.md) | src/main/java/bd/mediwish/catalog/DiscountChangeRepository.java |
+| [DiscountChangeType.java.md](src/main/java/bd/mediwish/catalog/DiscountChangeType.java.md) | src/main/java/bd/mediwish/catalog/DiscountChangeType.java |
+| [DiscountController.java.md](src/main/java/bd/mediwish/catalog/DiscountController.java.md) | src/main/java/bd/mediwish/catalog/DiscountController.java |
+| [DiscountEndedException.java.md](src/main/java/bd/mediwish/catalog/DiscountEndedException.java.md) | src/main/java/bd/mediwish/catalog/DiscountEndedException.java |
+| [DiscountExceedsPriceException.java.md](src/main/java/bd/mediwish/catalog/DiscountExceedsPriceException.java.md) | src/main/java/bd/mediwish/catalog/DiscountExceedsPriceException.java |
+| [DiscountHistory.java.md](src/main/java/bd/mediwish/catalog/DiscountHistory.java.md) | src/main/java/bd/mediwish/catalog/DiscountHistory.java |
+| [DiscountKind.java.md](src/main/java/bd/mediwish/catalog/DiscountKind.java.md) | src/main/java/bd/mediwish/catalog/DiscountKind.java |
+| [DiscountRepository.java.md](src/main/java/bd/mediwish/catalog/DiscountRepository.java.md) | src/main/java/bd/mediwish/catalog/DiscountRepository.java |
+| [DiscountRequests.java.md](src/main/java/bd/mediwish/catalog/DiscountRequests.java.md) | src/main/java/bd/mediwish/catalog/DiscountRequests.java |
+| [DiscountRules.java.md](src/main/java/bd/mediwish/catalog/DiscountRules.java.md) | src/main/java/bd/mediwish/catalog/DiscountRules.java |
+| [DiscountService.java.md](src/main/java/bd/mediwish/catalog/DiscountService.java.md) | src/main/java/bd/mediwish/catalog/DiscountService.java |
+| [DiscountStatus.java.md](src/main/java/bd/mediwish/catalog/DiscountStatus.java.md) | src/main/java/bd/mediwish/catalog/DiscountStatus.java |
+| [DiscountTargetType.java.md](src/main/java/bd/mediwish/catalog/DiscountTargetType.java.md) | src/main/java/bd/mediwish/catalog/DiscountTargetType.java |
+| [DiscountViews.java.md](src/main/java/bd/mediwish/catalog/DiscountViews.java.md) | src/main/java/bd/mediwish/catalog/DiscountViews.java |
+| [EffectivePrice.java.md](src/main/java/bd/mediwish/catalog/EffectivePrice.java.md) | src/main/java/bd/mediwish/catalog/EffectivePrice.java |
+| [PriceCalculator.java.md](src/main/java/bd/mediwish/catalog/PriceCalculator.java.md) | src/main/java/bd/mediwish/catalog/PriceCalculator.java |
+| [PublicPriceController.java.md](src/main/java/bd/mediwish/catalog/PublicPriceController.java.md) | src/main/java/bd/mediwish/catalog/PublicPriceController.java |
+| [DiscountControllerTest.java.md](src/test/java/bd/mediwish/catalog/DiscountControllerTest.java.md) | src/test/java/bd/mediwish/catalog/DiscountControllerTest.java |
+| [DiscountHistoryTest.java.md](src/test/java/bd/mediwish/catalog/DiscountHistoryTest.java.md) | src/test/java/bd/mediwish/catalog/DiscountHistoryTest.java |
+| [DiscountRulesTest.java.md](src/test/java/bd/mediwish/catalog/DiscountRulesTest.java.md) | src/test/java/bd/mediwish/catalog/DiscountRulesTest.java |
+| [DiscountServiceTest.java.md](src/test/java/bd/mediwish/catalog/DiscountServiceTest.java.md) | src/test/java/bd/mediwish/catalog/DiscountServiceTest.java |
+| [PriceCalculatorTest.java.md](src/test/java/bd/mediwish/catalog/PriceCalculatorTest.java.md) | src/test/java/bd/mediwish/catalog/PriceCalculatorTest.java |
+| [PublicPriceControllerTest.java.md](src/test/java/bd/mediwish/catalog/PublicPriceControllerTest.java.md) | src/test/java/bd/mediwish/catalog/PublicPriceControllerTest.java |
+| [DiscountSecurityTest.java.md](src/test/java/bd/mediwish/web/DiscountSecurityTest.java.md) | src/test/java/bd/mediwish/web/DiscountSecurityTest.java |
+
+Ticket 16 review corrections: [calculator contract and examples](src/main/java/bd/mediwish/catalog/PriceCalculator.java.md), [typed target-name lookup](src/main/java/bd/mediwish/catalog/DiscountService.java.md), [shared-UUID API regression](src/test/java/bd/mediwish/catalog/DiscountQueriesIT.java.md), [immutable snapshot contract](src/main/java/bd/mediwish/catalog/EffectivePrice.java.md), and [derived history contract](src/main/java/bd/mediwish/catalog/DiscountHistory.java.md).
+
+Review verification on 2026-10-14 at HEAD 34e3240 plus the uncommitted backend review fixes: mvnw.cmd -o verify passed 894 unit tests and 254 integration tests; the optional DependencyCompatibilityIT was skipped by the default profile (255 integration cases total, zero failures/errors). The dedicated compatibility profile was not rerun in this review. The backend source remained unchanged through final verification on 2026-10-15. The disposable database role was removed and the owned PostgreSQL server stopped. Temporary review execution logs are removed at the user's request.

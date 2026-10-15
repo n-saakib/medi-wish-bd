@@ -34,3 +34,9 @@ UX additions (2026-10-08): `catalog.moneyRange` (“Enter an amount from 0.01 to
 Closing-pass additions (2026-10-08): `register.usernameInvalid`, `register.mobileInvalid`, `register.emailInvalid` and `register.passwordInvalid` replace the removed `register.invalid`; `catalog.priceRequiredModerator` (“An Admin must add a price before this product can be active.”) tells a Moderator who must price a Product.
 
 Ticket 15 uses a separate productImages namespace for card/dialog labels, fallback alt descriptions, progress, confirmations, retry and stale-state notices. Shared errors add imageInvalid, imageLimitReached and storageUnavailable; diagnostics and filenames do not enter UI error copy.
+
+## Ticket 16
+
+Ticket 16 externalizes the discounts namespace for tab counts, table/dialog labels, field validation, loading/empty/retry/stale/save/unknown-outcome states and End now confirmation. Catalog gains applied-discount chips and derived history copy; staffHome gains Discounts; errors gains the two discount conflict messages. Accepted design omits preview and loses-to hints and links to existing Categories rather than repeating that page.
+
+Unknown-create guidance requires retrying the original command before another change. Retry pending discount reopens the retained frozen command after Cancel; a list refresh alone does not establish its outcome.

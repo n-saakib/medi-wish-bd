@@ -741,3 +741,54 @@ databaseChangeLog:
                 id UUID PRIMARY KEY,
                 retired_at TIMESTAMPTZ NOT NULL
               );
+
+  - changeSet:
+      id: 016-discounts
+      author: medi-wish
+      changes:
+        - sql:
+            splitStatements: true
+            sql: |-
+              CREATE TABLE discounts (
+                id UUID PRIMARY KEY,
+                target_type VARCHAR(16) NOT NULL CONSTRAINT ck_discounts_target_type CHECK (target_type IN ('PRODUCT','CATEGORY')),
+                product_id UUID REFERENCES products(id) ON DELETE RESTRICT,
+                category_id UUID REFERENCES product_categories(id) ON DELETE RESTRICT,
+                kind VARCHAR(16) NOT NULL CONSTRAINT ck_discounts_kind CHECK (kind IN ('PERCENTAGE','FLAT')),
+                percent NUMERIC(4,2),
+                amount NUMERIC(9,2),
+                starts_on DATE NOT NULL,
+                ends_on DATE,
+                ended_at TIMESTAMPTZ,
+                version BIGINT NOT NULL DEFAULT 0,
+                created_at TIMESTAMPTZ NOT NULL,
+                updated_at TIMESTAMPTZ NOT NULL,
+                created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+                CONSTRAINT ck_discounts_target CHECK (
+                  (target_type = 'PRODUCT' AND product_id IS NOT NULL AND category_id IS NULL)
+                  OR (target_type = 'CATEGORY' AND category_id IS NOT NULL AND product_id IS NULL)),
+                CONSTRAINT ck_discounts_value CHECK (
+                  (kind = 'PERCENTAGE' AND percent IS NOT NULL AND amount IS NULL)
+                  OR (kind = 'FLAT' AND amount IS NOT NULL AND percent IS NULL)),
+                CONSTRAINT ck_discounts_percent_range CHECK (percent >= 1 AND percent <= 99 AND percent = trunc(percent)),
+                CONSTRAINT ck_discounts_amount_range CHECK (amount > 0 AND amount <= 9999999.99),
+                CONSTRAINT ck_discounts_dates CHECK (ends_on IS NULL OR ends_on >= starts_on)
+              );
+              CREATE INDEX ix_discounts_product ON discounts (product_id) WHERE product_id IS NOT NULL;
+              CREATE INDEX ix_discounts_category ON discounts (category_id) WHERE category_id IS NOT NULL;
+              CREATE INDEX ix_discounts_starts ON discounts (starts_on, id);
+              CREATE TABLE discount_changes (
+                id UUID PRIMARY KEY,
+                discount_id UUID NOT NULL REFERENCES discounts(id) ON DELETE RESTRICT,
+                occurred_at TIMESTAMPTZ NOT NULL,
+                actor_user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                change_type VARCHAR(16) NOT NULL CONSTRAINT ck_discount_changes_type CHECK (change_type IN ('CREATED','UPDATED','ENDED')),
+                kind VARCHAR(16) NOT NULL,
+                percent NUMERIC(4,2),
+                amount NUMERIC(9,2),
+                starts_on DATE NOT NULL,
+                ends_on DATE,
+                request_id VARCHAR(64)
+              );
+              CREATE INDEX ix_discount_changes_discount ON discount_changes (discount_id, occurred_at DESC);

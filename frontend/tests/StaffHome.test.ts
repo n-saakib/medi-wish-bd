@@ -52,6 +52,7 @@ describe('StaffHome', () => {
     expect(requiredElement(page, '.chip').textContent).toBe('Super Admin');
     expect(api.requests.at(-1)?.headers.get('Authorization')).toBe('Bearer access-verified');
     expect(router.replace).not.toHaveBeenCalled();
+    expect(requiredElement(page, 'a[href="/staff/discounts"]').textContent).toBe('Discounts');
     expect(requiredElement(page, 'a[href="/admin/users"]').textContent).toBe('Users and roles');
     expect(requiredElement(page, 'nav').getAttribute('aria-label')).toBe('Staff pages');
   });
@@ -81,6 +82,7 @@ describe('StaffHome', () => {
 
     expect(requiredElement(page, 'dd:last-of-type').textContent).toBe('Moderator');
     expect(page.textContent).not.toContain('Super Admin');
+    expect(page.querySelector('a[href="/staff/discounts"]')).toBeNull();
   });
 
   it.each([
