@@ -10,7 +10,8 @@ seams.
 boundary, and the Ticket 03.01 designed storefront routes: home, sign-in,
 registration (Ticket 02), account with sign-out (Ticket 03 browser session),
 the staff authenticator setup, code and verified staff landing (Ticket 06),
-the editable customer profile with pending mobile changes (Ticket 11), the
+the editable customer profile with pending mobile changes (Ticket 11),
+the saved-address book (Ticket 12), the
 Admin Users and roles pages (Ticket 08) and the staff Product and Category
 catalog pages (Ticket 14), including the existing Product image editor (Ticket 15)
 and Admin Discounts with current effective prices and derived history (Ticket 16). Storefront search, cart, orders, the staff
@@ -339,12 +340,12 @@ One in-flight marker excludes competing profile commands. The provider publishes
 | Module | Responsibility | Boundary |
 | --- | --- | --- |
 | `src/app/layout.tsx` | Root HTML shell, metadata title template, `NextIntlClientProvider` and the single `SessionProvider`. | Server component boundary. |
-| `src/app/(store)/*` | Store layout with `SiteHeader`; home page (`/`) account page (`/account`) and profile editor (`/account/profile`). | Server route files composing client components. |
+| `src/app/(store)/*` | Store layout with `SiteHeader`; home page (`/`), account page (`/account`), profile editor (`/account/profile`) and address book (`/account/addresses`). | Server route files composing client components. |
 | `src/app/(auth)/*` | Auth layout with `AuthHeader` and centered card; sign-in (`/sign-in`), registration (`/register`), authenticator setup (`/staff/mfa/enroll`) and code (`/staff/mfa`) pages. | Server route files composing client components. |
 | `src/app/(staff)/*` | Staff layout with `StaffHeader`; `/staff`, Products list/new/edit and Categories routes. | Server route files compose client components; edit reads `useParams` in the browser. |
 | `src/app/globals.css` | Design tokens and component styles ported from `agent-docs/ui-design/assets/styles.css`, limited to the current pages. | Global stylesheet. |
 | `src/auth/` | Session provider and reducer, redirect rules, sign-in and registration forms, sign-out notice, authenticator setup, code entry, code field and backup-code panel. | Client UI and state; network only through `src/lib`. |
-| `src/account/` | Account summary, editable profile and native mobile-change dialog; dirty drafts, optimistic version, stale reload and closure state. | Client UI; calls use `user.ts` or `profile.ts` through the provider. |
+| `src/account/` | Account summary, editable profile, native mobile-change dialog and saved-address book; dirty drafts, optimistic versions, stale reload and closure state. | Client UI; calls use `user.ts`, `profile.ts` or `addresses.ts` through the provider. |
 | `src/staff/` | Staff landing: loads `GET /api/staff/me` for a verified session and shows the username, role, Super Admin label and role-appropriate links (Users and roles for Admins; Products and Categories for Admins and Moderators). | Client UI; the call goes through `staff.ts` and the provider. |
 | `src/catalog/` | Products table and filters, Product new/edit forms, image management, separate Admin pricing form, inline Categories manager and Admin Discounts. | Client UI; every route waits for verified MFA and uses the catalog, image or discount client through the provider. |
 | `src/shell/` | Store, auth and staff headers, logo, decorative icons and the alert component. | Presentation; `SiteHeader` reads session state. |
@@ -357,7 +358,7 @@ One in-flight marker excludes competing profile commands. The provider publishes
 | `src/lib/catalog.ts` | Staff Product/Category reads and commands through `authenticatedFetch`, strict response projections, BDT string formatting and client UUIDs. | Catalog and pricing routes are separate; valid 50-item success pages use a 256 KiB response bound. |
 | `src/lib/health.ts` | Parallel liveness/readiness probe with bounded result states and timeout. | Operational probe seam. |
 | `src/i18n/request.ts` | Selects the English locale and loads the message catalog. | Server localization boundary. |
-| `messages/en.json` | User-visible English strings by feature namespace (`metadata`, `header`, `home`, `signIn`, `register`, `account`, `profile`, `staffMfa`, `staffHome`, `adminUsers`, `catalog`, `categories`, `errors`). | Externalized message source, including the BDT symbol. |
+| `messages/en.json` | User-visible English strings by feature namespace (`metadata`, `header`, `home`, `signIn`, `register`, `account`, `profile`, `addresses`, `staffMfa`, `staffHome`, `adminUsers`, `catalog`, `categories`, `productImages`, `discounts`, `errors`). | Externalized message source, including the BDT symbol. |
 | `tests/` and `tools/` | Exercise the API seams, provider and redirect rules, mounted pages' components (with real session clients over the shared `fakeApi` routes), health integration and the supported probe path. | Verification boundary; synthetic data only. |
 
 ## Frontend safety rules
@@ -390,3 +391,5 @@ implementation and contract are actually introduced.
 ## Ticket 16 discount flow
 
 `/staff/discounts` is a server metadata/route wrapper over `DiscountManager`. The verified Admin view owns list status/page/counts and refresh; `DiscountDialog` owns one create/edit/end interaction and target-picker state. `discounts.ts` projects bounded API responses and passes exact commands through the session seam. Unknown create outcomes retain the original command and UUID until identical retry or cancel/refresh. Catalog Product/history projections and displays consume the backend's effective price and applied discount; browsers never perform customer-price arithmetic. Focused unit tests protect error recovery, stale reads, field focus, request bodies and current-price/history copy. Real HTTP and browser acceptance remain separate verification gates.
+
+Ticket 12: /account/addresses uses AddressBook and AddressDialog in src/account plus the strict src/lib/addresses.ts HTTP projection. The page uses the account guard, remounts per session generation and serializes commands. The server owns cap, default successor and calendar allowance; the client displays returned numbers and reconciles ambiguous or stale results without persisting personal data.

@@ -63,6 +63,10 @@ final class AuthApi implements AutoCloseable {
 
     /** A new schema and application; the caller closes both through {@link #close()}. */
     static AuthApi start(Class<?>... testConfigurations) {
+        return start(Map.of(), testConfigurations);
+    }
+
+    static AuthApi start(Map<String, Object> properties, Class<?>... testConfigurations) {
         TestDatabase database;
         try {
             database = TestDatabase.create();
@@ -70,7 +74,9 @@ final class AuthApi implements AutoCloseable {
             throw new IllegalStateException("Could not create the integration test schema", exception);
         }
         try {
-            return new AuthApi(database, TestApplication.start(database.applicationProperties(), testConfigurations));
+            var settings = new HashMap<String, Object>(database.applicationProperties());
+            settings.putAll(properties);
+            return new AuthApi(database, TestApplication.start(settings, testConfigurations));
         } catch (RuntimeException exception) {
             try {
                 database.close();
@@ -269,6 +275,59 @@ final class AuthApi implements AutoCloseable {
         app.bean(bd.mediwish.user.MobileChangeService.class).activate(id, change);
     }
 
+    record Address(String label, String recipientName, String mobile, String addressLine, String city) {}
+
+    Address newAddress() {
+        return new Address(track("Label-" + random(4)), track("Recipient-" + random(4)),
+                track("017" + String.format("%08d", RANDOM.nextInt(100_000_000))),
+                track("Road-" + random(4)), track("City-" + random(4)));
+    }
+
+    static String addressBody(UUID id, Address address, boolean isDefault) {
+        var fields = addressFields(address, isDefault);
+        fields.put("id", id.toString());
+        return JSON.writeValueAsString(fields);
+    }
+
+    static String addressEdit(Address address, boolean isDefault, long version) {
+        var fields = addressFields(address, isDefault);
+        fields.put("version", version);
+        return JSON.writeValueAsString(fields);
+    }
+
+    private static Map<String, Object> addressFields(Address address, boolean isDefault) {
+        var fields = new LinkedHashMap<String, Object>();
+        fields.put("label", address.label()); fields.put("recipientName", address.recipientName());
+        fields.put("mobile", address.mobile()); fields.put("addressLine", address.addressLine());
+        fields.put("city", address.city()); fields.put("isDefault", isDefault);
+        return fields;
+    }
+
+    HttpResponse<String> addresses(String token) throws Exception {
+        return send("GET", "/api/user/me/addresses", bearer(token), null);
+    }
+
+    HttpResponse<String> postAddress(String token, String body) throws Exception {
+        return send("POST", "/api/user/me/addresses", bearerJson(token), body);
+    }
+
+    HttpResponse<String> putAddress(String token, UUID id, String body) throws Exception {
+        return send("PUT", "/api/user/me/addresses/" + id, bearerJson(token), body);
+    }
+
+    HttpResponse<String> deleteAddress(String token, UUID id, long version) throws Exception {
+        return send("DELETE", "/api/user/me/addresses/" + id + "?version=" + version, bearer(token), null);
+    }
+
+    long changeRows(User user) throws SQLException {
+        return database.single("SELECT count(*) FROM saved_address_changes WHERE user_id = ?", Long.class, userId(user));
+    }
+
+    List<Instant> changeTimes(User user) throws SQLException {
+        return database.query("SELECT changed_at FROM saved_address_changes WHERE user_id = ? ORDER BY changed_at",
+                row -> row.getTimestamp(1).toInstant(), userId(user));
+    }
+
     HttpResponse<String> staffMe(String accessToken) throws Exception {
         return send("GET", "/api/staff/me", bearer(accessToken), null);
     }
@@ -403,7 +462,7 @@ final class AuthApi implements AutoCloseable {
     }
 
     UUID userId(User user) throws SQLException {
-        return database.single("SELECT id FROM users WHERE mobile = ?", UUID.class, user.mobile());
+        return database.single("SELECT id FROM users WHERE username = ?", UUID.class, user.username());
     }
 
     UUID sessionId(User user) throws SQLException {

@@ -1,5 +1,6 @@
 package bd.mediwish.web;
 
+import bd.mediwish.address.*;
 import bd.mediwish.auth.AuthenticationFailedException;
 import bd.mediwish.auth.AuthenticationRequiredException;
 import bd.mediwish.auth.InvalidRequestException;
@@ -42,6 +43,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 class ApiExceptionHandlerTest {
     private static final Map<String, Supplier<RuntimeException>> FAILURES = Map.ofEntries(
+            Map.entry("invalid-address", () -> new InvalidAddressException("PRIVATE_ROW")),
+            Map.entry("address-not-found", AddressNotFoundException::new),
+            Map.entry("address-full", AddressBookFullException::new),
+            Map.entry("address-id-conflict", AddressIdConflictException::new),
+            Map.entry("address-change-limit", AddressChangeLimitException::new),
             Map.entry("invalid-catalog", () -> new InvalidCatalogException("PRIVATE_FIELD")),
             Map.entry("invalid-money", InvalidMoneyException::new),
             Map.entry("catalog-access", CatalogAccessDeniedException::new),
@@ -89,7 +95,9 @@ class ApiExceptionHandlerTest {
             "discount-ended,409,DISCOUNT_ENDED", "discount-exceeds-price,409,DISCOUNT_EXCEEDS_PRICE",
             "category-unique,409,CATEGORY_NAME_TAKEN", "other-unique,500,INTERNAL_ERROR",
             "other-category-failure,500,INTERNAL_ERROR", "role-refused,409,ROLE_CHANGE_REFUSED",
-            "user-not-found,404,NOT_FOUND"})
+            "user-not-found,404,NOT_FOUND", "invalid-address,400,INVALID_REQUEST",
+            "address-not-found,404,NOT_FOUND", "address-full,409,ADDRESS_BOOK_FULL",
+            "address-id-conflict,409,ID_CONFLICT", "address-change-limit,409,ADDRESS_CHANGE_LIMIT_REACHED"})
     void mapsEachDomainFailureToItsBoundedError(String failure, int status, String code) throws Exception {
         mvc.perform(post("/fail/" + failure).contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().is(status))

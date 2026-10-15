@@ -9,6 +9,8 @@ describe('shared administration errors', () => {
     ['STORAGE_UNAVAILABLE', 503, 'storageUnavailable', 'Images cannot be saved right now. Try again shortly.'],
     ['DISCOUNT_ENDED', 409, 'discountEnded', 'This discount has ended and can no longer be changed.'],
     ['DISCOUNT_EXCEEDS_PRICE', 409, 'discountExceedsPrice', "The discount must be smaller than the product's selling price."],
+    ['ADDRESS_BOOK_FULL', 409, 'addressBookFull', 'This address book is full. Remove an address to add another.'],
+    ['ADDRESS_CHANGE_LIMIT_REACHED', 409, 'addressChangeLimit', "You've reached the address change limit for this week or month. You can still remove an address."],
     ['STALE_UPDATE', 409, 'staleUpdate', 'This record changed after you opened it. Reload and try again.'],
     ['ROLE_CHANGE_REFUSED', 409, 'roleChangeRefused', 'This role change is not allowed.'],
     ['ACCESS_DENIED', 403, 'accessDenied', 'You don’t have permission to do that.'],

@@ -16,3 +16,5 @@ Mounted jsdom coverage for [`AccountSummary`](../src/account/AccountSummary.tsx.
 - A failed sign-out redirects to `/` and shows `Sign-out could not be completed.` with a `Try again` button as a focused alert; pressing it keeps the alert with a disabled `Signing out…` button while the logout repeats, then announces `You have been signed out.` with focus.
 
 On 2026-09-26 this suite passed as part of `npm run test:unit`.
+
+Ticket 12 additionally verifies the loaded account links to Addresses.

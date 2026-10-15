@@ -4,11 +4,11 @@ This is the living code map for the current Spring Boot backend. Source files
 remain authoritative; this page records package ownership, dependency
 direction and the observable request boundaries.
 
-**Last reviewed:** 2026-10-13
+**Last reviewed:** 2026-10-15
 **Current scope:** health baseline, shared User profile/roles, Ticket 03
 password sessions with Bearer, CSRF, CORS and refresh-cookie adapters, and
 Ticket 06 first-Admin provisioning, staff TOTP MFA, security audit events and
-the staff route, Ticket 11 profile editing with staged mobile changes, Ticket 14 staff catalog and Ticket 15 Product images.
+the staff route, Ticket 11 profile editing with staged mobile changes, Ticket 12 saved addresses, Ticket 14 staff catalog, Ticket 15 Product images and Ticket 16 Discounts.
 **Later boundaries:** OTP, password recovery, staff management beyond the
 recovery/reset workflows, and deployment.
 
@@ -327,3 +327,6 @@ Inspection validates PNG/JPEG input, 3 MiB and 4096-pixel limits, then re-encode
 ## Ticket 16 current-pricing boundary
 
 The catalog feature owns Discount entities, command rules/audit repositories, Dhaka calendar, exact-decimal calculator, CurrentPrices and derived Product history. Staff commands reuse pricing authorization, lock one Discount row and commit its audit snapshot atomically. Repeatable-read Product/Discount reads capture the business date once and batch candidate lookup, target labels/counts and usernames. CurrentPrices is the shared immutable-snapshot boundary for future carts and accepted Orders; no Order persistence or background scheduler is added here.
+## Ticket 12 saved-address boundary
+
+bd.mediwish.address owns strict owner-only JSON routes, pure normalization/default/calendar rules, the composite-key entity, native repository and User-locked transactional service. Every mutation takes the User lock before addresses or change rows; reads remain available while closing. Shared web security authorizes all four roles, bounds command bodies and errors, and keeps personal values out of logs. Configured Dhaka week/month counts and address writes share the transaction. Ticket 25's optional save must call create in a separate request after the Order commits.

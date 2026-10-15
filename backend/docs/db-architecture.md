@@ -4,10 +4,10 @@ This is the living database architecture map for the backend. It describes the
 schema that is currently created by Liquibase and mapped by JPA; it is not a
 design claim for tables that belong to later tickets.
 
-**Last reviewed:** 2026-10-13<br/>
+**Last reviewed:** 2026-10-15<br/>
 **Current scope:** Ticket 01 health baseline, Ticket 02 shared User
 registration/RBAC foundation, Ticket 03 durable password sessions and Ticket 06
-staff MFA, first-Admin bootstrap and security audit events, plus Ticket 08 single-role assignment and audit, Ticket 11 Customer profile and staged mobile changes, Ticket 14 catalog and Ticket 15 image metadata.<br/>
+staff MFA, first-Admin bootstrap and security audit events, plus Ticket 08 single-role assignment and audit, Ticket 11 Customer profile and staged mobile changes, Ticket 12 saved addresses, Ticket 14 catalog, Ticket 15 image metadata and Ticket 16 Discounts.<br/>
 **Schema source of truth:** [`src/main/resources/db/changelog/db.changelog-master.yaml`](../src/main/resources/db/changelog/db.changelog-master.yaml)<br/>
 **Runtime rule:** Liquibase owns schema changes; Hibernate runs with
 `ddl-auto: validate` and must not create or alter tables. Unique
@@ -262,6 +262,8 @@ substitute.
 | `012-user-profile` | Adds optional name/DOB, version and constrained account state to `users`; creates `user_mobile_changes` with a unique User FK and cascading delete. | Existing accounts default to active/version zero. The pending replacement is separate from the active mobile until verified activation. |
 | `014-role-required-search-path` | Pins the `user_role_required()` trigger function's `search_path` to the schema it was migrated into, then `pg_temp`. | The one-role check reads this schema's `users` and `user_roles` whatever the writing session's search path, so operator SQL neither fails nor checks same-named tables elsewhere. Fixes 011 forward without editing it. |
 
+| `017-saved-addresses` | Owner-scoped composite address keys, one-default partial uniqueness, bounded fields and owner/time-only successful-change rows with cascading User foreign keys. | User-locked Java rules enforce the cap and configurable Dhaka allowances without schema count constraints; saved addresses have no incoming references. |
+
 When a later ticket changes persistence, add a new append-only changeset and
 update this page in the same change. Do not rewrite an applied changeset to
 make the diagram look current; record the historical transition instead.
@@ -304,3 +306,30 @@ Removed/replaced UUIDs remain retired permanently so public image URLs cannot be
 ## Ticket 16 Discount data
 
 Changeset 016-discounts appends discounts and discount_changes without altering products. Each Discount has exactly one restrictive Product/Category reference, percentage-or-flat exact value, date interval, optional explicit end, manual version and actor timestamps. Checks enforce whole 1–99 percentage, finite positive flat amount and date ordering. Audit rows copy mutation values and dates; they never track subsequent edits. Product Discount start/end events are derived at read time and never inserted into product_changes. Existing Products remain unchanged during the upgrade; rollback drops audit rows/table before discounts after consumer review, while operational corrections append a new forward changeset.
+## Ticket 12 saved addresses
+
+017-saved-addresses adds saved_addresses with primary key (user_id,id), a cascading User foreign key, bounded text/mobile/version checks and a unique partial default index. The ordered owner index supports created_at/id list and successor selection. Saved_address_changes records only an owner and instant, cascades with User deletion, and is indexed by owner/time. The service prunes changes older than both current period starts and serializes cap/default/allowance decisions on the User row. Three addresses and the configurable change limits remain Java rules; there are no count triggers or references to a saved-address row. Order snapshot and retained-User closure erasure belong to Tickets 25 and 47.
+
+```mermaid
+erDiagram
+    users ||--o{ saved_addresses : owns
+    users ||--o{ saved_address_changes : counts
+    saved_addresses {
+        UUID user_id PK,FK
+        UUID id PK
+        VARCHAR label
+        VARCHAR recipient_name
+        VARCHAR mobile
+        VARCHAR address_line
+        VARCHAR city
+        BOOLEAN is_default
+        BIGINT version
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ updated_at
+    }
+    saved_address_changes {
+        UUID id PK
+        UUID user_id FK
+        TIMESTAMPTZ changed_at
+    }
+```

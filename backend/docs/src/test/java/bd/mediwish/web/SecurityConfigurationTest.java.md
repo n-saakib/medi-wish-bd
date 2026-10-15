@@ -16,3 +16,4 @@ Focused settings/security tests: insecure cookies only for exclusively local/tes
 The catalog PUT wildcard matches exactly one segment and never captures pricing; pricing and catalog commands belong to the protected Bearer command matchers. CatalogSecurityTest executes the production security chain for actor admission and body-limit ordering.
 
 Ticket 16 pins protected read/command membership, Bearer command exemptions, exact end wildcard matching, and the anonymous product-price matcher outside PROTECTED_ROUTES.
+Ticket 12 verifies collection reads and collection/item commands are Bearer-protected, only commands are CSRF-exempt, and item wildcards consume exactly one path segment.

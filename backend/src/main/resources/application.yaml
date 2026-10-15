@@ -56,6 +56,10 @@ app:
     provider: ${APP_STORAGE_PROVIDER:}
     local-root: ${APP_STORAGE_LOCAL_ROOT:}
     namespace: ${APP_STORAGE_NAMESPACE:}
+  addresses:
+    change-limits:
+      per-week: 5
+      per-month: 10
   cors:
     allowed-origins: ${APP_CORS_ALLOWED_ORIGINS:}
   auth:

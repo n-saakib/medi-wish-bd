@@ -1,5 +1,6 @@
 package bd.mediwish.web;
 
+import bd.mediwish.address.*;
 import bd.mediwish.auth.AuthenticationFailedException;
 import bd.mediwish.auth.AuthenticationRequiredException;
 import bd.mediwish.auth.InvalidRequestException;
@@ -172,6 +173,21 @@ class ApiExceptionHandler {
 
     @ExceptionHandler(UserNotFoundException.class)
     ResponseEntity<ApiErrors.Body> userNotFound(HttpServletRequest request) { return error(ApiError.NOT_FOUND, request); }
+
+    @ExceptionHandler(InvalidAddressException.class)
+    ResponseEntity<ApiErrors.Body> invalidAddress(HttpServletRequest request) { return error(ApiError.INVALID_REQUEST, request); }
+
+    @ExceptionHandler(AddressNotFoundException.class)
+    ResponseEntity<ApiErrors.Body> addressNotFound(HttpServletRequest request) { return error(ApiError.NOT_FOUND, request); }
+
+    @ExceptionHandler(AddressBookFullException.class)
+    ResponseEntity<ApiErrors.Body> addressBookFull(HttpServletRequest request) { return error(ApiError.ADDRESS_BOOK_FULL, request); }
+
+    @ExceptionHandler(AddressIdConflictException.class)
+    ResponseEntity<ApiErrors.Body> addressIdConflict(HttpServletRequest request) { return error(ApiError.ID_CONFLICT, request); }
+
+    @ExceptionHandler(AddressChangeLimitException.class)
+    ResponseEntity<ApiErrors.Body> addressChangeLimit(HttpServletRequest request) { return error(ApiError.ADDRESS_CHANGE_LIMIT_REACHED, request); }
 
     private ResponseEntity<ApiErrors.Body> error(ApiError error, HttpServletRequest request) {
         return ResponseEntity.status(error.status).body(errors.body(error, request));

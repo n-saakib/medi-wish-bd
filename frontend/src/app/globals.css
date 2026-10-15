@@ -242,3 +242,15 @@ button.thumb.image-main { border: 2px solid var(--brand-600); }
 .image-card-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .image-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .image-dialog .image-preview { display: block; width: 100%; height: auto; max-height: 35vh; object-fit: contain; }
+
+/* Ticket 12 delivery addresses */
+:root { --danger: #b42318; }
+.grid-3 { display: grid; gap: 16px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.address-card { min-width: 0; overflow-wrap: anywhere; }
+.address-card.is-default { border-color: var(--brand-600); box-shadow: inset 0 0 0 1px var(--brand-600); }
+.btn-sm { min-height: 44px; padding: 0 12px; font-size: .875rem; }
+.mb-8 { margin-bottom: 8px; }
+.btn-danger-ghost { color: var(--danger); }
+#address-change-notice { overflow-wrap: anywhere; }
+@media (max-width: 960px) { .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 640px) { .grid-3 { grid-template-columns: minmax(0, 1fr); } }

@@ -4,7 +4,7 @@ This directory mirrors the checked-in frontend source and build files. Each page
 
 ## Current frontend flow
 
-Next.js loads `src/app/layout.tsx` as the document shell. It mounts the `next-intl` provider and one `SessionProvider` around three route groups that add no URL segment: `(store)` renders the store header above the home page (`/`), the account page (`/account`) and the profile editor (`/account/profile`), `(auth)` renders a reduced header above the sign-in (`/sign-in`), registration (`/register`), authenticator setup (`/staff/mfa/enroll`) and authenticator code (`/staff/mfa`) pages, and `(staff)` renders the staff header above `/staff`, `/admin/users`, `/admin/users/[userId]` and the Ticket 14 `/staff/products`, `/staff/products/new`, `/staff/products/[productId]` `/staff/categories` and `/staff/discounts` pages. `src/i18n/request.ts` supplies the English messages. Feature code is grouped by feature: `src/auth/` (session provider, redirect rules, sign-in and registration forms, sign-out notice), `src/account/` (account summary, profile editor and native mobile-change dialog), `src/staff/` (staff landing), `src/admin/` (user search and role assignment), `src/catalog/` (Products table, Product editor and pricing, Categories manager) and `src/shell/` (headers, logo, icons, alerts, pager focus). `src/lib/api.ts` is the shared HTTP boundary (request defaults, 10-second timeout, bounded `ApiError`) under `src/lib/session.ts`, `src/lib/user.ts`, `src/lib/staff.ts`, `src/lib/adminUsers.ts`, `src/lib/profile.ts` and `src/lib/catalog.ts`. `src/lib/health.ts` is the small API health boundary used by the unit tests, the real-backend integration test, and `tools/health-probe.ts`; a controlled-fixture integration test exercises the CLI process and exit-code contract.
+Next.js loads `src/app/layout.tsx` as the document shell. It mounts the `next-intl` provider and one `SessionProvider` around three route groups that add no URL segment: `(store)` renders the store header above the home page (`/`), the account page (`/account`), the profile editor (`/account/profile`) and the saved-address book (`/account/addresses`), `(auth)` renders a reduced header above the sign-in (`/sign-in`), registration (`/register`), authenticator setup (`/staff/mfa/enroll`) and authenticator code (`/staff/mfa`) pages, and `(staff)` renders the staff header above `/staff`, `/admin/users`, `/admin/users/[userId]` and the Ticket 14 `/staff/products`, `/staff/products/new`, `/staff/products/[productId]`, `/staff/categories` and `/staff/discounts` pages. `src/i18n/request.ts` supplies the English messages. Feature code is grouped by feature: `src/auth/` (session provider, redirect rules, sign-in and registration forms, sign-out notice), `src/account/` (account summary, profile editor, native mobile-change dialog and saved-address book), `src/staff/` (staff landing), `src/admin/` (user search and role assignment), `src/catalog/` (Products table, Product editor, image management and pricing, Categories manager and Admin Discounts) and `src/shell/` (headers, logo, icons, alerts, pager focus). `src/lib/api.ts` is the shared HTTP boundary (request defaults, 10-second timeout, bounded `ApiError`) under `src/lib/session.ts`, `src/lib/user.ts`, `src/lib/staff.ts`, `src/lib/adminUsers.ts`, `src/lib/profile.ts` and `src/lib/catalog.ts`. `src/lib/health.ts` is the small API health boundary used by the unit tests, the real-backend integration test, and `tools/health-probe.ts`; a controlled-fixture integration test exercises the CLI process and exit-code contract.
 
 The public and staff entry pages are statically generated; the UUID User detail route is dynamic. User data and authorization still resolve through the API in the browser. The access token stays memory-only in `src/lib/session.ts` and the refresh credential is an HttpOnly cookie on the API origin, so the signed-in state is known only in the browser: the provider restores the session once per page load, and `sessionRedirect` holds every redirect until that restore finishes. A refresh `204` means no session and a `401` an expired one, which the sign-in page announces. `/account` sends signed-out visitors to `/sign-in`, but to `/` right after a sign-out, and stays put while sign-out is pending; `/sign-in` and `/register` send a signed-in user to the page for the session's MFA status: `/account` when no MFA is required, `/staff/mfa/enroll` when an authenticator must be set up, `/staff/mfa` when a code is required and `/staff` once verified. The staff pages admit only their own status, send other sessions to that page, and send signed-out visitors to `/sign-in`; `/account` also admits a verified staff session. The store header shows no account link until the restore finishes, then either `Sign in` or the username.
 
@@ -24,7 +24,7 @@ The session client keeps the access token in memory, refuses off-origin Bearer r
 
 | Project file | Documentation |
 | --- | --- |
-| [`src/app/globals.css`](../src/app/globals.css) | [`src/app/globals.css.md`](src/app/globals.css.md) — design tokens and components ported from the page designs |
+| [`src/app/globals.css`](../src/app/globals.css) | [`src/app/globals.css.md`](src/app/globals.css.md) — design tokens and components, including saved-address buttons with 44 px targets |
 | [`src/app/layout.tsx`](../src/app/layout.tsx) | [`src/app/layout.tsx.md`](src/app/layout.tsx.md) |
 | [`src/app/icon.svg`](../src/app/icon.svg) | [`src/app/icon.svg.md`](src/app/icon.svg.md) — site icon (the logo mark) |
 | [`src/app/(store)/layout.tsx`](../src/app/(store)/layout.tsx) | [`src/app/(store)/layout.tsx.md`](src/app/(store)/layout.tsx.md) |
@@ -96,7 +96,7 @@ The session client keeps the access token in memory, refuses off-origin Bearer r
 | [`tests/catalogSupport.test.ts`](../tests/catalogSupport.test.ts) | [`tests/catalogSupport.test.ts.md`](tests/catalogSupport.test.ts.md) — unit checks of the catalog specs' token renewal and staff-context cleanup |
 | [`tests/browser/catalogDatabase.spec.ts`](../tests/browser/catalogDatabase.spec.ts) | [`tests/browser/catalogDatabase.spec.ts.md`](tests/browser/catalogDatabase.spec.ts.md) |
 | [`tests/browser/catalogApi.spec.ts`](../tests/browser/catalogApi.spec.ts) | [`tests/browser/catalogApi.spec.ts.md`](tests/browser/catalogApi.spec.ts.md) |
-| [`tests/browser/catalogUi.spec.ts`](../tests/browser/catalogUi.spec.ts) | [`tests/browser/catalogUi.spec.ts.md`](tests/browser/catalogUi.spec.ts.md) |
+| [`tests/browser/catalogUi.spec.ts`](../tests/browser/catalogUi.spec.ts) | [`tests/browser/catalogUi.spec.ts.md`](tests/browser/catalogUi.spec.ts.md) — catalog journeys support empty and populated lists |
 | [`tests/browser/catalogSupport.ts`](../tests/browser/catalogSupport.ts) | [`tests/browser/catalogSupport.ts.md`](tests/browser/catalogSupport.ts.md) — shared catalog-spec helpers and contract strings, not a spec |
 | [`tests/browser/journey.spec.ts`](../tests/browser/journey.spec.ts) | [`tests/browser/journey.spec.ts.md`](tests/browser/journey.spec.ts.md) |
 | [`tests/browser/privacy.spec.ts`](../tests/browser/privacy.spec.ts) | [`tests/browser/privacy.spec.ts.md`](tests/browser/privacy.spec.ts.md) — credential/MFA privacy and restored-session navigation |
@@ -147,6 +147,12 @@ The session client keeps the access token in memory, refuses off-origin Bearer r
 | [`tests/productImageSupport.test.ts`](../tests/productImageSupport.test.ts) | [`tests/productImageSupport.test.ts.md`](tests/productImageSupport.test.ts.md) |
 | [`tests/productImageConcurrencySupport.test.ts`](../tests/productImageConcurrencySupport.test.ts) | [`tests/productImageConcurrencySupport.test.ts.md`](tests/productImageConcurrencySupport.test.ts.md) |
 | [`tests/productImages.integration.test.ts`](../tests/productImages.integration.test.ts) | [`tests/productImages.integration.test.ts.md`](tests/productImages.integration.test.ts.md) |
+| [`tests/browser/addressSupport.ts`](../tests/browser/addressSupport.ts) | [`tests/browser/addressSupport.ts.md`](tests/browser/addressSupport.ts.md) — guarded Ticket 12 fixtures, full-row no-write checks and API contract assertions |
+| [`tests/browser/addresses.spec.ts`](../tests/browser/addresses.spec.ts) | [`tests/browser/addresses.spec.ts.md`](tests/browser/addresses.spec.ts.md) — Ticket 12 browser validation, privacy, authentication and malformed-mutation recovery, keyboard and layouts |
+| [`tests/browser/addressesApi.spec.ts`](../tests/browser/addressesApi.spec.ts) | [`tests/browser/addressesApi.spec.ts.md`](tests/browser/addressesApi.spec.ts.md) — Ticket 12 submitted-value API contracts, normalization, privacy, unexpired revocation and concurrent outcomes |
+| [`tests/browser/addressesDatabase.spec.ts`](../tests/browser/addressesDatabase.spec.ts) | [`tests/browser/addressesDatabase.spec.ts.md`](tests/browser/addressesDatabase.spec.ts.md) — rollback-only PostgreSQL constraints and snapshot boundary |
+| [`tests/browser/addressesDemo.spec.ts`](../tests/browser/addressesDemo.spec.ts) | [`tests/browser/addressesDemo.spec.ts.md`](tests/browser/addressesDemo.spec.ts.md) — optional ten-step reviewer demo with isolated per-run artifacts |
+| [`tests/addressSupport.test.ts`](../tests/addressSupport.test.ts) | [`tests/addressSupport.test.ts.md`](tests/addressSupport.test.ts.md) — fixture, Java text semantics, complete-row SQL guards and Dhaka boundary units |
 
 ## Commands and environment
 
@@ -239,3 +245,22 @@ The integrated Ticket 14/15/16 journey in E2E-16-14 retains listed image identit
 | [discounts.test.ts.md](tests/discounts.test.ts.md) | tests/discounts.test.ts |
 
 Ticket 16 review corrections: [selected-tab, stale-reload and paging focus](src/catalog/DiscountManager.tsx.md), [picker Retry focus](src/catalog/DiscountDialog.tsx.md), [strict response enums](src/lib/discounts.ts.md), [component regressions](tests/DiscountManager.test.ts.md), [catalog response validation](tests/catalog.test.ts.md), [client validation](tests/discounts.test.ts.md), and [real-browser regression coverage](tests/browser/discountUi.spec.ts.md).
+
+Ticket 12 acceptance coverage and actual verification status: [ticket-12-e2e.md](ticket-12-e2e.md). Critical review and corrections: [ticket-12-e2e-review.md](ticket-12-e2e-review.md). Fresh five-round follow-up: [ticket-12-e2e-review-fresh.md](ticket-12-e2e-review-fresh.md). Third five-cycle critical review: [ticket-12-e2e-review-third.md](ticket-12-e2e-review-third.md). These historical reports cover tests originally written before the address implementation existed; discovery and static checks alone do not imply feature acceptance. Current executable results are recorded in ticket-12-e2e-current.md.
+
+Ticket 12 current coverage additions and verification: [ticket-12-e2e-current.md](ticket-12-e2e-current.md). The 2026-10-13 follow-up records one uninterrupted 690-case Chrome/Edge pass, the empty-list catalog locator correction and successful expiry probes, while retaining the blocked in-app recheck and historical verification boundaries.
+
+
+## Ticket 12 delivery addresses
+
+| Project file | Documentation |
+| --- | --- |
+| `src/lib/addresses.ts` | [Address API boundary](src/lib/addresses.ts.md) |
+| `src/account/AddressBook.tsx` | [Address book](src/account/AddressBook.tsx.md) |
+| `src/account/AddressDialog.tsx` | [Add/edit dialog](src/account/AddressDialog.tsx.md) |
+| `src/app/(store)/account/addresses/page.tsx` | [Addresses route](<src/app/(store)/account/addresses/page.tsx.md>) |
+| `tests/addresses.test.ts` | [Projector and command units](tests/addresses.test.ts.md) |
+| `tests/AddressBook.test.tsx` | [Mounted behavior units](tests/AddressBook.test.tsx.md) |
+| `tests/addresses.integration.test.ts` | [Real API integration](tests/addresses.integration.test.ts.md) |
+
+Address dialog regressions additionally cover confirmation click default actions, held stale reconciliation and keyboard focus boundaries.

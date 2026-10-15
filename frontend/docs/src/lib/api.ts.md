@@ -24,3 +24,5 @@ Ticket 15 maps IMAGE_INVALID to imageInvalid, IMAGE_LIMIT_REACHED to imageLimitR
 ## Ticket 16
 
 Ticket 16 maps DISCOUNT_ENDED and DISCOUNT_EXCEEDS_PRICE to externalized bounded error copy.
+
+Ticket 12 maps ADDRESS_BOOK_FULL to addressBookFull and ADDRESS_CHANGE_LIMIT_REACHED to addressChangeLimit; shared bounded-error handling is unchanged.

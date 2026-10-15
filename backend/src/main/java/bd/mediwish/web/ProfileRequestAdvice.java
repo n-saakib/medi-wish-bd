@@ -1,6 +1,7 @@
 package bd.mediwish.web;
 
 import bd.mediwish.user.ProfileController;
+import bd.mediwish.address.AddressBookController;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -14,7 +15,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  * {@link ApiExceptionHandler}'s general media-type handler for the profile controller.
  */
 @Order(Ordered.HIGHEST_PRECEDENCE)
-@RestControllerAdvice(assignableTypes = ProfileController.class)
+@RestControllerAdvice(assignableTypes = {ProfileController.class, AddressBookController.class})
 class ProfileRequestAdvice {
     private final ApiErrors errors;
     ProfileRequestAdvice(ApiErrors errors) { this.errors = errors; }

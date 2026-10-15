@@ -42,3 +42,4 @@ Ticket 14 adds 409 STALE_UPDATE (changed stale intent), PRICE_REQUIRED (unpriced
 
 Ticket 15 adds bounded externalized IMAGE_INVALID (400), IMAGE_LIMIT_REACHED (409) and STORAGE_UNAVAILABLE (503).
 Ticket 16 adds DISCOUNT_ENDED and DISCOUNT_EXCEEDS_PRICE, both 409 with matching externalized messages.
+Ticket 12 adds ADDRESS_BOOK_FULL and ADDRESS_CHANGE_LIMIT_REACHED (409), with externalized messages and no change to framework status classification.

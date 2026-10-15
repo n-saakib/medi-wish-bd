@@ -30,7 +30,7 @@ export type ErrorMessageKey = 'authenticationFailed' | 'duplicateUser' | 'mfaReq
   | 'mfaEnrollmentStale' | 'tooManyAttempts' | 'invalidResponse' | 'genericError'
   | 'staleUpdate' | 'roleChangeRefused' | 'accessDenied' | 'notFound' | 'accountClosing' | 'checkDetails'
   | 'priceRequired' | 'categoryNameTaken' | 'imageInvalid' | 'imageLimitReached' | 'storageUnavailable'
-  | 'discountEnded' | 'discountExceedsPrice';
+  | 'discountEnded' | 'discountExceedsPrice' | 'addressBookFull' | 'addressChangeLimit';
 
 /** The `errors` message key for a failure. Codes the UI does not tell apart share the generic message. */
 export function errorMessageKey(reason: unknown): ErrorMessageKey {
@@ -69,6 +69,10 @@ export function errorMessageKey(reason: unknown): ErrorMessageKey {
       return 'invalidResponse';
     case 'PRICE_REQUIRED':
       return 'priceRequired';
+    case 'ADDRESS_BOOK_FULL':
+      return 'addressBookFull';
+    case 'ADDRESS_CHANGE_LIMIT_REACHED':
+      return 'addressChangeLimit';
     case 'CATEGORY_NAME_TAKEN':
       return 'categoryNameTaken';
     case 'DISCOUNT_ENDED': return 'discountEnded';

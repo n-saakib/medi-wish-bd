@@ -40,3 +40,5 @@ Ticket 15 uses a separate productImages namespace for card/dialog labels, fallba
 Ticket 16 externalizes the discounts namespace for tab counts, table/dialog labels, field validation, loading/empty/retry/stale/save/unknown-outcome states and End now confirmation. Catalog gains applied-discount chips and derived history copy; staffHome gains Discounts; errors gains the two discount conflict messages. Accepted design omits preview and loses-to hints and links to existing Categories rather than repeating that page.
 
 Unknown-create guidance requires retrying the original command before another change. Retry pending discount reopens the retained frozen command after Cancel; a list refresh alone does not establish its outcome.
+
+Ticket 12 adds addresses for page/dialog labels, full/empty/recovery/default-promotion copy and a changeNotice interpolating configured calendar limits and remaining allowance. account.addresses names the navigation link. errors.addressBookFull and errors.addressChangeLimit supply bounded refusal copy.

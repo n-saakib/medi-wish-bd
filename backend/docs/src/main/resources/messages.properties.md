@@ -41,3 +41,4 @@ error.STALE_UPDATE (409) asks the caller to reload after a changed profile versi
 
 Ticket 15 adds externalized bounded messages for invalid images, image-count limits and unavailable storage.
 Ticket 16: error.DISCOUNT_ENDED = This discount has ended and can no longer be changed.; error.DISCOUNT_EXCEEDS_PRICE = The discount must be smaller than the product's selling price.
+Ticket 12 supplies the bounded full-book and change-limit English messages; neither includes address data or next-allowed dates.
