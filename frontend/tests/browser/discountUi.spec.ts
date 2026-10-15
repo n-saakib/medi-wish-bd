@@ -5,12 +5,12 @@ import {
 } from './catalogSupport';
 import {
   allDiscounts, assertAwayFromDhakaMidnight, dateOffset, dhakaToday, dhakaTomorrow, discountApi, discountDialog,
-  discountDraft, discountManager, expectLabelledTargets, getDiscountProduct, type DiscountStatus,
+  discountDraft, discountManager, expectLabelledTargets, getDiscountProduct, type DiscountPage, type DiscountStatus,
 } from './discountSupport';
 import { registeredAdmin, signIn, verifiedAdmin } from './support';
 import { apiUrl, checkedTarget, psql, removeRole } from './testApi';
 
-/** List barriers forward unchanged real responses; other interception is limited to transport failures and races. */
+/** List barriers forward unchanged real responses; controlled state/shape probes are explicitly identified below. */
 test.beforeEach(() => assertAwayFromDhakaMidnight());
 
 const tags = ['@t16', '@t16-T5'];
@@ -693,12 +693,14 @@ test('E2E-16-12 stale error preserves typed intent; Reload shows the current rev
     await expect(dialog.value).toHaveValue('25');
     await expect(dialog.reload).toBeVisible();
     const reloaded = await requestDiscountPage(page, undefined, () => dialog.reload.click());
-    // Reload may replace this dialog's value or close it and refresh the manager.
-    await expect.poll(async () => !await dialog.dialog.isVisible() || await dialog.value.inputValue() === '15').toBe(true);
-    if (!await dialog.dialog.isVisible()) {
-      await expectRenderedDiscountPage(page, reloaded);
-      await (await showDiscount(page, category.name)).getByRole('button', { name: 'Edit', exact: true }).click();
-    }
+    await expect(dialog.dialog).not.toBeVisible();
+    await expectRenderedDiscountPage(page, reloaded);
+    await expect(page.getByText('Discount saved.', { exact: true })).toHaveCount(0);
+    await expect(discountManager(page).active).toBeFocused();
+    await expectUsablePageFocus(page);
+    expect((await allDiscounts(admin, 'ACTIVE')).find((item) => item.id === created.id))
+      .toMatchObject({ value: '15', version: 1 });
+    await (await showDiscount(page, category.name)).getByRole('button', { name: 'Edit', exact: true }).click();
     await expect(dialog.value).toHaveValue('15');
     await dialog.value.fill('25');
     await loadDiscountPage(page, undefined, () => dialog.save.click());
@@ -799,6 +801,101 @@ test('E2E-16-12 a failed list read shows Retry and preserves usable navigation a
     await expect(page.getByRole('table')).toHaveCount(0);
     await page.getByRole('button', { name: /Retry|Try again/i }).click();
     await showDiscount(page, category.name);
+    await expectCounts(page, admin);
+  });
+
+test('E2E-16-12 picker Retry keeps usable keyboard focus during loading and respects user movement',
+  { tag: tags }, async ({ page, actors }) => {
+    await verifiedAdmin(page);
+    const admin = await actors('admin');
+    await createCategory(admin);
+    await page.goto('/staff/discounts');
+    const manager = discountManager(page);
+    await expect(manager.active).toHaveAccessibleName(/^Active \d+$/);
+    const categoryRoute = `${apiUrl}/api/staff/categories?*`;
+    for (const moveFocus of [false, true]) {
+      // Fetch an actual terminal 200 before losing transport; hold the unchanged real retry response.
+      const reads = await interceptApiOperations(page, categoryRoute, 'GET', [200, 200], async (terminal, index) => {
+        if (index === 0) {
+          const real = await terminal.response.json() as { items: { id: string; name: string }[] };
+          expect(real.items.length, 'the failed delivery follows a real nonempty category read').toBeGreaterThan(0);
+          await terminal.route.abort('failed');
+        }
+      }, (request) => Number(new URL(request.url()).searchParams.get('page') ?? 0) === 0);
+      let retryReleased = false;
+      try {
+        await manager.newDiscount.click();
+        const dialog = discountDialog(page);
+        const retry = dialog.dialog.getByRole('button', { name: 'Try again', exact: true });
+        await expect(dialog.dialog.getByRole('alert')).toContainText('The request could not be completed.');
+        await expect(retry).toBeVisible();
+        await expect(dialog.target).toBeDisabled();
+        await tabTo(page, retry);
+        await expect(retry).toBeFocused();
+        await page.keyboard.press('Enter');
+        await expect.poll(() => reads.terminals.length).toBe(2);
+        const held = reads.terminals[1];
+        const real = await held.response.json() as { items: { id: string; name: string }[] };
+        expect(real.items.length).toBeGreaterThan(0);
+        await expect(retry).toHaveCount(0);
+        await expect(dialog.dialog.getByRole('status')).toHaveText('Loading categories or products…');
+        await expect(dialog.target).toBeDisabled();
+        await expect(dialog.category).toBeEnabled();
+        await expect(dialog.category).toBeFocused();
+        if (moveFocus) {
+          await tabTo(page, dialog.value);
+          await expect(dialog.value).toBeFocused();
+        }
+        const completed = requestCompletion(page, held.request);
+        await held.route.fulfill({ response: held.response });
+        retryReleased = true;
+        await completed;
+        await expect(dialog.target).toBeEnabled();
+        await afterBrowserPaint(page);
+        for (const item of real.items) {
+          await expect(dialog.target.getByRole('option', { name: item.name, exact: true })).toHaveAttribute('value', item.id);
+        }
+        await expect(dialog.dialog.getByRole('alert')).toHaveCount(0);
+        await expect(moveFocus ? dialog.value : dialog.category).toBeFocused();
+        reads.check(2);
+        await dialog.cancel.click();
+        await expect(dialog.dialog).not.toBeVisible();
+      } finally {
+        const held = reads.terminals[1];
+        if (held && !retryReleased) await held.route.abort('failed').catch(() => undefined);
+        await reads.stop();
+      }
+    }
+  });
+
+test('E2E-16-12 malformed enum list response shows bounded Retry and recovers with real data',
+  { tag: tags }, async ({ page, actors }) => {
+    await verifiedAdmin(page);
+    const admin = await actors('admin');
+    const category = await createCategory(admin);
+    await discountApi(admin).create(discountDraft('CATEGORY', category.id));
+    // Controlled response-shape boundary: retain real rows/counts and change only one enum's JSON type.
+    const reads = await interceptApiOperations(page, listRoute, 'GET', [200], async (terminal) => {
+      const real = await terminal.response.json() as DiscountPage;
+      expect(real.items.length, 'a real nonempty list is required for the malformed enum probe').toBeGreaterThan(0);
+      expect(real.items[0].status).toBe('ACTIVE');
+      await terminal.route.fulfill({ response: terminal.response, json: { ...real,
+        items: [{ ...real.items[0], status: [real.items[0].status] }, ...real.items.slice(1)] } });
+    });
+    try {
+      await page.goto('/staff/discounts');
+      const alert = page.getByRole('main').getByRole('alert');
+      await expect(alert).toContainText('The service returned an invalid response.');
+      await expect(alert.getByRole('button', { name: 'Try again', exact: true })).toBeVisible();
+      await expect(page.getByRole('table')).toHaveCount(0);
+      reads.check(1);
+    } finally {
+      await reads.stop();
+    }
+    // Retry forwards a fresh actual response unchanged and verifies its rendered rows and counts.
+    await loadDiscountPage(page, 'ACTIVE', () => page.getByRole('button', { name: 'Try again', exact: true }).click(), 0);
+    await expect(page.getByRole('main').getByRole('alert')).toHaveCount(0);
+    await expect(discountManager(page).newDiscount).toBeEnabled();
     await expectCounts(page, admin);
   });
 
@@ -975,12 +1072,70 @@ test('E2E-16-10 the manager pages 20 real rows, keeps counts across tabs and pre
     await expect(manager.next).toBeDisabled();
     await expect(manager.previous).toBeFocused();
     await expectCounts(page, admin);
-    await manager.scheduled.click();
-    await expect(manager.scheduled).toHaveAttribute('aria-pressed', 'true');
-    await expectCounts(page, admin);
-    await manager.active.click();
+    // A selected tab on a later page still returns to page zero.
+    await loadDiscountPage(page, 'ACTIVE', () => manager.active.click(), 0);
+    await expect(manager.pager).toHaveText(`Showing 1–20 of ${total}`);
+    for (const [status, tab] of [['ACTIVE', manager.active], ['SCHEDULED', manager.scheduled],
+      ['ENDED', manager.ended]] as const) {
+      if (status !== 'ACTIVE') await loadDiscountPage(page, status, () => tab.click(), 0);
+      const rows = await manager.rows.allInnerTexts();
+      const counts = [await manager.active.innerText(), await manager.scheduled.innerText()];
+      await tab.click();
+      await tab.click();
+      await afterBrowserPaint(page);
+      await expect(tab).toHaveAttribute('aria-pressed', 'true');
+      await expect(page.getByText('Loading discounts…', { exact: true })).toHaveCount(0);
+      expect(await manager.rows.allInnerTexts()).toEqual(rows);
+      expect([await manager.active.innerText(), await manager.scheduled.innerText()]).toEqual(counts);
+      await expect(manager.newDiscount).toBeEnabled();
+      await expectCounts(page, admin);
+    }
+    await loadDiscountPage(page, 'ACTIVE', () => manager.active.click(), 0);
     await expect(manager.pager).toHaveText(`Showing 1–20 of ${total}`);
     expect(new URL(page.url()).search).toBe('');
+    // Controlled UI-state boundary only: preserve all shared data and the real paging proof above.
+    // Concurrent deletion/expiry may leave this requested page empty with either zero or a smaller total.
+    for (const remaining of [0, 20]) {
+      const reads = await interceptApiOperations(page, listRoute, 'GET', [200], 'hold', (request) => {
+        const url = new URL(request.url());
+        return url.searchParams.get('status') === 'ACTIVE' && url.searchParams.get('page') === '1';
+      });
+      try {
+        await manager.next.focus();
+        await page.keyboard.press('Enter');
+        const held = await reads.first;
+        const real = await held.response.json() as DiscountPage;
+        expect(real.page).toBe(1);
+        expect(real.items.length, 'the held response came from the real nonempty second page').toBeGreaterThan(0);
+        expect(real.totalItems).toBe(total);
+        await expect(page.getByText('Loading discounts…', { exact: true })).toBeVisible();
+        await expect(manager.active).toBeFocused();
+        const completed = requestCompletion(page, held.request);
+        await held.route.fulfill({ response: held.response, json: { ...real, items: [], totalItems: remaining,
+          counts: { ...real.counts, active: remaining } } });
+        await completed;
+        await expect(manager.rows).toHaveCount(0);
+        await expect(page.getByText('Loading discounts…', { exact: true })).toHaveCount(0);
+        await expect(manager.active).toHaveAccessibleName(`Active ${remaining}`);
+        if (remaining === 0) {
+          await expect(page.getByText('No active discounts.', { exact: true })).toBeVisible();
+          await expect(page.locator('.catalog-pager')).toHaveCount(0);
+          await expect(manager.active).toBeFocused();
+        } else {
+          await expect(page.locator('.catalog-pager span')).toHaveText('No discounts on this page.');
+          await expect(manager.next).toBeDisabled();
+          await expect(manager.previous).toBeEnabled();
+          await expect(manager.previous).toBeFocused();
+        }
+        reads.check(1);
+      } finally {
+        await reads.stop();
+      }
+      await loadDiscountPage(page, 'ACTIVE', () => manager.active.click(), 0);
+      await expect(manager.pager).toHaveText(`Showing 1–20 of ${total}`);
+      await expectCounts(page, admin);
+    }
+    expect((await discountApi(admin).list('ACTIVE')).totalItems).toBe(total);
   });
 
 test('E2E-16-10 state-only list boundary: loading then empty copy for each tab without assuming an empty database',
@@ -1025,6 +1180,14 @@ test('E2E-16-12 delayed Active read cannot overwrite the latest Scheduled tab or
     await page.goto('/staff/discounts');
     // Fetch the old terminal data response now, then deliver it after Scheduled renders.
     const { route: delayed, response: old } = await reads.first;
+    // Re-selecting the pending tab preserves its one real response and disabled creation state.
+    const attemptsBefore = reads.attempts.length;
+    await discountManager(page).active.click();
+    await discountManager(page).active.click();
+    await afterBrowserPaint(page);
+    expect(reads.attempts).toHaveLength(attemptsBefore);
+    await expect(page.getByText('Loading discounts…', { exact: true })).toBeVisible();
+    await expect(discountManager(page).newDiscount).toBeDisabled();
     const oldCounts = (await old.json() as { counts: { active: number; scheduled: number } }).counts;
     // A real intervening write gives the newer list a different global count snapshot.
     const extra = await createCategory(admin);

@@ -26,23 +26,23 @@ export function isCalendarDate(value: unknown): value is string {
 }
 const count = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 export function projectDiscountValue(body: unknown): { targetType: DiscountTargetType; kind: DiscountKind; value: string } | undefined {
-  if (!isRecord(body) || !['PRODUCT', 'CATEGORY'].includes(String(body.targetType))
-    || !['PERCENTAGE', 'FLAT'].includes(String(body.kind)) || typeof body.value !== 'string'
+  if (!isRecord(body) || (body.targetType !== 'PRODUCT' && body.targetType !== 'CATEGORY')
+    || (body.kind !== 'PERCENTAGE' && body.kind !== 'FLAT') || typeof body.value !== 'string'
     || (body.kind === 'PERCENTAGE' ? !/^[1-9][0-9]?$/.test(body.value)
       : !/^\d{1,7}\.\d{2}$/.test(body.value) || /^0+\.00$/.test(body.value))) return undefined;
-  return { targetType: body.targetType as DiscountTargetType, kind: body.kind as DiscountKind, value: body.value };
+  return { targetType: body.targetType, kind: body.kind, value: body.value };
 }
 export function projectDiscount(body: unknown): Discount | undefined {
   const value = projectDiscountValue(body);
   if (!value || !isRecord(body) || !isUuid(body.id) || !isUuid(body.targetId) || !boundedText(body.targetName, 160)
     || (body.targetType === 'CATEGORY' ? !count(body.productCount) : body.productCount !== null)
     || !isCalendarDate(body.startsOn) || (body.endsOn !== null && !isCalendarDate(body.endsOn))
-    || !['ACTIVE', 'SCHEDULED', 'ENDED'].includes(String(body.status)) || !count(body.version)
+    || (body.status !== 'ACTIVE' && body.status !== 'SCHEDULED' && body.status !== 'ENDED') || !count(body.version)
     || !boundedText(body.updatedAt, 64) || Number.isNaN(Date.parse(body.updatedAt))
     || (body.updatedByUsername !== null && !boundedText(body.updatedByUsername, 50))) return undefined;
   return { ...value, id: body.id, targetId: body.targetId, targetName: body.targetName,
     productCount: body.productCount as number | null, startsOn: body.startsOn, endsOn: body.endsOn,
-    status: body.status as DiscountStatus, version: body.version, updatedAt: body.updatedAt, updatedByUsername: body.updatedByUsername };
+    status: body.status, version: body.version, updatedAt: body.updatedAt, updatedByUsername: body.updatedByUsername };
 }
 export function projectDiscountPage(body: unknown): DiscountPage | undefined {
   if (!isRecord(body) || !Array.isArray(body.items) || !count(body.page) || !count(body.size) || body.size < 1 || body.size > 50

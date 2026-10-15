@@ -7,3 +7,5 @@ Focused unit coverage for the catalog client boundary: exact two-decimal money p
 ## Ticket 16
 
 Ticket 16 fixtures include effectivePrice and appliedDiscount. Tests cover valid current-price metadata, null/malformed price rejection and typed derived discount history distinct from stored events.
+
+Review regressions authored 2026-10-14 reject targetType/kind arrays in appliedDiscount and both DISCOUNT_STARTED/DISCOUNT_ENDED history boundaries, checking valid controls, pure Product projection rejection and client INVALID_RESPONSE. These additions passed in the final npm run verify on 2026-10-15 (638 unit tests across 28 files).

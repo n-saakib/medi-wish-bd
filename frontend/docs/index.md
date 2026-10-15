@@ -199,3 +199,5 @@ Implemented Discount behavior passed final frontend, Chrome/Edge cumulative and 
 | [discounts.ts.md](src/lib/discounts.ts.md) | src/lib/discounts.ts |
 | [DiscountManager.test.ts.md](tests/DiscountManager.test.ts.md) | tests/DiscountManager.test.ts — dialog Tab boundaries, create/edit/end reload focus and exact uncertain-create recovery |
 | [discounts.test.ts.md](tests/discounts.test.ts.md) | tests/discounts.test.ts |
+
+Ticket 16 review corrections: [selected-tab, stale-reload and paging focus](src/catalog/DiscountManager.tsx.md), [picker Retry focus](src/catalog/DiscountDialog.tsx.md), [strict response enums](src/lib/discounts.ts.md), [component regressions](tests/DiscountManager.test.ts.md), [catalog response validation](tests/catalog.test.ts.md), [client validation](tests/discounts.test.ts.md), and [real-browser regression coverage](tests/browser/discountUi.spec.ts.md).

@@ -132,6 +132,26 @@ describe('catalog discount projections', () => {
     expect(projectProduct(withHistory)).toEqual(withHistory);
     expect(projectProduct({ ...product, history: [{ ...event, changeType, discount: null }] })).toBeUndefined();
   });
+  it.each([
+    { boundary: 'applied', change: { targetType: ['PRODUCT'] } }, { boundary: 'applied', change: { kind: ['FLAT'] } },
+    { boundary: 'DISCOUNT_STARTED', change: { targetType: ['PRODUCT'] } }, { boundary: 'DISCOUNT_STARTED', change: { kind: ['FLAT'] } },
+    { boundary: 'DISCOUNT_ENDED', change: { targetType: ['PRODUCT'] } }, { boundary: 'DISCOUNT_ENDED', change: { kind: ['FLAT'] } },
+  ])('rejects enum arrays in discount metadata %j', async ({ boundary, change }) => {
+    const flat = { targetType: 'PRODUCT', kind: 'FLAT', value: '1.00' };
+    const applied = { ...flat, id: product.id, targetName: product.name, saving: '1.00' };
+    const valid = boundary === 'applied'
+      ? { ...product, effectivePrice: '10.50', appliedDiscount: applied }
+      : { ...product, history: [{ ...event, changeType: boundary, discount: flat }] };
+    const malformed = boundary === 'applied'
+      ? { ...valid, appliedDiscount: { ...applied, ...change } }
+      : { ...valid, history: [{ ...event, changeType: boundary, discount: { ...flat, ...change } }] };
+    expect(projectProduct(valid)).toEqual(valid);
+    expect(projectProduct(malformed)).toBeUndefined();
+    const authenticatedFetch = async <T>(_: string, _init: RequestInit, read: (response: Response) => Promise<T>) =>
+      read(Response.json(malformed));
+    await expect(createCatalogClient({ authenticatedFetch }).loadProduct(product.id))
+      .rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 200 });
+  });
   it('rejects a stored history entry carrying derived discount metadata', () => {
     expect(projectProduct({ ...product, history: [{ ...event, changeType: 'CATALOG_UPDATED', discount }] })).toBeUndefined();
   });

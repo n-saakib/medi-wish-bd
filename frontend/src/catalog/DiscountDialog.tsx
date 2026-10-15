@@ -90,7 +90,11 @@ export function DiscountDialog({ open, editing, authenticatedFetch, onClose, onR
       (event.shiftKey ? last : first).focus();
     }
   }
-  function retryPicker() { setLoading(true); setPickerError(null); setPickerRetry((before) => before + 1); }
+  function retryPicker() {
+    // Retry disappears during loading; keep focus on the selected, usable target type.
+    dialog.current?.querySelector<HTMLInputElement>('input[name="targetType"]:checked')?.focus();
+    setLoading(true); setPickerError(null); setPickerRetry((before) => before + 1);
+  }
   function selectType(next: DiscountTargetType) {
     setTargetType(next); setTargetId(''); setOptions([]); setLoading(true); setPickerError(null); setFieldErrors({});
   }

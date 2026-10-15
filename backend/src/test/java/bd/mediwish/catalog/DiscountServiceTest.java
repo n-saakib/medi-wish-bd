@@ -104,6 +104,45 @@ class DiscountServiceTest {
         verifyNoInteractions(changes);
         verify(discounts, never()).flush();
     }
+    @Test void mixedTargetsWithTheSameUuidKeepTheirOwnNamesAndCategoryCounts() {
+        var productDiscount = new Discount(UUID.randomUUID(), DiscountTargetType.PRODUCT, categoryId,
+                DiscountKind.PERCENTAGE, BigDecimal.TEN, today, null, null, now);
+        var categoryDiscount = stored();
+        var productName = mock(ProductRepository.ProductName.class);
+        when(productName.getProductId()).thenReturn(categoryId);
+        when(productName.getName()).thenReturn("Product target");
+        when(products.findNamesById(List.of(categoryId))).thenReturn(List.of(productName));
+        when(categories.findAllById(List.of(categoryId)))
+                .thenReturn(List.of(new Category(categoryId, "Category target", null, now)));
+        var productCount = mock(CategoryRepository.ProductCount.class);
+        when(productCount.getCategoryId()).thenReturn(categoryId);
+        when(productCount.getProductCount()).thenReturn(1L);
+        when(categories.countProducts(List.of(categoryId))).thenReturn(List.of(productCount));
+        when(calendar.today()).thenReturn(today);
+        when(discounts.findActive(eq(today), any()))
+                .thenReturn(new PageImpl<>(List.of(productDiscount, categoryDiscount)));
+        var counts = mock(DiscountRepository.Counts.class);
+        when(counts.getActive()).thenReturn(2L);
+        when(counts.getScheduled()).thenReturn(0L);
+        when(discounts.countActiveAndScheduled(today)).thenReturn(counts);
+
+        var page = service.list(DiscountStatus.ACTIVE, 0, 20, actor(UserRole.ADMIN, MfaStatus.VERIFIED));
+
+        assertThat(page.items()).extracting(DiscountView::id).containsExactly(productDiscount.id(), categoryDiscount.id());
+        assertThat(page.items()).extracting(DiscountView::targetId).containsExactly(categoryId, categoryId);
+        assertThat(page.items()).extracting(DiscountView::targetType)
+                .containsExactly(DiscountTargetType.PRODUCT, DiscountTargetType.CATEGORY);
+        assertThat(page.items()).extracting(DiscountView::targetName)
+                .containsExactly("Product target", "Category target");
+        assertThat(page.items()).extracting(DiscountView::productCount).containsExactly(null, 1L);
+        assertThat(page.totalItems()).isEqualTo(2);
+        assertThat(page.counts()).isEqualTo(new DiscountCounts(2, 0));
+        verify(products).findNamesById(List.of(categoryId));
+        verify(categories).findAllById(List.of(categoryId));
+        verify(categories).countProducts(List.of(categoryId));
+        verifyNoMoreInteractions(products, categories);
+        verifyNoInteractions(changes, users);
+    }
     @Test void tabCountsAreIndependentOfTheSelectedStatusAndCaptureTodayOncePerRequest() {
         when(calendar.today()).thenReturn(today);
         var counts = mock(DiscountRepository.Counts.class);

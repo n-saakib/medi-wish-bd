@@ -58,7 +58,7 @@ class PriceCalculatorTest {
     void greatestSavingWithoutStacking(int row, String selling, String mrp, List<Discount> candidates,
             LocalDate today, String expected, Discount winner) {
         if (row == 13) {
-            assertThatThrownBy(() -> PriceCalculator.price(PRODUCT,CATEGORY,Money.parse(selling),Money.parse(mrp),candidates,today)).isInstanceOf(IllegalArgumentException.class);
+            assertThatThrownBy(() -> PriceCalculator.price(PRODUCT,CATEGORY,Money.parse(selling),Money.parse(mrp),candidates,today)).isInstanceOf(IllegalStateException.class);
             return;
         }
         var result = PriceCalculator.price(PRODUCT,CATEGORY,Money.parse(selling),mrp == null ? null : Money.parse(mrp),candidates,today);

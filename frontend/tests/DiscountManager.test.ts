@@ -41,6 +41,74 @@ describe('Discount manager', () => {
     expect(page.textContent).toContain('No ended discounts.');
     expect(requiredElement(page, '[data-status="ENDED"]').textContent).toBe('Ended');
   });
+  it.each(['ACTIVE', 'SCHEDULED', 'ENDED'])('keeps the loaded %s page usable when its selected tab is clicked', async (status) => {
+    const api = source();
+    const page = await renderWithSession(createElement(DiscountManager), api.session);
+    const tab = requiredElement<HTMLButtonElement>(page, `[data-status="${status}"]`);
+    act(() => tab.click()); await settle();
+    const reads = api.seen.filter((path) => path.startsWith('/api/staff/discounts?'));
+    act(() => { tab.click(); tab.click(); }); await settle();
+    expect(tab.getAttribute('aria-pressed')).toBe('true');
+    expect(page.textContent).toContain(`No ${status.toLowerCase()} discounts.`);
+    expect(page.textContent).not.toContain('Loading discounts');
+    expect(requiredElement<HTMLButtonElement>(page, '.catalog-heading button').disabled).toBe(false);
+    expect(api.seen.filter((path) => path.startsWith('/api/staff/discounts?'))).toEqual(reads);
+  });
+  it.each(['ACTIVE', 'SCHEDULED', 'ENDED'])('settles a pending %s read despite repeated selected-tab clicks', async (status) => {
+    const held = deferred<Response>();
+    let reads = 0;
+    const api = replies((path) => {
+      if (path.includes(`status=${status}`)) { reads++; return held.promise; }
+      return baseReply(path);
+    });
+    const page = await renderWithSession(createElement(DiscountManager), api.session);
+    const tab = requiredElement<HTMLButtonElement>(page, `[data-status="${status}"]`);
+    act(() => tab.click()); await settle();
+    expect(page.textContent).toContain('Loading discounts');
+    act(() => { tab.click(); tab.click(); }); await settle();
+    await act(async () => held.resolve(Response.json({ items: [], page: 0, size: 20, totalItems: 0,
+      counts: { active: 0, scheduled: 0 } })));
+    await settle();
+    expect(reads).toBe(1);
+    expect(page.textContent).toContain(`No ${status.toLowerCase()} discounts.`);
+    expect(page.textContent).not.toContain('Loading discounts');
+    expect(requiredElement<HTMLButtonElement>(page, '.catalog-heading button').disabled).toBe(false);
+  });
+  it.each([[0, false], [1, false], [21, false], [0, true], [1, true], [21, true]])(
+    'keeps page-turn focus through a held response with total %s (user moves: %s)', async (totalItems, moves) => {
+      const held = deferred<Response>();
+      const api = replies((path) => {
+        if (path.startsWith('/api/staff/discounts?')) {
+          if (path.includes('page=1')) return held.promise;
+          return Response.json({ items: [item], page: 0, size: 20, totalItems: 21,
+            counts: { active: 21, scheduled: 0 } });
+        }
+        return baseReply(path);
+      });
+      const page = await renderWithSession(createElement(DiscountManager), api.session);
+      const next = requiredElement<HTMLButtonElement>(page, '.catalog-pager button:last-child');
+      act(() => { next.focus(); next.click(); }); await settle();
+      const tab = requiredElement<HTMLButtonElement>(page, '[data-status="ACTIVE"]');
+      expect(page.textContent).toContain('Loading discounts');
+      expect(page.querySelector('table')).toBeNull();
+      expect(document.activeElement).toBe(tab);
+      expect(tab.disabled).toBe(false);
+      const categories = requiredElement<HTMLAnchorElement>(page, '.catalog-heading a');
+      if (moves) act(() => categories.focus());
+      await act(async () => held.resolve(Response.json({ items: totalItems === 21 ? [item] : [],
+        page: 1, size: 20, totalItems, counts: { active: totalItems, scheduled: 0 } })));
+      await settle();
+      if (totalItems === 0) {
+        expect(page.textContent).toContain('No active discounts.');
+        expect(page.querySelector('.catalog-pager')).toBeNull();
+      } else {
+        expect(requiredElement<HTMLButtonElement>(page, '.catalog-pager button:last-child').disabled).toBe(true);
+        expect(requiredElement<HTMLButtonElement>(page, '.catalog-pager button:first-child').disabled).toBe(false);
+      }
+      expect(document.activeElement).toBe(moves ? categories : totalItems === 0 ? tab
+        : requiredElement(page, '.catalog-pager button:first-child'));
+    },
+  );
   it('refuses a Moderator before discount reads', async () => {
     const api = source('MODERATOR');
     const page = await renderWithSession(createElement(DiscountManager), api.session);
@@ -272,6 +340,64 @@ describe('Discount commands and recovery', () => {
     expect(api.writes).toEqual([original, original]);
     expect(page.querySelector('dialog')).toBeNull();
   });
+  it.each([
+    { type: 'CATEGORY', fails: false, moves: false }, { type: 'CATEGORY', fails: false, moves: true },
+    { type: 'CATEGORY', fails: true, moves: false }, { type: 'CATEGORY', fails: true, moves: true },
+    { type: 'PRODUCT', fails: false, moves: false }, { type: 'PRODUCT', fails: false, moves: true },
+    { type: 'PRODUCT', fails: true, moves: false }, { type: 'PRODUCT', fails: true, moves: true },
+  ])('keeps picker Retry focus for $type (fails: $fails, user moves: $moves)', async ({ type, fails, moves }) => {
+    const held = deferred<Response>();
+    let pickerReads = 0;
+    const api = replies((path) => {
+      if (path.startsWith(type === 'CATEGORY' ? '/api/staff/categories?' : '/api/staff/products?')) {
+        pickerReads++;
+        if (pickerReads === 1) throw Error('offline');
+        return held.promise;
+      }
+      return baseReply(path);
+    });
+    const page = await renderWithSession(createElement(DiscountManager), api.session);
+    const dialog = await newDialog(page);
+    if (type === 'PRODUCT') {
+      act(() => requiredElement<HTMLInputElement>(dialog, 'input[name="targetType"]:not(:checked)').click()); await settle();
+    }
+    const retry = requiredElement<HTMLButtonElement>(dialog, '[role="alert"] button');
+    act(() => { retry.focus(); retry.click(); }); await settle();
+    const selectedType = requiredElement<HTMLInputElement>(dialog, 'input[name="targetType"]:checked');
+    expect(selectedType.parentElement?.textContent).toBe(type === 'CATEGORY' ? 'Category' : 'One product');
+    expect(selectedType.matches(':disabled')).toBe(false);
+    expect(document.activeElement).toBe(selectedType);
+    expect(retry.isConnected).toBe(false);
+    expect(dialog.querySelector('[role="alert"]')).toBeNull();
+    expect(dialog.textContent).toContain('Loading categories or products…');
+    expect(requiredElement<HTMLSelectElement>(dialog, '#discount-target').disabled).toBe(true);
+    const value = requiredElement<HTMLInputElement>(dialog, '#discount-value');
+    if (moves) act(() => value.focus());
+    await act(async () => {
+      if (fails) held.reject(Error('retry offline'));
+      else held.resolve(type === 'CATEGORY' ? baseReply('/api/staff/categories?') : Response.json({ items: [{
+        id: '33333333-3333-4333-8333-333333333333', kind: 'MEDICINE', name: 'Synthetic product',
+        brandName: null, genericName: null, dosageForm: null, manufacturer: null,
+        categoryId: category.id, categoryName: category.name, saleUnit: 'tablet', sellingPrice: '10.00',
+        mrp: null, effectivePrice: '10.00', appliedDiscount: null, active: true, requireValidation: false, status: 'ACTIVE',
+      }], page: 0, size: 20, totalItems: 1 }));
+    }); await settle();
+    expect(document.activeElement).toBe(moves ? value : selectedType);
+    expect(dialog.open).toBe(true);
+    expect(dialog.textContent).not.toContain('Loading categories or products…');
+    expect(pickerReads).toBe(2);
+    const target = requiredElement<HTMLSelectElement>(dialog, '#discount-target');
+    expect(target.disabled).toBe(fails);
+    if (fails) {
+      expect(requiredElement(dialog, '[role="alert"]').textContent).toContain('The request could not be completed.');
+      expect(requiredElement<HTMLButtonElement>(dialog, '[role="alert"] button').disabled).toBe(false);
+      expect(target.options.length).toBe(1);
+    } else {
+      expect(dialog.querySelector('[role="alert"]')).toBeNull();
+      expect(target.options[1].textContent).toBe(type === 'CATEGORY' ? category.name : 'Synthetic product');
+    }
+    expect(api.writes).toEqual([]);
+  });
   it('recovers a failed category picker without submitting an empty target', async () => {
     let failed = false;
     const api = replies((path) => {
@@ -301,6 +427,58 @@ describe('Discount commands and recovery', () => {
       act(() => Array.from(dialog.querySelectorAll('button')).find((button) => button.textContent === 'Reload')!.click()); await settle();
       expect(page.querySelector('dialog')).toBeNull();
     }
+  });
+  it.each(['update', 'end'])('reloads a stale %s without announcing a save and uses the refreshed version', async (command) => {
+    const refreshed = deferred<Response>();
+    let rejected = false;
+    let listReads = 0;
+    const api = replies((path, init) => {
+      if (init.method !== 'GET') {
+        rejected = true;
+        return Response.json({ code: 'STALE_UPDATE' }, { status: 409 });
+      }
+      if (path.startsWith('/api/staff/discounts?')) {
+        listReads++;
+        if (rejected) return refreshed.promise;
+      }
+      return baseReply(path);
+    });
+    const page = await renderWithSession(createElement(DiscountManager), api.session);
+    act(() => requiredElement<HTMLButtonElement>(page, 'tbody button').click()); await settle();
+    const dialog = requiredElement<HTMLDialogElement>(page, 'dialog');
+    if (command === 'end') {
+      act(() => Array.from(dialog.querySelectorAll('button')).find((button) => button.textContent === 'End now')!.click());
+      act(() => Array.from(dialog.querySelectorAll('button')).find((button) => button.textContent === 'Confirm')!.click());
+    } else {
+      setInputValue(dialog, '#discount-value', '12');
+      await submitForm(dialog);
+    }
+    await settle();
+    expect(dialog.textContent).toContain('This record changed after you opened it. Reload and try again.');
+    expect(api.writes).toHaveLength(1);
+    const reloadButton = Array.from(dialog.querySelectorAll('button')).find((button) => button.textContent === 'Reload')!;
+    act(() => { reloadButton.focus(); reloadButton.click(); }); await settle();
+    const activeTab = requiredElement<HTMLButtonElement>(page, '[data-status="ACTIVE"]');
+    expect(page.querySelector('dialog')).toBeNull();
+    expect(page.textContent).not.toContain('Discount saved.');
+    expect(page.textContent).toContain('Loading discounts');
+    expect(listReads).toBe(2);
+    expect(document.activeElement).toBe(activeTab);
+    expect(activeTab.disabled).toBe(false);
+    await act(async () => refreshed.resolve(Response.json({ items: [{ ...item, value: '17', version: 4 }],
+      page: 0, size: 20, totalItems: 1, counts: { active: 2, scheduled: 1 } })));
+    await settle();
+    expect(page.textContent).toContain('17%');
+    expect(page.textContent).toContain('Active 2');
+    expect(page.textContent).toContain('Scheduled 1');
+    expect(page.textContent).not.toContain('Discount saved.');
+    expect(document.activeElement).toBe(activeTab);
+    act(() => requiredElement<HTMLButtonElement>(page, 'tbody button').click()); await settle();
+    const reopened = requiredElement<HTMLDialogElement>(page, 'dialog');
+    expect(requiredElement<HTMLInputElement>(reopened, '#discount-value').value).toBe('17');
+    setInputValue(reopened, '#discount-value', '18'); await submitForm(reopened); await settle();
+    expect(api.writes).toHaveLength(2);
+    expect(api.writes[1].body.version).toBe(4);
   });
   it('confirms End now once and refreshes the counts after success', async () => {
     let ended = false;
@@ -358,6 +536,26 @@ describe('Discount commands and recovery', () => {
   });
 });
 describe('Discount picker and projection boundaries', () => {
+  it.each([{ targetType: ['PRODUCT'] }, { kind: ['FLAT'] }, { status: ['ACTIVE'] }])(
+    'shows enum arrays as an invalid response and recovers through Retry %j', async (change) => {
+      let malformed = true;
+      const valid = { ...item, targetType: 'PRODUCT', productCount: null, kind: 'FLAT', value: '1.00' };
+      const api = replies((path) => {
+        if (!path.startsWith('/api/staff/discounts?')) return baseReply(path);
+        const response = Response.json({ items: [malformed ? { ...valid, ...change } : valid],
+          page: 0, size: 20, totalItems: 1, counts: { active: 1, scheduled: 0 } });
+        malformed = false;
+        return response;
+      });
+      const page = await renderWithSession(createElement(DiscountManager), api.session);
+      expect(requiredElement(page, '[role="alert"]').textContent).toContain('The service returned an invalid response.');
+      expect(page.querySelector('table')).toBeNull();
+      act(() => requiredElement<HTMLButtonElement>(page, '[role="alert"] button').click()); await settle();
+      expect(page.querySelector('[role="alert"]')).toBeNull();
+      expect(requiredElement(page, 'tbody').textContent).toContain(item.targetName);
+      expect(api.writes).toHaveLength(0);
+    },
+  );
   it('shows a malformed list projection as an invalid response with Retry', async () => {
     const api = replies((path) => path.startsWith('/api/staff/discounts?')
       ? Response.json({ items: [item], page: 0, size: 20, totalItems: 1 }) : baseReply(path));

@@ -158,11 +158,12 @@ public class DiscountService {
         var productIds = found.stream().map(Discount::productId).filter(Objects::nonNull).distinct().toList();
         var categoryIds = found.stream().map(Discount::categoryId).filter(Objects::nonNull).distinct().toList();
         var userIds = found.stream().map(Discount::updatedBy).filter(Objects::nonNull).distinct().toList();
-        Map<UUID, String> names = new HashMap<>();
+        Map<UUID, String> productNames = new HashMap<>();
         if (!productIds.isEmpty())
-            products.findNamesById(productIds).forEach(p -> names.put(p.getProductId(), p.getName()));
+            products.findNamesById(productIds).forEach(p -> productNames.put(p.getProductId(), p.getName()));
+        Map<UUID, String> categoryNames = new HashMap<>();
         if (!categoryIds.isEmpty())
-            categories.findAllById(categoryIds).forEach(c -> names.put(c.id(), c.name()));
+            categories.findAllById(categoryIds).forEach(c -> categoryNames.put(c.id(), c.name()));
         Map<UUID, Long> counts = new HashMap<>();
         if (!categoryIds.isEmpty())
             categories.countProducts(categoryIds).forEach(c -> counts.put(c.getCategoryId(), c.getProductCount()));
@@ -170,7 +171,8 @@ public class DiscountService {
         if (!userIds.isEmpty())
             users.findUsernamesById(userIds).forEach(u -> usernames.put(u.getUserId(), u.getUsername()));
         return found.stream()
-            .map(d -> new DiscountView(d.id(), d.targetType(), d.targetId(), names.get(d.targetId()),
+            .map(d -> new DiscountView(d.id(), d.targetType(), d.targetId(),
+                    (d.targetType() == DiscountTargetType.PRODUCT ? productNames : categoryNames).get(d.targetId()),
                     d.targetType() == DiscountTargetType.PRODUCT ? null : counts.getOrDefault(d.targetId(), 0L),
                     d.kind(), DiscountHistory.renderValue(d), d.startsOn(), d.endsOn(), d.status(today), d.version(),
                     d.updatedAt(), usernames.get(d.updatedBy())))

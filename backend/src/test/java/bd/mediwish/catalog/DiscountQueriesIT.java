@@ -186,6 +186,41 @@ class DiscountQueriesIT {
         }
     }
 
+    @Test
+    void productAndCategorySharingAUuidKeepDistinctNamesInTheDiscountPage() throws Exception {
+        try (var api = DiscountTestApi.start()) {
+            var admin = api.actor("ADMIN");
+            UUID sharedId = UUID.randomUUID();
+            var category = DiscountTestApi.successful(api.send("POST", "/api/staff/categories", admin,
+                    Map.of("id", sharedId, "name", "Category target")), 201);
+            var draft = CatalogTestApi.draft("EQUIPMENT", sharedId);
+            draft.put("id", sharedId);
+            draft.put("name", "Product target");
+            var product = DiscountTestApi.successful(api.send("POST", "/api/staff/products", admin, draft), 201);
+            product = api.edit(admin, api.price(admin, product, "100.00"), Map.of("active", true));
+            assertThat(id(category)).isEqualTo(id(product)).isEqualTo(sharedId);
+            var productDiscount = api.discount(admin, "PRODUCT", sharedId, "PERCENTAGE", "10", TODAY, null);
+            var categoryDiscount = api.discount(admin, "CATEGORY", sharedId, "PERCENTAGE", "5", TODAY, null);
+            assertThat(productDiscount).containsEntry("targetName", "Product target");
+            assertThat(categoryDiscount).containsEntry("targetName", "Category target");
+
+            var page = api.list(admin, "ACTIVE", 20);
+            var rows = items(page, "items");
+            assertThat(rows).hasSize(2);
+            assertThat(rows).extracting(DiscountTestApi::id)
+                    .containsExactlyInAnyOrder(id(productDiscount), id(categoryDiscount));
+            for (var row : rows) {
+                boolean isProduct = id(row).equals(id(productDiscount));
+                assertThat(row).containsEntry("targetType", isProduct ? "PRODUCT" : "CATEGORY")
+                        .containsEntry("targetId", sharedId.toString())
+                        .containsEntry("targetName", isProduct ? "Product target" : "Category target")
+                        .containsEntry("productCount", isProduct ? null : 1);
+            }
+            assertThat(page).containsEntry("totalItems", 2)
+                    .containsEntry("counts", Map.of("active", 2, "scheduled", 0));
+        }
+    }
+
     private static Map<String, Object> endedEvent(Map<String, Object> ended, CatalogTestApi.Actor actor) {
         return Map.of("changeType", "DISCOUNT_ENDED", "occurredAt", ended.get("updatedAt"),
                 "actorUsername", actor.username(), "discount", Map.of("targetType", ended.get("targetType"),

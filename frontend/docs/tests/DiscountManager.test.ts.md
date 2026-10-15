@@ -17,3 +17,13 @@ Verified 2026-10-12 at working HEAD 7555e2d: the focused DiscountManager suite p
 Full npm run verify passed on 2026-10-12: ESLint with zero warnings, TypeScript, 588 units across 28 files and optimized Next.js build including /staff/discounts. No backend/integration/browser execution was run by T3; those remain T5-T8 integration gates.
 
 After the unknown-create cancellation correction, the meaningful regression failed at New becoming enabled after an unrelated successful Active refresh, then passed with all 22 focused cases. Final `npm run verify` with `VITEST_MAX_WORKERS=1` passed again on 2026-10-12 at working HEAD 7555e2d: lint, TypeScript, 588 units/28 files and production build. Logs: `.scratch/ticket-16-implementation/retry-regression-red.log`, `retry-regression-green.log`, `frontend-final-verify.log` in the worktree. The extended browser case remains for the integrated browser run.
+
+Review regressions authored 2026-10-14 cover all three selected tabs both loaded and pending, asserting no redundant request or stranded loading state. Stale update and End cases hold the reload response and assert no saved notice, a fresh list/counts read, selected-tab focus before and after completion, and a reopened editor submitting the refreshed version. These additions passed in the final coordinator verification on 2026-10-15.
+
+Review regressions authored 2026-10-14 hold a page-one read after focused Next, assert stable selected-tab focus during loading, then cover zero-total fallback, an empty later page with nonzero total and a nonempty last page. Each completion also runs with focus moved to Categories to assert that the response does not steal it. These additions passed in the final coordinator verification on 2026-10-15.
+
+Review regressions authored 2026-10-14 inject targetType/kind/status arrays through the real discount list client, assert the translated invalid-response alert with no table, then Retry a valid response and assert recovery without writes. These additions passed in the final coordinator verification on 2026-10-15.
+
+Review regressions authored 2026-10-14 hold picker Retry responses for both Category and Product, covering success/repeated failure with focus retained or moved by the user. They assert a named enabled selected radio during loading, no detached-action focus, no focus stealing on completion, recovered options or a bounded retryable failure, and no writes. These additions passed in the final coordinator verification on 2026-10-15.
+
+Final review verification on 2026-10-15, HEAD 34e3240 with the uncommitted review fixes: npm run verify passed ESLint, TypeScript, 638 unit tests across 28 files and the production build. The later browser-only assertion corrections passed focused ESLint.

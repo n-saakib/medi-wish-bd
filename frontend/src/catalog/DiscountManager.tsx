@@ -11,7 +11,6 @@ import { createDiscountClient, type Discount, type DiscountPage, type DiscountSt
 import { formatDate } from '../lib/dateTime';
 import { fetchStaffAccess } from '../lib/staff';
 import { Alert } from '../shell/Alert';
-import { usePagerFocus } from '../shell/usePagerFocus';
 import { DiscountDialog } from './DiscountDialog';
 
 export function DiscountManager() {
@@ -35,7 +34,9 @@ export function DiscountManager() {
   const heading = useRef<HTMLHeadingElement>(null);
   const activeTab = useRef<HTMLButtonElement>(null);
   const opener = useRef<HTMLElement | null>(null);
-  const { pager, markTurn } = usePagerFocus(result);
+  const focusAfterStaleReload = useRef(false);
+  const pager = useRef<HTMLDivElement>(null);
+  const pageTurnFocus = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!ready) return;
@@ -57,10 +58,22 @@ export function DiscountManager() {
 
   useEffect(() => {
     // The selected tab survives a reload even when End removes the Edit opener.
-    if (saved) activeTab.current?.focus();
+    if (saved || focusAfterStaleReload.current) {
+      activeTab.current?.focus(); focusAfterStaleReload.current = false;
+    }
   }, [saved, reload]);
 
+  useEffect(() => {
+    if (!result && !failure) return;
+    const fallback = pageTurnFocus.current;
+    pageTurnFocus.current = null;
+    if (result && fallback && document.activeElement === fallback) {
+      pager.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus();
+    }
+  }, [result, failure]);
+
   function refresh() {
+    pageTurnFocus.current = null;
     setResult(null); setFailure(null); setReload((value) => value + 1);
     heading.current?.focus();
   }
@@ -76,8 +89,18 @@ export function DiscountManager() {
       if (uncertain) activeTab.current?.focus();
     } else opener.current?.focus();
   }
+  function reloadStale() {
+    setDialogOpen(false); setEditing(null); setSaved(false);
+    focusAfterStaleReload.current = true; refresh();
+  }
   function turn(nextStatus: DiscountStatus, nextPage: number) {
-    markTurn(); setResult(null); setFailure(null); setStatus(nextStatus); setPage(nextPage);
+    if (nextStatus === status && nextPage === page) return;
+    pageTurnFocus.current = null;
+    if (pager.current?.contains(document.activeElement)) {
+      pageTurnFocus.current = activeTab.current;
+      activeTab.current?.focus();
+    }
+    setResult(null); setFailure(null); setStatus(nextStatus); setPage(nextPage);
   }
   if (!ready) return null;
   if (admin === false) return <main className="container page"><Alert tone="danger" focusOnShow>{errors('accessDenied')}</Alert></main>;
@@ -118,6 +141,6 @@ export function DiscountManager() {
       </div>}
     </div>}
     <p className="small muted">{t('footer')}</p>
-    {editing && <DiscountDialog open={dialogOpen} editing={editing} authenticatedFetch={authenticatedFetch} onClose={close} onReload={() => close(true)} />}
+    {editing && <DiscountDialog open={dialogOpen} editing={editing} authenticatedFetch={authenticatedFetch} onClose={close} onReload={reloadStale} />}
   </main>;
 }

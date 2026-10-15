@@ -1,12 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { createDiscountClient, dhakaToday, projectDiscount, projectDiscountPage } from '../src/lib/discounts';
+import { createDiscountClient, dhakaToday, projectDiscount, projectDiscountPage, projectDiscountValue } from '../src/lib/discounts';
 
 const discount = { id: '11111111-1111-4111-8111-111111111111', targetType: 'CATEGORY',
   targetId: '22222222-2222-4222-8222-222222222222', targetName: 'Antibiotics', productCount: 38,
   kind: 'PERCENTAGE', value: '10', startsOn: '2026-10-10', endsOn: null, status: 'SCHEDULED',
   version: 0, updatedAt: '2026-10-08T09:15:02.123456Z', updatedByUsername: 'admin_demo' };
 const page = { items: [discount], page: 0, size: 20, totalItems: 1, counts: { active: 6, scheduled: 2 } };
+const flatDiscount = { ...discount, targetType: 'PRODUCT', productCount: null, kind: 'FLAT', value: '1.00', status: 'ACTIVE' };
+const enumArrays = [{ targetType: ['PRODUCT'] }, { kind: ['FLAT'] }, { status: ['ACTIVE'] }];
 describe('discount response boundary', () => {
+  it.each(enumArrays)('rejects enum arrays in discount and page projections %j', (change) => {
+    const malformed = { ...flatDiscount, ...change };
+    expect(projectDiscount(flatDiscount)).toEqual(flatDiscount);
+    expect(projectDiscount(malformed)).toBeUndefined();
+    expect(projectDiscountPage({ ...page, items: [malformed] })).toBeUndefined();
+  });
+  it.each([{ targetType: ['PRODUCT'] }, { kind: ['FLAT'] }])('rejects enum arrays in the shared value projection %j', (change) => {
+    expect(projectDiscountValue({ targetType: 'PRODUCT', kind: 'FLAT', value: '1.00', ...change })).toBeUndefined();
+  });
   it('accepts the documented view and counts, projecting only public fields', () => {
     expect(projectDiscount({ ...discount, privateField: 'ignored' })).toEqual(discount);
     expect(projectDiscountPage(page)).toEqual(page);
@@ -29,6 +40,19 @@ describe('discount response boundary', () => {
   });
 });
 describe('discount client', () => {
+  it.each(enumArrays)('reports INVALID_RESPONSE for enum arrays on every discount route %j', async (change) => {
+    const malformed = { ...flatDiscount, ...change };
+    const authenticatedFetch = async <T>(_: string, init: RequestInit, read: (response: Response) => Promise<T>) =>
+      read(Response.json(init.method === 'GET' ? { ...page, items: [malformed] } : malformed));
+    const client = createDiscountClient({ authenticatedFetch });
+    const draft = { id: discount.id, targetType: 'PRODUCT' as const, targetId: discount.targetId,
+      kind: 'FLAT' as const, value: '1.00', startsOn: discount.startsOn, endsOn: null };
+    const update = { kind: draft.kind, value: draft.value, startsOn: draft.startsOn, endsOn: null, version: 0 };
+    await expect(client.listDiscounts('ACTIVE')).rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 200 });
+    await expect(client.createDiscount(draft)).rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 200 });
+    await expect(client.updateDiscount(discount.id, update)).rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 200 });
+    await expect(client.endDiscount(discount.id, 0)).rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 200 });
+  });
   it('sends list, create, update and end through exact bounded contracts', async () => {
     const seen: { path: string; init: RequestInit }[] = [];
     const authenticatedFetch = async <T>(path: string, init: RequestInit, read: (response: Response) => Promise<T>) => {

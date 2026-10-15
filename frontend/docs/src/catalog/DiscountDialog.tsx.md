@@ -9,3 +9,5 @@ Ordinary Tab and Shift+Tab wrap between the first and last enabled dialog contro
 Entering End confirmation focuses Confirm, and cancelling that confirmation focuses the restored End now button. These transitions replace the action controls, so explicit focus prevents keyboard users being left on the document body.
 
 Cancel and Escape close the native dialog before notifying the manager, releasing the browser's inert background before opener focus is restored. Pending commands still prevent cancellation. This ordering also applies when an unknown create is retained as a closed dialog.
+
+Picker Retry focuses the selected, enabled Category or One product radio before its error action is removed. That control survives loading, success and a repeated failure. Responses update picker state without moving focus, preserving any keyboard movement made while the request was pending. Failed reads retain a bounded alert and usable Retry.

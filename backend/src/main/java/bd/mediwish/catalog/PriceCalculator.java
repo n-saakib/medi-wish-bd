@@ -22,7 +22,7 @@ final class PriceCalculator {
             List<Discount> candidates, LocalDate today) {
         Objects.requireNonNull(sellingPrice);
         if (mrp != null && sellingPrice.compareTo(mrp) > 0)
-            throw new IllegalArgumentException("Invalid catalog price");
+            throw new IllegalStateException("Invalid catalog price");
         Discount winner = null;
         BigDecimal saving = BigDecimal.ZERO.setScale(2);
         for (Discount d : candidates) {
