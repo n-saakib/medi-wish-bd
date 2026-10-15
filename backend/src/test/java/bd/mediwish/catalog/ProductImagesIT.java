@@ -58,6 +58,28 @@ class ProductImagesIT {
             assertThat(images.files()).isEqualTo(1);
         }
     }
+    @Test void queryParametersCannotSupplyMultipartCommandFields() throws Exception {
+        try (var images = ProductImageTestApi.start()) {
+            var api = images.catalog; var actor = api.actor("ADMIN");
+            var category = api.category(actor, "Multipart provenance " + UUID.randomUUID());
+            String product = (String) api.medicine(actor, UUID.fromString((String) category.get("id"))).get("id");
+            byte[] png = ProductImageTestApi.png(2, 2);
+            for (String field : List.of("id", "altText", "replaces")) {
+                var request = images.uploadRequest(actor, product, field.equals("id") ? null : UUID.randomUUID(),
+                        png, "image/png", "synthetic.png", Map.of());
+                String value = field.equals("altText") ? "query-description" : UUID.randomUUID().toString();
+                var queryRequest = java.net.http.HttpRequest.newBuilder(request, (name, content) -> true)
+                        .uri(api.application().uri(images.path(product) + "?" + field + "=" + value)).build();
+                assertError(images.upload(queryRequest), 400, "INVALID_REQUEST");
+                assertThat(api.database().single("SELECT count(*) FROM product_images", Long.class)).isZero();
+                assertThat(images.files()).isZero();
+            }
+            String alt = "  ওষুধের ছবি café  ";
+            var valid = images.upload(actor, product, UUID.randomUUID(), png, "image/png", "synthetic.png", Map.of("altText", alt));
+            assertThat(valid.statusCode()).isEqualTo(201);
+            assertThat(json(valid)).containsEntry("altText", alt.trim());
+        }
+    }
     @Test void invalidUploadsAndCrossProductAttachmentWriteNeitherRowsNorObjects() throws Exception {
         try (var images = ProductImageTestApi.start()) {
             var api=images.catalog; var actor=api.actor("ADMIN");

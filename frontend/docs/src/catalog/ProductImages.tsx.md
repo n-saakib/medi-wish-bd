@@ -9,4 +9,4 @@ The accepted main-image hint stays below the grid in the empty state as well as 
 
 Description saves trim only ASCII spaces, preserving accepted Unicode boundaries and forwarding control characters for backend refusal.
 
-Once upload POST succeeds, a failed metadata refresh shows the list-load refusal and offers only a GET retry. The committed upload command is discarded; read recovery cannot replay the POST. Pending controls remain disabled until the refresh settles.
+After a committed upload or removal, or an authoritative conflict recovery, a failed metadata read hides the stale grid, clears status, and focuses the list-load alert. Only a GET retry remains available; it cannot replay the completed mutation. Refreshed-list messages appear only after a successful read. Pending controls remain disabled until the refresh settles.

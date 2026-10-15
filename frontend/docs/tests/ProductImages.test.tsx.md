@@ -10,3 +10,5 @@ The accepted main-image hint stays below the grid in the empty state as well as 
 A mounted regression renders and saves an unchanged NBSP/BOM description without losing its boundary characters.
 
 A committed-upload regression makes the initial list succeed, the POST return 201, and the following list fail. It requires the load-failure alert, no upload-retry status, one POST throughout, and a successful list-only retry restoring the thumbnail and enabled controls.
+
+The committed-upload regression also starts with focus on the upload control and requires the recovery alert to receive activeElement after the grid disappears. Committed removal at the eight-image limit hides stale thumbnails and offers GET-only retry restoring seven images and the upload slot. Parameterized stale alt/order and already-removed cases fail their recovery read, require focused alert with no refreshed-list success claim, and recover with one mutation throughout.

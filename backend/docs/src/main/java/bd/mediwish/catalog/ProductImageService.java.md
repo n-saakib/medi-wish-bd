@@ -4,3 +4,5 @@ Coordinates image commands without changing the Product version. Authorizes cata
 
 
 The package-private constructor allows a shorter decode wait for deterministic saturation tests; the injected production constructor always uses5000ms.
+
+After locking the Product, upload claims its new image ID before the authoritative live/retired replay check and holds that claim through commit or rollback. This prevents another Product/process from creating and retiring that ID during storage put. Each upload acquires only one identity lock after its Product lock; removal/replacement already serialize retirement under the owning Product lock and acquire no additional identity locks, avoiding cycles between replacing uploads.

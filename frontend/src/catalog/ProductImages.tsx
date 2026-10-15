@@ -32,6 +32,7 @@ export function ProductImages({ productId, productName }: { productId: string; p
   const replacement = useRef<ImageMetadata | null>(null);
   const uploadButton = useRef<HTMLButtonElement>(null);
   const status = useRef<HTMLParagraphElement>(null);
+  const loadError = useRef<HTMLDivElement>(null);
   const thumbnails = useRef(new Map<string, HTMLButtonElement>());
   const pending = useRef(false);
   const generation = useRef(0);
@@ -60,7 +61,7 @@ export function ProductImages({ productId, productName }: { productId: string; p
   useEffect(() => {
     if (busy || loading || !focusNext.current) return;
     const key = focusNext.current;
-    const target = key === 'message' ? status.current : thumbnails.current.get(key) ?? uploadButton.current;
+    const target = key === 'loadError' ? loadError.current : key === 'message' ? status.current : thumbnails.current.get(key) ?? uploadButton.current;
     if (target) { focusNext.current = null; target.focus(); }
   });
 
@@ -78,6 +79,10 @@ export function ProductImages({ productId, productName }: { productId: string; p
     setImages(list.images);
     return list.images;
   }
+  function failedRead(current: number) {
+    if (current !== generation.current) return;
+    setLoadFailed(true); setMessage(null); focusNext.current = 'loadError';
+  }
   function start() {
     if (pending.current) return null;
     pending.current = true; setBusy(true); setRetry(null); setMessage(null); setDialogError(null);
@@ -93,7 +98,7 @@ export function ProductImages({ productId, productName }: { productId: string; p
     const limit = reason instanceof ApiError && reason.code === 'IMAGE_LIMIT_REACHED';
     if (stale || limit) {
       close();
-      try { await refresh(current); } catch { if (current === generation.current) setLoadFailed(true); }
+      try { await refresh(current); } catch { failedRead(current); return; }
       if (current !== generation.current) return;
       setMessage(limit ? errors('imageLimitReached') : t(operation === 'remove' && reason instanceof ApiError && reason.status === 404 ? 'alreadyRemoved' : 'orderChanged'));
     } else {
@@ -112,7 +117,7 @@ export function ProductImages({ productId, productName }: { productId: string; p
       if (current !== generation.current) return;
       try { await refresh(current); }
       catch {
-        if (current === generation.current) { setLoadFailed(true); setMessage(null); }
+        failedRead(current);
         return;
       }
       if (current !== generation.current) return;
@@ -164,7 +169,8 @@ export function ProductImages({ productId, productName }: { productId: string; p
     try {
       await client.remove(productId, image.id);
       if (current !== generation.current) return;
-      const remaining = await refresh(current);
+      let remaining: ImageMetadata[] | undefined;
+      try { remaining = await refresh(current); } catch { failedRead(current); return; }
       if (current !== generation.current) return;
       setMessage(t('removed')); focusNext.current = remaining?.[Math.min(index, remaining.length - 1)]?.id ?? 'upload';
     } catch (reason) { await failed(reason, current, 'remove'); }
@@ -175,7 +181,7 @@ export function ProductImages({ productId, productName }: { productId: string; p
   return <section className="card card-pad stack" aria-busy={busy}>
     <div className="image-card-head"><h2>{t('title')}</h2><span className="small muted">{t('formats')}</span></div>
     <input ref={fileInput} type="file" accept="image/jpeg,image/png" hidden disabled={busy} onChange={choose} />
-    {loading ? <p className="muted">{t('loading')}</p> : loadFailed ? <div className="alert alert-danger" role="alert">{t('loadFailed')}
+    {loading ? <p className="muted">{t('loading')}</p> : loadFailed ? <div ref={loadError} className="alert alert-danger" role="alert" tabIndex={-1}>{t('loadFailed')}
       <button className="btn btn-ghost" disabled={busy} onClick={() => { setLoading(true); setLoadFailed(false); setMessage(null); setRetry(null); setReload((before) => before + 1); }}>{t('retry')}</button></div> : <>
       <div className="grid-4">{images.map((image, index) => <button key={image.id} type="button" className={`thumb${index === 0 ? ' image-main' : ''}`}
         disabled={busy} aria-label={t('openImage', { n: index + 1, alt: imageAlt(image, productName, index, t) })}

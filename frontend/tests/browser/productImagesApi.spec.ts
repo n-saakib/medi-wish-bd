@@ -546,10 +546,7 @@ test('E2E-15-08 public GET and HEAD expose stored bytes and exact bounded cachin
     expect(await signedOutRefresh.body()).toHaveLength(0);
     for (const method of ['POST', 'PUT', 'DELETE']) {
       const response = await api.fetch(publicImage(images[0].url), { method, headers: { 'X-XSRF-TOKEN': csrfToken } });
-      expect([401, 403]).toContain(response.status());
-      await expectImageError(response, response.status(),
-        response.status() === 401 ? 'AUTHENTICATION_REQUIRED' : 'ACCESS_DENIED');
-      if (response.status() === 401) expect(response.headers()['www-authenticate']).toBe('Bearer');
+      await expectImageError(response, 403, 'ACCESS_DENIED');
     }
   });
 

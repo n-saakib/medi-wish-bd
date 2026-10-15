@@ -31,7 +31,7 @@ final class ProductImageTestApi implements AutoCloseable {
             String type, String filename, Map<String, String> fields) throws Exception {
         String boundary = "image-" + UUID.randomUUID();
         var body = new ByteArrayOutputStream();
-        field(body, boundary, "id", imageId.toString());
+        if (imageId != null) field(body, boundary, "id", imageId.toString());
         for (var entry : fields.entrySet()) field(body, boundary, entry.getKey(), entry.getValue());
         write(body, "--" + boundary + "\r\nContent-Disposition: form-data; name=\"file\""
                 + (filename == null ? "" : "; filename=\"" + filename + "\"")
@@ -43,7 +43,7 @@ final class ProductImageTestApi implements AutoCloseable {
         if (actor != null) request.header("Authorization", "Bearer " + actor.token());
         return request.build();
     }
-    private HttpResponse<String> upload(HttpRequest request) throws Exception {
+    HttpResponse<String> upload(HttpRequest request) throws Exception {
         var response = client.send(request, HttpResponse.BodyHandlers.ofString());
         assertThat(response.headers().allValues("Cache-Control")).containsExactly("no-store");
         assertThat(response.headers().allValues("X-Request-ID")).singleElement().asString()

@@ -11,6 +11,8 @@ public interface ProductImageRepository extends JpaRepository<ProductImage, UUID
     List<ProductImage> findByProductIdOrderByDisplayOrder(UUID productId);
     Optional<ProductImage> findByIdAndProductId(UUID id, UUID productId);
     long countByProductId(UUID productId);
+    @Query(value="select 1 from pg_advisory_xact_lock(hashtextextended(cast(:id as text), 15))",nativeQuery=true)
+    int claimIdentity(@Param("id") UUID id);
     boolean existsByObjectKey(String key);
     @Modifying
     @Query(value="insert into product_images (id,product_id,object_key,content_type,byte_size,width,height,sha256,alt_text,display_order,version,created_at,updated_at,created_by,updated_by) values (:id,:product,:key,:type,:size,:width,:height,:sha,:alt,:position,0,:now,:now,:actor,:actor) on conflict (id) do nothing", nativeQuery=true)

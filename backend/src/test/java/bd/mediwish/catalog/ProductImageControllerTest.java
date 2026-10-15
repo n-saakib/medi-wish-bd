@@ -27,7 +27,7 @@ class ProductImageControllerTest {
             when(service.upload(eq(ID),eq(ID),any(byte[].class),eq("image/png"),eq("front.png"),isNull(),isNull(),eq(actor)))
                     .thenReturn(new ProductImageViews.ImageCreation(view,true), new ProductImageViews.ImageCreation(view,false));
             for (int expected : new int[]{201,200}) mvc.perform(multipart(path + "/images")
-                    .file(new MockMultipartFile("file","front.png","image/png",new byte[]{1,2,3})).param("id", ID.toString()))
+                    .file(new MockMultipartFile("file","front.png","image/png",new byte[]{1,2,3})).part(new org.springframework.mock.web.MockPart("id", ID.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8))))
                     .andExpect(status().is(expected)).andExpect(jsonPath("$.id").value(ID.toString()));
             when(service.list(ID,actor)).thenReturn(new ProductImageViews.ImageList(List.of(view),8));
             mvc.perform(get(path + "/images")).andExpect(status().isOk()).andExpect(jsonPath("$.maxImages").value(8));

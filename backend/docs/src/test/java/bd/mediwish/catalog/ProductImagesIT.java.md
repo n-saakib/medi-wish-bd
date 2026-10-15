@@ -1,3 +1,5 @@
 # ProductImagesIT.java
 
 Exercises durable upload/replay/conflict, public GET/HEAD headers and stored bytes, alt optimistic versions, reorder, restart, immediate replacement/removal and retired identities against real HTTP/PostgreSQL/filesystem. Rejections cover malformed bytes, MIME mismatch, oversized files/form fields, excessive dimensions, unknown parts, invalid alt and nonmultipart media with no persisted rows/files. Actor tests cover anonymous and invalid credentials, Customer, Delivery and restricted Admin including bodies above Tomcat default swallow size. A run-owned filesystem obstruction proves bounded STORAGE_UNAVAILABLE and no database write. Final acceptance also requires cumulative browser/concurrency/resource suites; this class alone does not close the story.
+
+The real HTTP provenance regression rejects query-only id, altText and replaces with bounded 400 INVALID_REQUEST and verifies zero image rows/objects after each request. A valid multipart Bengali/accented alt-text control verifies servlet decoding and normal trimming still work.

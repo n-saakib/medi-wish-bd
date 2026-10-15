@@ -63,6 +63,7 @@ class ProductImageService {
         try {
             return transaction.execute(status -> {
                 lockProduct(product);
+                images.claimIdentity(id);
                 var duplicate=replay(product,id,alt,inspected.sha256());
                 if (duplicate!=null) return duplicate;
                 var replaced=replaces==null ? null : images.findByIdAndProductId(replaces,product)

@@ -9,11 +9,30 @@ class ProductImageRequestsTest {
     private static final String ID = "8a6e5b1c-2f3d-4e5f-8a9b-0c1d2e3f4a5b";
     private final JsonMapper json = JsonMapper.builder().build();
     private MockMultipartHttpServletRequest upload() {
-        var request = new MockMultipartHttpServletRequest(); request.addParameter("id", ID);
+        var request = new MockMultipartHttpServletRequest(); request.addParameter("id", ID); request.addPart(new org.springframework.mock.web.MockPart("id", ID.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
         request.addFile(new MockMultipartFile("file", "front.png", "image/png", new byte[]{1})); return request;
     }
     @Test void uploadAcceptsOneFileAndPlainId() {
         assertThat(ProductImageRequests.upload(upload()).id()).isEqualTo(UUID.fromString(ID));
+    }
+    @Test void uploadRequiresBodyProvenanceForEveryCommandField() {
+        var queryId = new MockMultipartHttpServletRequest(); queryId.addParameter("id", ID);
+        queryId.addFile(new MockMultipartFile("file", "front.png", "image/png", new byte[]{1}));
+        assertThatThrownBy(() -> ProductImageRequests.upload(queryId)).isInstanceOf(InvalidCatalogException.class);
+        for (String field : new String[]{"altText", "replaces"}) {
+            var query = upload(); query.addParameter(field, field.equals("replaces") ? ID : "query-description");
+            assertThatThrownBy(() -> ProductImageRequests.upload(query)).isInstanceOf(InvalidCatalogException.class);
+        }
+        var valid = upload(); String text = "ওষুধের ছবি café";
+        valid.addParameter("altText", text);
+        valid.addPart(new org.springframework.mock.web.MockPart("altText", text.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        valid.addParameter("replaces", ID);
+        valid.addPart(new org.springframework.mock.web.MockPart("replaces", ID.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        assertThat(ProductImageRequests.upload(valid).altText()).isEqualTo(text);
+        assertThat(ProductImageRequests.upload(valid).replaces()).isEqualTo(UUID.fromString(ID));
+        var duplicatePart = upload();
+        duplicatePart.addPart(new org.springframework.mock.web.MockPart("id", ID.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        assertThatThrownBy(() -> ProductImageRequests.upload(duplicatePart)).isInstanceOf(InvalidCatalogException.class);
     }
     @Test void uploadRejectsUnknownDuplicateAndMisclassifiedParts() {
         var unknown = upload(); unknown.addParameter("url", "http://private.invalid");

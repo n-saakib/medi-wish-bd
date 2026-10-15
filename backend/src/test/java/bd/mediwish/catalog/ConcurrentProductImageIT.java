@@ -119,6 +119,69 @@ class ConcurrentProductImageIT {
         }
     }
 
+    @Test void crossProductUploadsSerializeIdentityAndCannotReuseItAfterRetirement() throws Exception {
+        try (var images=ProductImageTestApi.start(12); var client=HttpClient.newHttpClient()) {
+            var api=images.catalog; var actor=api.actor("ADMIN");
+            String a=product(api,actor), b=product(api,actor); UUID id=UUID.randomUUID();
+            byte[] png=ProductImageTestApi.png(2,2);
+            try (var paused=bd.mediwish.testsupport.TestApplication.start(
+                    CatalogTestApi.applicationProperties(api.database().applicationProperties(),12),PausedStorage.class);
+                    var executor=Executors.newFixedThreadPool(2)) {
+                var gate=paused.bean(PutGate.class);
+                var original=images.uploadRequest(actor,a,id,png,"image/png","synthetic.png",Map.of());
+                var request=java.net.http.HttpRequest.newBuilder(paused.uri(images.path(a))).timeout(Duration.ofSeconds(15))
+                        .POST(original.bodyPublisher().orElseThrow());
+                original.headers().map().forEach((name,values)->values.forEach(value->request.header(name,value)));
+                var pending=executor.submit(()->client.send(request.build(),HttpResponse.BodyHandlers.ofString()));
+                java.util.concurrent.Future<HttpResponse<String>> competing=null;
+                try {
+                    assertThat(gate.entered.await(7,TimeUnit.SECONDS)).isTrue();
+                    competing=executor.submit(()->images.upload(actor,b,id,png,"image/png","synthetic.png",Map.of()));
+                    awaitBlocked(api,gate.pid,1);
+                    assertThat(competing.isDone()).isFalse();
+                } finally { gate.release.countDown(); }
+                assertThat(pending.get(12,TimeUnit.SECONDS).statusCode()).isEqualTo(201);
+                assertError(competing.get(12,TimeUnit.SECONDS),409,"ID_CONFLICT");
+                assertThat(Files.exists(images.object(b,id,"png"))).isFalse();
+                assertThat(api.send("DELETE",images.path(a)+"/"+id,actor,null).statusCode()).isEqualTo(204);
+                assertError(images.upload(actor,b,id,png,"image/png","synthetic.png",Map.of()),409,"ID_CONFLICT");
+                assertCount(api,a,0); assertCount(api,b,0);
+                assertThat(images.files()).isZero();
+                assertThat(images.publicImage("GET","/api/public/product-images/"+id+".png").statusCode()).isEqualTo(404);
+            }
+        }
+    }
+
+    static final class PutGate {
+        final CountDownLatch entered=new CountDownLatch(1),release=new CountDownLatch(1);
+        volatile int pid;
+    }
+    @org.springframework.boot.test.context.TestConfiguration(proxyBeanMethods=false)
+    static class PausedStorage {
+        @org.springframework.context.annotation.Bean PutGate putGate() { return new PutGate(); }
+        @org.springframework.context.annotation.Bean static org.springframework.beans.factory.config.BeanPostProcessor pausedStorage(
+                PutGate gate,org.springframework.jdbc.core.JdbcTemplate jdbc) {
+            return new org.springframework.beans.factory.config.BeanPostProcessor() {
+                @Override public Object postProcessAfterInitialization(Object bean,String name) {
+                    if (!(bean instanceof bd.mediwish.storage.ObjectStorage delegate)) return bean;
+                    return new bd.mediwish.storage.ObjectStorage() {
+                        @Override public PutResult put(String key,byte[] bytes) {
+                            gate.pid=jdbc.queryForObject("SELECT pg_backend_pid()",Integer.class);
+                            gate.entered.countDown();
+                            try {
+                                if (!gate.release.await(10,TimeUnit.SECONDS)) throw new AssertionError("Storage gate timed out");
+                            } catch (InterruptedException interrupted) {
+                                Thread.currentThread().interrupt(); throw new AssertionError(interrupted);
+                            }
+                            return delegate.put(key,bytes);
+                        }
+                        @Override public java.util.Optional<StoredObject> get(String key) { return delegate.get(key); }
+                        @Override public void delete(String key) { delegate.delete(key); }
+                    };
+                }
+            };
+        }
+    }
     private static String product(CatalogTestApi api,CatalogTestApi.Actor actor) throws Exception {
         UUID category=UUID.fromString((String)api.category(actor,"Concurrency "+UUID.randomUUID()).get("id"));
         return (String)api.medicine(actor,category).get("id");

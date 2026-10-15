@@ -18,6 +18,19 @@ final class ProductImageRequests {
         if (files.size() != 1 || !files.containsKey("file") || files.get("file").size() != 1
                 || fields.keySet().stream().anyMatch(key -> !Set.of("id", "altText", "replaces").contains(key))
                 || fields.values().stream().anyMatch(values -> values.length != 1)) throw new InvalidCatalogException("parts");
+        var partFields = new java.util.HashSet<String>();
+        try {
+            for (var part : request.getParts()) {
+                if (part.getSubmittedFileName() == null) {
+                    if (!Set.of("id", "altText", "replaces").contains(part.getName()) || !partFields.add(part.getName()))
+                        throw new InvalidCatalogException("parts");
+                } else if (!"file".equals(part.getName())) throw new InvalidCatalogException("parts");
+            }
+        } catch (java.io.IOException | jakarta.servlet.ServletException failure) {
+            throw new org.springframework.web.multipart.MultipartException("Invalid multipart request", failure);
+        }
+        // Servlet parameters merge query strings and form fields; only actual body parts may supply commands.
+        if (!partFields.equals(fields.keySet())) throw new InvalidCatalogException("parts");
         MultipartFile file = files.get("file").getFirst();
         if (file.getOriginalFilename() == null || file.getOriginalFilename().isEmpty()) throw new InvalidCatalogException("file");
         String id = request.getParameter("id"), replaces = request.getParameter("replaces");

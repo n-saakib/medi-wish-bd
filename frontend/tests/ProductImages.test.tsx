@@ -47,9 +47,11 @@ describe('Product Images card',()=>{
    return Response.json({images:lists>2?[image]:[],maxImages:8});
   });
   const view=await renderWithSession(createElement(ProductImages,{productId:id,productName:'Synthetic'}),session);
+  await act(async()=>button(view,'Upload image').focus());
   await choose(view);
   expect(requiredElement(view,'[role="alert"]').textContent).toContain('Images could not be loaded.');
   expect(view.querySelector('[role="status"]')).toBeNull();
+  expect(document.activeElement).toBe(requiredElement(view,'[role="alert"]'));
   expect(calls.filter(c=>c.init.method==='POST')).toHaveLength(1);
   await click(view,'Try again');
   expect(calls.filter(c=>c.init.method==='POST')).toHaveLength(1);
@@ -58,6 +60,42 @@ describe('Product Images card',()=>{
   expect(view.querySelectorAll('button.thumb')).toHaveLength(1);
   expect(requiredElement<HTMLImageElement>(view,'button.thumb img').src).toContain(image.url);
   expect(button(view,'Upload image').disabled).toBe(false);
+ });
+ it('retries only the list after removal commits and its refresh fails at the limit',async()=>{
+  const all=Array.from({length:8},(_,position)=>({...image,id:`${position}a6e5b1c-2f3d-4e5f-8a9b-0c1d2e3f4a5b`,url:`/api/public/product-images/${position}a6e5b1c-2f3d-4e5f-8a9b-0c1d2e3f4a5b.png`,position}));
+  let lists=0;const {calls,session}=source((_path,init)=>{
+   if(init.method==='DELETE')return new Response(null,{status:204});
+   if(++lists===2)return Response.json({code:'STORAGE_UNAVAILABLE'},{status:503});
+   return Response.json({images:lists>2?all.slice(1).map((item,position)=>({...item,position})):all,maxImages:8});
+  });
+  const view=await renderWithSession(createElement(ProductImages,{productId:id,productName:'Synthetic'}),session);
+  await act(async()=>requiredElement<HTMLButtonElement>(view,'button.thumb').click());await click(view,'Remove image');await click(view,'Remove');
+  expect(requiredElement(view,'[role="alert"]').textContent).toContain('Images could not be loaded.');
+  expect(view.querySelectorAll('button.thumb')).toHaveLength(0);expect(view.querySelector('[role="status"]')).toBeNull();
+  expect(document.activeElement).toBe(requiredElement(view,'[role="alert"]'));
+  expect(calls.filter(c=>c.init.method==='DELETE')).toHaveLength(1);
+  await click(view,'Try again');
+  expect(calls.filter(c=>c.init.method==='DELETE')).toHaveLength(1);expect(calls.filter(c=>c.init.method==='GET')).toHaveLength(3);
+  expect(view.querySelector('[role="alert"]')).toBeNull();expect(view.querySelectorAll('button.thumb')).toHaveLength(7);expect(button(view,'Upload image').disabled).toBe(false);
+ });
+ it.each(['alt','order','remove'] as const)('does not claim a refreshed list after %s conflict recovery fails',async(operation)=>{
+  const second={...image,id:'9a6e5b1c-2f3d-4e5f-8a9b-0c1d2e3f4a5b',url:'/api/public/product-images/9a6e5b1c-2f3d-4e5f-8a9b-0c1d2e3f4a5b.png',position:1};
+  let lists=0;const {calls,session}=source((_path,init)=>{
+   if(init.method!=='GET')return Response.json({code:operation==='remove'?'NOT_FOUND':'STALE_UPDATE'},{status:operation==='remove'?404:409});
+   if(++lists===2)throw new ApiError('REQUEST_FAILED',0);
+   return Response.json({images:lists>2?[{...second,position:0}]:[image,second],maxImages:8});
+  });
+  const view=await renderWithSession(createElement(ProductImages,{productId:id,productName:'Synthetic'}),session);
+  await act(async()=>view.querySelectorAll<HTMLButtonElement>('button.thumb')[1].click());
+  if(operation==='remove'){await click(view,'Remove image');await click(view,'Remove');}
+  else await click(view,operation==='alt'?'Save description':'Make main image');
+  expect(requiredElement(view,'[role="alert"]').textContent).toContain('Images could not be loaded.');
+  expect(view.textContent).not.toContain('The list has been refreshed.');expect(view.querySelector('[role="status"]')).toBeNull();
+  expect(document.activeElement).toBe(requiredElement(view,'[role="alert"]'));expect(requiredElement<HTMLDialogElement>(view,'dialog').open).toBe(false);
+  expect(view.querySelectorAll('button.thumb')).toHaveLength(0);
+  await click(view,'Try again');
+  expect(calls.filter(c=>c.init.method!=='GET')).toHaveLength(1);expect(calls.filter(c=>c.init.method==='GET')).toHaveLength(3);
+  expect(view.querySelector('[role="alert"]')).toBeNull();expect(view.querySelectorAll('button.thumb')).toHaveLength(1);
  });
  it('discards a retry when a fresh file is chosen and uses a fresh upload identity',async()=>{
   let uploads=0;const {calls,session}=source((_path,init)=>{
