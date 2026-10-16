@@ -1339,7 +1339,8 @@ for (const width of [375, 1280]) {
           const container = page.locator('.catalog-table-scroll');
           expect(await container.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
           const edit = discountManager(page).row(category.name).getByRole('button', { name: 'Edit', exact: true });
-          await edit.scrollIntoViewIfNeeded();
+          // Scroll the padded cell so Chromium rounding cannot clip the interactive target.
+          await discountManager(page).row(category.name).locator('td').last().scrollIntoViewIfNeeded();
           await expect(edit).toBeInViewport({ ratio: 1 });
         }
         await discountManager(page).row(category.name).getByRole('button', { name: 'Edit', exact: true }).click();

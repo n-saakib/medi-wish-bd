@@ -298,3 +298,7 @@ Ticket 12 saved delivery addresses:
 - [src/test/java/bd/mediwish/auth/ConcurrentAddressBookIT.java](src/test/java/bd/mediwish/auth/ConcurrentAddressBookIT.java.md)
 - [src/test/java/bd/mediwish/address/AddressMigrationIT.java](src/test/java/bd/mediwish/address/AddressMigrationIT.java.md)
 - [src/test/java/bd/mediwish/address/MovableAddressChangeCalendar.java](src/test/java/bd/mediwish/address/MovableAddressChangeCalendar.java.md)
+
+## Tickets 12, 15 and 16 integration
+
+[Integrated backend evidence](integration-12-15-16.md) records the tested combined revision, preserved shared contracts, fresh normal/compatibility results, the earlier interrupted run and remaining verification gates.
