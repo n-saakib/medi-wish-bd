@@ -466,6 +466,8 @@ test('E2E-16-10 overlapping flat and percentage discounts show one winner and fa
       await page.goto('/staff/products');
       await productList(page).search.fill(product.name);
       await productList(page).apply.click();
+      await expect(productList(page).row(product.name)).toBeVisible();
+      await expect(page.getByRole('columnheader', { name: 'Discount', exact: true })).toBeVisible();
       const columns = await page.getByRole('columnheader').allTextContents();
       const discountColumn = columns.findIndex((name) => name.trim() === 'Discount');
       expect(discountColumn).toBeGreaterThanOrEqual(0);
@@ -599,6 +601,8 @@ test('E2E-16-11 edit and confirmed End now refresh counts and derived history; c
     await page.goto('/staff/products');
     await productList(page).search.fill(product.name);
     await productList(page).apply.click();
+    await expect(productList(page).row(product.name)).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Discount', exact: true })).toBeVisible();
     const columns = await page.getByRole('columnheader').allTextContents();
     const discountColumn = columns.findIndex((name) => name.trim() === 'Discount');
     expect(discountColumn, 'Products has a Discount column').toBeGreaterThanOrEqual(0);
@@ -1339,7 +1343,8 @@ for (const width of [375, 1280]) {
           const container = page.locator('.catalog-table-scroll');
           expect(await container.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
           const edit = discountManager(page).row(category.name).getByRole('button', { name: 'Edit', exact: true });
-          await edit.scrollIntoViewIfNeeded();
+          // Scroll the padded cell so Chromium rounding cannot clip the interactive target.
+          await discountManager(page).row(category.name).locator('td').last().scrollIntoViewIfNeeded();
           await expect(edit).toBeInViewport({ ratio: 1 });
         }
         await discountManager(page).row(category.name).getByRole('button', { name: 'Edit', exact: true }).click();
