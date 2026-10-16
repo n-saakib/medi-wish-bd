@@ -466,6 +466,8 @@ test('E2E-16-10 overlapping flat and percentage discounts show one winner and fa
       await page.goto('/staff/products');
       await productList(page).search.fill(product.name);
       await productList(page).apply.click();
+      await expect(productList(page).row(product.name)).toBeVisible();
+      await expect(page.getByRole('columnheader', { name: 'Discount', exact: true })).toBeVisible();
       const columns = await page.getByRole('columnheader').allTextContents();
       const discountColumn = columns.findIndex((name) => name.trim() === 'Discount');
       expect(discountColumn).toBeGreaterThanOrEqual(0);
@@ -599,6 +601,8 @@ test('E2E-16-11 edit and confirmed End now refresh counts and derived history; c
     await page.goto('/staff/products');
     await productList(page).search.fill(product.name);
     await productList(page).apply.click();
+    await expect(productList(page).row(product.name)).toBeVisible();
+    await expect(page.getByRole('columnheader', { name: 'Discount', exact: true })).toBeVisible();
     const columns = await page.getByRole('columnheader').allTextContents();
     const discountColumn = columns.findIndex((name) => name.trim() === 'Discount');
     expect(discountColumn, 'Products has a Discount column').toBeGreaterThanOrEqual(0);

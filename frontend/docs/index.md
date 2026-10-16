@@ -232,7 +232,7 @@ The integrated Ticket 14/15/16 journey in E2E-16-14 retains listed image identit
 | [tests/browser/discountDatabase.spec.ts](../tests/browser/discountDatabase.spec.ts) | [tests/browser/discountDatabase.spec.ts.md](tests/browser/discountDatabase.spec.ts.md) |
 | [tests/browser/discountDemo.spec.ts](../tests/browser/discountDemo.spec.ts) | [tests/browser/discountDemo.spec.ts.md](tests/browser/discountDemo.spec.ts.md) (real list forwarding and settled-manager reload) |
 | [tests/browser/discountSupport.ts](../tests/browser/discountSupport.ts) | [tests/browser/discountSupport.ts.md](tests/browser/discountSupport.ts.md) |
-| [tests/browser/discountUi.spec.ts](../tests/browser/discountUi.spec.ts) | [tests/browser/discountUi.spec.ts.md](tests/browser/discountUi.spec.ts.md) (real list forwarding, focused polite stale warning and padded-cell scrolling with full target visibility) |
+| [tests/browser/discountUi.spec.ts](../tests/browser/discountUi.spec.ts) | [tests/browser/discountUi.spec.ts.md](tests/browser/discountUi.spec.ts.md) (real list forwarding, Product-table readiness, focused polite stale warning and padded-cell scrolling with full target visibility) |
 | [tests/discountSupport.test.ts](../tests/discountSupport.test.ts) | [tests/discountSupport.test.ts.md](tests/discountSupport.test.ts.md) |
 
 ## Ticket 16 discount implementation

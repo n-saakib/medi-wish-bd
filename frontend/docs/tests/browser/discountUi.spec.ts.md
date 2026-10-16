@@ -2,6 +2,8 @@
 
 The stale-edit recovery case asserts the exact stale warning in a focused polite `status`, matching the shared warning component. Typed intent, Reload, current revision and successful reapplication remain independently checked. Reload closes the stale editor, forwards the fresh real list response, shows no saved notice, preserves the other Admin's version/value and leaves usable focus on the selected tab before reopening.
 
+The overlapping-winner helper and confirmed-End journey wait for the searched Product row and exact Discount column header before collecting column names. Apply temporarily removes the table while fetching; an immediate collection read can otherwise observe no headers. Existing dynamic-column, winner, fallback, ended-price and history assertions remain unchanged, with no timing sleeps.
+
 `tests/browser/discountUi.spec.ts` defines the real browser/API targets for accepted Ticket 16 plan T3, T5 and T7 against the implemented Discounts routes, manager, dialog and catalog projections. There are no expected-failure annotations or feature skips. Each test uses synthetic uniquely named data, the existing verified-staff/actor fixtures, the actual built API and PostgreSQL, and runs in both configured Chrome and Edge projects.
 
 | Acceptance IDs | Observable coverage |
