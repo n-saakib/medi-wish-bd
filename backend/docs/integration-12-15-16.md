@@ -1,6 +1,6 @@
 # Tickets 12, 15 and 16 integrated backend evidence
 
-The integrated source combines saved delivery addresses, secure Product images and greatest-saving Discounts on baseline `7555e2d0654c9ade2edff9d44465553f565b3413`. Backend verification below applies to source revision `91d7e33f5336df669578cce5a2fdbcf93bf5e263` on `codex/integrate-tickets-12-15-16`; it does not establish publication to `dev`, push or deployment.
+The integrated source combines saved delivery addresses, secure Product images and greatest-saving Discounts on baseline `7555e2d0654c9ade2edff9d44465553f565b3413`. Backend verification below applies to source revision `91d7e33f5336df669578cce5a2fdbcf93bf5e263` on `codex/integrate-tickets-12-15-16`. Final cumulative browser and smoke verification used `12ba5fca7ca32d91b0f1a39bbd245bf5291c8464`; Git comparison confirmed no backend source or build-input changes between these revisions. Subsequent corrections affect only browser-test synchronization and documentation. No push or deployment was performed.
 
 | Input | Revision |
 | --- | --- |
@@ -53,4 +53,4 @@ On 2026-10-16, `repeat-concurrency.ps1` completed five successive guarded invoca
 
 The five `run N exit 0` lines are in `concurrency-summary.log`; individual logs, fresh reports and invocation metadata use `concurrency-1` through `concurrency-5` labels. `backend-summary.jsonl` records invocation-specific totals. The final default-profile build supplies the browser jar; inspecting its archive confirmed no JobRunr or springdoc compatibility-only library. No Maven operation runs while that jar serves live frontend/browser checks.
 
-Frontend/API journeys and final resource cleanup are recorded in the [frontend integration evidence](../../frontend/docs/integration-12-15-16.md). Structural ticket validation passed with zero failures (64 tickets, 496 sub-tickets, 118 requirement dispositions and 4,066 local links); `tracker-validation.log` retains the result. This merge task does not change tracker completion states.
+Frontend/API journeys and final resource cleanup are recorded in the [frontend integration evidence](../../frontend/docs/integration-12-15-16.md): **1,062 cumulative browser cases and 14 separate smoke cases passed**, with zero failures, skips or flaky outcomes on 2026-10-16. Final cleanup proved zero test roles, schemas and sessions, removed test object-storage namespaces, stopped the task-owned PostgreSQL cluster and left ports 55433, 18115 and 3115 free. Structural ticket validation passed with zero failures (64 tickets, 496 sub-tickets, 118 requirement dispositions and 4,066 local links); `tracker-validation.log` retains the result. This merge task does not change tracker completion states.

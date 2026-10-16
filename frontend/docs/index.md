@@ -2,7 +2,7 @@
 
 This directory mirrors the checked-in frontend source and build files. Each page documents the corresponding file’s responsibility, exported behavior, design reason, practical use, and verification path. The source remains authoritative; update the matching page in the same change whenever a documented file changes.
 
-[Tickets 12, 15 and 16 integration evidence](integration-12-15-16.md) records the combined source revision, completed frontend checks and pending runtime gates.
+[Tickets 12, 15 and 16 integration evidence](integration-12-15-16.md) records gate-specific source revisions, 948 frontend unit tests, 1,062 cumulative browser cases, 14 separate smoke cases, earlier failed attempts and completed resource cleanup.
 
 ## Current frontend flow
 
