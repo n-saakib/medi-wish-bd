@@ -100,6 +100,7 @@ describe('StaffHome', () => {
 
   it.each([
     ['ENROLLMENT_REQUIRED', '/staff/mfa/enroll'],
+    ['REPLACEMENT_REQUIRED', '/staff/mfa/enroll'],
     ['VERIFICATION_REQUIRED', '/staff/mfa'],
     ['NOT_REQUIRED', '/account'],
   ] as const)('sends a %s session to %s without asking for staff access', async (mfa, target) => {
@@ -140,4 +141,12 @@ describe('projectStaffAccess', () => {
   ])('rejects a body with %s', (_, body) => {
     expect(projectStaffAccess(body)).toBeUndefined();
   });
+});
+
+
+it.each(['ADMIN', 'MODERATOR'])('links backup-code regeneration for %s', async (role) => {
+  const { page } = await renderStaffHome({
+    '/api/staff/me': () => Response.json({ username: 'synthetic.staff', roles: [role], superAdmin: false }),
+  });
+  expect(requiredElement(page, 'nav a[href="/staff/backup-codes"]').textContent).toBe('Get new backup codes');
 });

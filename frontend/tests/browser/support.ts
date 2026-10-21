@@ -161,9 +161,11 @@ export async function freshCode(authenticator: Authenticator): Promise<string> {
 
 /** Signs in a staff member whose session asks for a code, enters a fresh one and waits for `/staff`. */
 export async function signInWithCode(page: Page, member: StaffMember): Promise<void> {
+  // Read before signing in: the fixture's access token lasts ten seconds, shorter than a wait for the next TOTP step.
+  const code = await freshCode(member.authenticator);
   await signIn(page, member.username, member.password);
   await expect(page).toHaveURL('/staff/mfa');
-  await page.getByLabel('Authenticator code').fill(await freshCode(member.authenticator));
+  await page.getByLabel('Authenticator code').fill(code);
   await page.getByRole('button', { name: 'Verify' }).click();
   await expect(page).toHaveURL('/staff');
 }

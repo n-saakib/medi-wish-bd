@@ -9,3 +9,5 @@ changeRole locks actor and target User rows in UUID order (one ID for self reque
 Public records UserSummary, UserRoles, UserPage and RoleChange contain no contacts, credentials or diagnostics. Deleted actors have null usernames. Missing targets, refused/stale commands and lost actor authorization produce bounded errors. Unit tests cover command/read outcomes; real database tests prove migration, atomic rollback, revocation and concurrent writer behavior.
 
 A valid page whose offset exceeds JPA's integer range returns an empty page with the filtered total, read using a bounded first-page query; it does not turn a valid large page into a server error.
+
+The under-lock actor assurance recheck includes `replacingFactorId`; replacement authorization never satisfies the required current-factor `VERIFIED` state. Role changes still revoke all target sessions and never restore a role during recovery.

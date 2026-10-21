@@ -42,3 +42,9 @@ Ticket 16 externalizes the discounts namespace for tab counts, table/dialog labe
 Unknown-create guidance requires retrying the original command before another change. Retry pending discount reopens the retained frozen command after Cancel; a list refresh alone does not establish its outcome.
 
 Ticket 12 adds addresses for page/dialog labels, full/empty/recovery/default-promotion copy and a changeNotice interpolating configured calendar limits and remaining allowance. account.addresses names the navigation link. errors.addressBookFull and errors.addressChangeLimit supply bounded refusal copy.
+
+## Ticket 09
+
+`staffMfa.replaceTitle` and `replaceIntro` identify authenticator replacement. `staffMfa.contactNotice` supplies the four bounded notification outcome texts. `staffMfa.regenerate` supplies page metadata, heading, fresh-code explanation, field label, submit/busy copy and back link. `staffHome.backupCodes` names the navigation destination. English text uses typographic apostrophes and ellipses consistently; no recipient details or secrets are interpolated.
+
+Ticket 09 also supplies recovery trigger/title/field/placeholder/help, local format error, Close/Cancel/Continue and checking-state copy under `staffMfa`. Exhausted-code help names the store owner, following accepted P12.

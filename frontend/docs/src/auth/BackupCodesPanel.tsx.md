@@ -8,7 +8,7 @@ Shows the ten backup codes issued when a staff member activates an authenticator
 
 ## Export
 
-### `BackupCodesPanel({ codes, onSaved })`
+### `BackupCodesPanel({ codes, onSaved, notice?, steps? })`
 
 Renders both steps as done, the heading `Backup codes (shown once)` (focused on mount, because it replaces the setup form), the warning `Save these now. Each works once if you lose your phone.`, the codes as a labelled list, a `Copy all` button and the primary `I’ve saved them` button.
 
@@ -26,3 +26,7 @@ Ten codes are shown instead of the mock's eight (accepted decision D4). The desi
 ## Verification
 
 [`tests/BackupCodesPanel.test.ts`](../../tests/BackupCodesPanel.test.ts.md) covers the list, copy success, clipboard denial and absence, and the saved action.
+
+## Ticket 09
+
+An optional `notice` renders above the codes inside the secret panel: `SENT` uses a success status; `FAILED`, `NO_VERIFIED_CONTACT` and `NOT_CONFIGURED` use warning statuses. All copy comes from `staffMfa.contactNotice`. An absent or null notice renders none. `steps` defaults to true; regeneration passes false to omit enrollment progress. The caller still owns code lifetime and session visibility.

@@ -67,7 +67,7 @@ public class RoleAssignmentService {
         SessionService.MfaEvidence evidence;
         try { evidence = sessions.requireActive(actor.sessionId(), caller.id(), clock.instant()); }
         catch (AuthenticationRequiredException ignored) { throw new AccessDeniedException("Access is denied."); }
-        var access = StaffAccessPolicy.evaluate(caller.role(), factors.activeFactorIdOf(caller), evidence.factorId(), evidence.verifiedAt());
+        var access = StaffAccessPolicy.evaluate(caller.role(), factors.activeFactorIdOf(caller), evidence.factorId(), evidence.verifiedAt(), evidence.replacingFactorId());
         if (caller.role() != UserRole.ADMIN || access.mfa() != MfaStatus.VERIFIED) throw new AccessDeniedException("Access is denied.");
         UUID owner = bootstrap.superAdminUserId().orElse(null);
         var outcome = RoleChangePolicy.decide(caller.role(), caller.id(), target.id(), target.role(), requested,

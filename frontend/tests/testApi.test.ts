@@ -205,6 +205,7 @@ describe('startTestApi', () => {
     expect(env?.APP_STORAGE_NAMESPACE).toBe(`test-browser-${String(role).slice('mw_browser_'.length)}`);
     expect(directory).toBe(path.join(String(env?.APP_STORAGE_LOCAL_ROOT), String(env?.APP_STORAGE_NAMESPACE)));
     expect(env?.[testStorageVariable]).toBeUndefined();
+    expect(env?.APP_NOTIFICATION_SECURITY_ADAPTER).toBe('capture');
     expect(mkdirSync).toHaveBeenCalledWith(directory, { recursive: true });
 
     await stop();

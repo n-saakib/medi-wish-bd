@@ -228,6 +228,7 @@ public final class TestDatabase implements AutoCloseable {
         properties.put("spring.jpa.properties.hibernate.default_schema", schema);
         // Keeps JobRunr's tables in this schema too when the compatibility profile puts it on the classpath.
         properties.put("jobrunr.database.table-prefix", schema + ".");
+        properties.put("app.notification.security.adapter", "capture");
         properties.putAll(syntheticAuthProperties());
         properties.putAll(syntheticStorageProperties(storageNamespace()));
         return properties;

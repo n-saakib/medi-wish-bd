@@ -23,3 +23,7 @@ The staff dashboard (`staff-dashboard.html`) and full staff navigation belong to
 ## Ticket 16
 
 The Discounts link to /staff/discounts is available only to verified Admin staff, alongside the established Product/Category navigation.
+
+## Ticket 09
+
+The Staff pages navigation also links “Get new backup codes” to `/staff/backup-codes` for both verified Admins and Moderators. The destination uses the existing verified-staff guard and requires a fresh authenticator code before issuing codes.

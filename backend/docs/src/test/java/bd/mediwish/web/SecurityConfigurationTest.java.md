@@ -17,3 +17,7 @@ The catalog PUT wildcard matches exactly one segment and never captures pricing;
 
 Ticket 16 pins protected read/command membership, Bearer command exemptions, exact end wildcard matching, and the anonymous product-price matcher outside PROTECTED_ROUTES.
 Ticket 12 verifies collection reads and collection/item commands are Bearer-protected, only commands are CSRF-exempt, and item wildcards consume exactly one path segment.
+
+Ticket 09 checks both recovery and backup-code regeneration are explicit POST members of `MFA_ROUTES` and `PROTECTED_ROUTES`; GET and extra path segments do not match. All three restricted authorities (`MFA_ENROLLMENT`, `MFA_CHALLENGE`, `MFA_REPLACEMENT`) remain outside the role hierarchy. `StaffMfaSecurityTest` executes their authorization rules through the production chain.
+
+T4 verification on 2026-10-19, working tree over `13968d1`: `.\mvnw.cmd -o test -Dtest=StaffMfaControllerTest,StaffMfaSecurityTest,SecurityConfigurationTest` passed 39 focused tests; `.\mvnw.cmd -o test` passed all 1,033 backend units with zero failures/errors/skips at 15:00:14 +06:00. Before security wiring, the production-chain/matcher gate had 10 expected failures in 31 tests. A separate controlled controller mutation had 2 expected failures in 8 tests for relaxed exact-key validation and null contactNotice serialization. Exact original controller bytes were restored before the full gate. These targeted faults are distinguished from missing-method compile-red; real HTTP/PostgreSQL/API acceptance is recorded separately.

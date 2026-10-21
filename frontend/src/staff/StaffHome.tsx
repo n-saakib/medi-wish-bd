@@ -69,6 +69,7 @@ export function StaffHome() {
           {access.roles.includes('ADMIN') && <Link className="btn btn-secondary" href="/staff/discounts">{t('discounts')}</Link>}
           <Link className="btn btn-secondary" href="/staff/products">{t('products')}</Link>
           <Link className="btn btn-secondary" href="/staff/categories">{t('categories')}</Link>
+          <Link className="btn btn-secondary" href="/staff/backup-codes">{t('backupCodes')}</Link>
         </nav>}
     </section>
   );

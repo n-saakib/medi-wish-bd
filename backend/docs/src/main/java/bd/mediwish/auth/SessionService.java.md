@@ -4,7 +4,7 @@ Source: [`src/main/java/bd/mediwish/auth/SessionService.java`](../../../../../..
 
 ## Purpose
 
-Package-private transactional owner of session-family and refresh-generation state. Password creation returns `PasswordSession(lockedUser, credential)` so sign-in issues from the locked role; MFA and refresh callers receive typed `SessionCredential(userId, sessionId, refreshToken, expiresAt, mfa)` results and never touch repository rows or digests. `mfa` is `MfaEvidence(factorId, verifiedAt)`: which authenticator verified the session and when, both `null` for a password-only session.
+Package-private transactional owner of session-family and refresh-generation state. Password creation returns `PasswordSession(lockedUser, credential)` so sign-in issues from the locked role; MFA and refresh callers receive typed `SessionCredential(userId, sessionId, refreshToken, expiresAt, mfa)` results and never touch repository rows or digests. `mfa` is `MfaEvidence(factorId, verifiedAt, replacingFactorId)`: which authenticator verified the session and when, or which active factor a replacement session is authorized to replace. All three are `null` for an ordinary password-only session.
 
 ## Operations
 
@@ -25,3 +25,12 @@ Revocation reasons come from `RevocationReason`. Raw refresh values exist only i
 `SessionServiceTest` covers creation, the restricted lifetime, the MFA upgrade and its refusal for revoked or expired sessions, rotation, replay revocation, rejection of unknown, revoked and expired values, revocation by refresh values (and none for an empty list), revoke-all and active-session binding. `ConcurrentSessionIT`, `SessionRestartIT`, `SessionIT`, `StaffMfaIT`, `ConcurrentMfaIT` and `FirstAdminProvisioningIT` cover locking, restart durability, the upgrade and revoke-all against PostgreSQL.
 
 Password creation and role changes lock User before sessions. Bearer authentication also takes User FOR SHARE first; requireActive joins its caller's ordinary transaction, so session evidence cannot be combined with a role committed by a concurrent promotion. Authentication releases the User lock before route handling; role commands independently recheck the actor and session under their own locks. A sign-in finishing first is included in role-change revocation; a role change finishing first makes sign-in read the new role and lifetime. Any future session creation or revoke-all writer must preserve this order. Refresh never takes the User lock.
+
+Ticket 09 adds two operations inside the caller's transaction (`MANDATORY`):
+
+| Operation | Behavior |
+| --- | --- |
+| `startReplacement(sessionId, factorId)` | Locks the presenting family, refuses revoked/expired sessions, revokes it with `mfa-replacement-started`, and persists a new unverified family bound to the old active factor with the fixed restricted lifetime. |
+| `replaceAllWithVerified(userId, factorId)` | After the caller locks the User, locks/revokes every active family in ID order with `mfa-replaced`, then creates one new verified family with the full refresh lifetime. |
+
+`requireActive`, returned credentials and refresh rotation carry all three MFA evidence fields. Refresh preserves absolute expiry and replacement binding. `SessionServiceTest` covers fixed expiry through rotation, refusal, exclusive evidence and all-session replacement.

@@ -1,7 +1,6 @@
 package bd.mediwish.auth;
 
 import bd.mediwish.user.User;
-import bd.mediwish.user.UserRepository;
 import org.bouncycastle.util.encoders.Base32;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -18,6 +17,10 @@ import java.util.List;
 import java.util.OptionalLong;
 import java.util.UUID;
 
+import static bd.mediwish.auth.StaffMfaAttempts.Outcome;
+import static bd.mediwish.auth.StaffMfaAttempts.Result;
+import static bd.mediwish.auth.StaffMfaAttempts.sessionOrThrow;
+
 /**
  * Staff authenticator enrollment and verification (Ticket 06). Every change of a User's MFA state takes that User's
  * row lock first, so their factors, throttle and sessions have one writer at a time. A wrong code is committed as a
@@ -27,7 +30,7 @@ import java.util.UUID;
 class StaffMfaService {
     private static final int SEED_BYTES = 20;
 
-    private final UserRepository users;
+    private final StaffMfaAttempts attempts;
     private final StaffMfaFactorRepository factors;
     private final StaffMfaBackupCodeRepository backupCodes;
     private final StaffMfaThrottleRepository throttles;
@@ -41,12 +44,12 @@ class StaffMfaService {
     private final Clock clock;
     private final SecureRandom random;
 
-    StaffMfaService(UserRepository users, StaffMfaFactorRepository factors, StaffMfaBackupCodeRepository backupCodes,
+    StaffMfaService(StaffMfaAttempts attempts, StaffMfaFactorRepository factors, StaffMfaBackupCodeRepository backupCodes,
                     StaffMfaThrottleRepository throttles, SessionService sessions,
                     AuthenticationService authentication, SecurityAuditLog audit, MfaSecretCipher cipher,
                     PasswordEncoder passwords, TransactionOperations transactions, AuthProperties properties,
                     Clock clock, SecureRandom random) {
-        this.users = users;
+        this.attempts = attempts;
         this.factors = factors;
         this.backupCodes = backupCodes;
         this.throttles = throttles;
@@ -66,18 +69,15 @@ class StaffMfaService {
 
     record EnrolledSession(AuthenticationService.AuthenticatedSession session, List<String> backupCodes) {}
 
-    private enum Result { VERIFIED, INVALID, LOCKED }
-
-    private record Outcome(Result result, AuthenticationService.AuthenticatedSession session) {
-        static final Outcome INVALID = new Outcome(Result.INVALID, null);
-        static final Outcome LOCKED = new Outcome(Result.LOCKED, null);
-    }
-
     Enrollment startEnrollment(UUID userId, UUID sessionId) {
         return transactions.execute(status -> {
             Instant now = clock.instant();
-            User user = lockActiveStaff(userId, sessionId, now);
-            if (factors.findActiveId(userId).isPresent()) throw new MfaEnrollmentStaleException();
+            var locked = attempts.lockActiveStaff(userId, sessionId, now);
+            User user = locked.user();
+            UUID activeFactorId = factors.findActiveId(userId).orElse(null);
+            if (activeFactorId != null && !activeFactorId.equals(locked.evidence().replacingFactorId())) {
+                throw new MfaEnrollmentStaleException();
+            }
             factors.deletePending(userId);
             byte[] seed = new byte[SEED_BYTES];
             random.nextBytes(seed);
@@ -102,15 +102,18 @@ class StaffMfaService {
         List<String> verifiers = codes.stream().map(backup -> passwords.encode(BackupCodes.normalize(backup))).toList();
         Outcome outcome = transactions.execute(status -> {
             Instant now = clock.instant();
-            User user = lockActiveStaff(userId, sessionId, now);
-            StaffMfaThrottle throttle = throttle(userId, now);
+            var locked = attempts.lockActiveStaff(userId, sessionId, now);
+            if (locked.evidence().replacingFactorId() != null) throw new MfaEnrollmentStaleException();
+            User user = locked.user();
+            StaffMfaThrottle throttle = attempts.throttle(userId, now);
             if (throttle.isLocked(now)) return Outcome.LOCKED;
             if (factors.findActiveId(userId).isPresent()) throw new MfaEnrollmentStaleException();
             StaffMfaFactor factor = factors.findPending(userId)
                     .filter(pending -> pending.id().equals(enrollmentId) && !pending.pendingExpired(now))
                     .orElseThrow(MfaEnrollmentStaleException::new);
-            OptionalLong step = matchStep(factor, code, now);
-            if (step.isEmpty()) return failure(throttle, userId, sessionId, now);
+            OptionalLong step = attempts.matchStep(factor, code, now);
+            if (step.isEmpty()) return attempts.failure(throttle, userId, sessionId, now,
+                    SecurityAuditEvent.Type.MFA_VERIFICATION_FAILED);
             factor.activate(now, step.getAsLong());
             verifiers.forEach(verifier ->
                     backupCodes.save(new StaffMfaBackupCode(UUID.randomUUID(), factor.id(), verifier, now)));
@@ -119,65 +122,26 @@ class StaffMfaService {
             audit.record(SecurityAuditEvent.Type.MFA_ENROLLMENT_ACTIVATED, userId, verified.sessionId());
             return new Outcome(Result.VERIFIED, authentication.issue(user, verified));
         });
-        return new EnrolledSession(verified(outcome), codes);
+        return new EnrolledSession(sessionOrThrow(outcome), codes);
     }
 
     AuthenticationService.AuthenticatedSession verify(UUID userId, UUID sessionId, String code) {
         Outcome outcome = transactions.execute(status -> {
             Instant now = clock.instant();
-            User user = lockActiveStaff(userId, sessionId, now);
-            StaffMfaThrottle throttle = throttle(userId, now);
+            User user = attempts.lockActiveStaff(userId, sessionId, now).user();
+            StaffMfaThrottle throttle = attempts.throttle(userId, now);
             if (throttle.isLocked(now)) return Outcome.LOCKED;
             StaffMfaFactor factor = factors.findActive(userId).orElseThrow(() -> new AccessDeniedException("no factor"));
-            OptionalLong step = matchStep(factor, code, now);
-            if (step.isEmpty()) return failure(throttle, userId, sessionId, now);
+            OptionalLong step = attempts.matchStep(factor, code, now);
+            if (step.isEmpty()) return attempts.failure(throttle, userId, sessionId, now,
+                    SecurityAuditEvent.Type.MFA_VERIFICATION_FAILED);
             factor.recordUse(step.getAsLong());
             throttle.reset(now);
             var verified = sessions.upgradeToMfa(sessionId, factor.id());
             audit.record(SecurityAuditEvent.Type.MFA_VERIFIED, userId, verified.sessionId());
             return new Outcome(Result.VERIFIED, authentication.issue(user, verified));
         });
-        return verified(outcome);
-    }
-
-    /** Locks the User, whose restricted session must still be active and who must still hold a staff role. */
-    private User lockActiveStaff(UUID userId, UUID sessionId, Instant now) {
-        User user = users.findByIdForUpdate(userId).orElseThrow(AuthenticationRequiredException::new);
-        sessions.requireActive(sessionId, userId, now);
-        if (!user.hasStaffRole()) throw new AccessDeniedException("not staff");
-        return user;
-    }
-
-    private StaffMfaThrottle throttle(UUID userId, Instant now) {
-        return throttles.findById(userId).orElseGet(() -> throttles.save(new StaffMfaThrottle(userId, now)));
-    }
-
-    private OptionalLong matchStep(StaffMfaFactor factor, String code, Instant now) {
-        byte[] seed = cipher.decrypt(factor.id(), factor.secretCiphertext(), factor.secretNonce());
-        try {
-            return Totp.matchStep(seed, code, now, factor.lastUsedStep());
-        } finally {
-            Arrays.fill(seed, (byte) 0);
-        }
-    }
-
-    /** Counts the wrong code; the failure that reaches the limit locks verification and is answered as locked. */
-    private Outcome failure(StaffMfaThrottle throttle, UUID userId, UUID sessionId, Instant now) {
-        boolean locked = throttle.recordFailure(now, settings.maxFailedAttempts(), settings.attemptWindow(),
-                settings.lockout());
-        audit.record(SecurityAuditEvent.Type.MFA_VERIFICATION_FAILED, userId, sessionId);
-        if (!locked) return Outcome.INVALID;
-        audit.record(SecurityAuditEvent.Type.MFA_ATTEMPTS_LOCKED, userId, sessionId);
-        return Outcome.LOCKED;
-    }
-
-    /** Thrown only after the transaction has committed the failure. */
-    private static AuthenticationService.AuthenticatedSession verified(Outcome outcome) {
-        return switch (outcome.result()) {
-            case VERIFIED -> outcome.session();
-            case INVALID -> throw new MfaCodeInvalidException();
-            case LOCKED -> throw new TooManyAttemptsException();
-        };
+        return sessionOrThrow(outcome);
     }
 
     /** The Key URI Format authenticator apps scan; the label is {@code issuer:username}. */

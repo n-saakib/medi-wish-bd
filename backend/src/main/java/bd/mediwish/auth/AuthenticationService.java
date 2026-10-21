@@ -83,7 +83,7 @@ class AuthenticationService {
     AuthenticatedSession issue(User user, SessionService.SessionCredential session) {
         var accessToken = accessTokens.issue(user.id(), session.sessionId());
         var access = StaffAccessPolicy.evaluate(user.role(), factors.activeFactorIdOf(user),
-                session.mfa().factorId(), session.mfa().verifiedAt());
+                session.mfa().factorId(), session.mfa().verifiedAt(), session.mfa().replacingFactorId());
         // A restricted session can end before its access token would expire; report the earlier of the two.
         long expiresIn = Math.min(accessToken.expiresInSeconds(),
                 Math.max(0, Duration.between(clock.instant(), session.expiresAt()).toSeconds()));

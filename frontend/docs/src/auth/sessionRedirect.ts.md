@@ -43,3 +43,5 @@ Redirect targets are fixed paths; no identifier, token or other personal data is
 ## Verification
 
 [`tests/SessionProvider.test.ts`](../../tests/SessionProvider.test.ts.md) covers each rule of `sessionRedirect`, including all 25 status-by-guard cells in one table and the hold while restoring. [`tests/MfaEnrollment.test.ts`](../../tests/MfaEnrollment.test.ts.md) covers the `enabled` hold. The hook's navigation is observed through a mocked router in the sign-in, registration and account tests.
+
+Ticket 09: a `REPLACEMENT_REQUIRED` session belongs at `/staff/mfa/enroll`. Only the `mfa-enrollment` guard accepts it; guest, account, challenge and ordinary staff pages redirect there. Restoration continues to hold redirects until the session is known.

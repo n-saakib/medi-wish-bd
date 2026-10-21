@@ -27,3 +27,5 @@ Package-private application service for password sign-in, refresh and logout, an
 ## Verification
 
 `AuthenticationServiceTest` covers unique-candidate sign-in, the restricted staff sign-in and its capped `expiresIn`, wrong password, unknown and ambiguous identifiers, a blank identifier that never looks up an email, unusable verifiers, the startup dummy verifier, refresh revocation for unavailable Users and logout delegation. `SignInIT`, `SessionIT`, `ConcurrentSessionIT`, `LegacyUserMigrationIT`, `StaffMfaIT` and `StaffMfaRegressionIT` cover the flows over PostgreSQL.
+
+Ticket 09 session issuance passes `replacingFactorId` into the current-factor policy. The returned `expiresIn` remains capped by absolute session expiry, and refresh preserves the replacement binding without extending its lifetime.

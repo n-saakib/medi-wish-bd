@@ -83,7 +83,34 @@
     "copyAll": "Copy all",
     "copied": "Copied",
     "copyFailed": "The codes could not be copied. Select them and copy them yourself.",
-    "saved": "I’ve saved them"
+    "saved": "I’ve saved them",
+    "lostPhone": "Lost your phone?",
+    "backupDialogTitle": "Use a backup code",
+    "close": "Close",
+    "backupCodeLabel": "Backup code",
+    "backupCodePlaceholder": "XXXX-XXXX",
+    "backupDialogHint": "You’ll set up a new authenticator next. No backup codes left? Contact the store owner.",
+    "backupCodeFormat": "Enter the 8-character code, like ABCD-2345.",
+    "cancel": "Cancel",
+    "continue": "Continue",
+    "continuing": "Checking…",
+    "replaceTitle": "Set up your new authenticator",
+    "replaceIntro": "Your old authenticator stops working once this one is verified.",
+    "contactNotice": {
+      "SENT": "We sent a notice to your verified mobile.",
+      "FAILED": "We couldn’t send a notice to your verified mobile. Your new authenticator is active.",
+      "NO_VERIFIED_CONTACT": "No verified contact to notify.",
+      "NOT_CONFIGURED": "Security notices aren’t set up, so none was sent."
+    },
+    "regenerate": {
+      "pageTitle": "Backup codes",
+      "title": "Get new backup codes",
+      "intro": "Your unused backup codes will stop working. Enter a fresh code from your authenticator app.",
+      "codeLabel": "Your authenticator code",
+      "submit": "Get new backup codes",
+      "submitting": "Getting codes…",
+      "back": "Back to staff pages"
+    }
   },
   "staffHome": {
     "pageTitle": "Staff",
@@ -102,7 +129,8 @@
       "DELIVERY_PERSON": "Delivery person"
     },
     "usersAndRoles": "Users and roles",
-    "discounts": "Discounts"
+    "discounts": "Discounts",
+    "backupCodes": "Get new backup codes"
   },
   "profile": {
     "title": "Profile",

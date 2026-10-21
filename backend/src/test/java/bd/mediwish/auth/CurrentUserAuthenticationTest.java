@@ -31,7 +31,7 @@ class CurrentUserAuthenticationTest {
             "$argon2id$v=19$m=19456,t=2,p=1$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA";
     private static final UUID USER_ID = UUID.randomUUID();
     private static final UUID SESSION_ID = UUID.randomUUID();
-    private static final SessionService.MfaEvidence PASSWORD_ONLY = new SessionService.MfaEvidence(null, null);
+    private static final SessionService.MfaEvidence PASSWORD_ONLY = new SessionService.MfaEvidence(null, null, null);
 
     @Mock AccessTokenCodec accessTokens;
     @Mock SessionService sessions;
@@ -72,7 +72,7 @@ class CurrentUserAuthenticationTest {
         assertThat(currentUsers.authenticate("access").authorities()).containsExactly(StaffAccessPolicy.MFA_CHALLENGE);
 
         when(sessions.requireActive(SESSION_ID, USER_ID, NOW))
-                .thenReturn(new SessionService.MfaEvidence(factorId, NOW.minusSeconds(60)));
+                .thenReturn(new SessionService.MfaEvidence(factorId, NOW.minusSeconds(60), null));
         var verified = currentUsers.authenticate("access");
         assertThat(verified.mfa()).isEqualTo(MfaStatus.VERIFIED);
         assertThat(verified.authorities()).containsExactly("ROLE_ADMIN");

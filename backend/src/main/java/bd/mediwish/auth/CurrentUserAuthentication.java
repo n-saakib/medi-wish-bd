@@ -40,7 +40,7 @@ public class CurrentUserAuthentication {
                 .orElseThrow(AuthenticationRequiredException::new);
         var evidence = sessions.requireActive(claims.sessionId(), claims.userId(), clock.instant());
         var access = StaffAccessPolicy.evaluate(user.role(), factors.activeFactorIdOf(user),
-                evidence.factorId(), evidence.verifiedAt());
+                evidence.factorId(), evidence.verifiedAt(), evidence.replacingFactorId());
         return new CurrentUser(user.id(), claims.sessionId(), UserProfile.from(user), user.roles(),
                 access.mfa(), access.authorities());
     }

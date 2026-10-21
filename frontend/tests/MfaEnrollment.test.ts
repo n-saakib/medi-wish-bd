@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MfaEnrollment } from '../src/auth/MfaEnrollment';
 import { type SessionSource, useSession } from '../src/auth/SessionProvider';
 import { ApiError } from '../src/lib/api';
-import type { EnrolledSession, MfaEnrollment as PendingEnrollment } from '../src/lib/session';
+import type { ContactNotice, EnrolledSession, MfaEnrollment as PendingEnrollment } from '../src/lib/session';
 import { deferred, enrollmentBody, restoredStaff, signedInUser, syntheticBackupCodes } from './fakeApi';
 import {
   createSessionSource,
@@ -32,6 +32,7 @@ const enrolled: EnrolledSession = {
   user: signedInUser,
   mfa: 'VERIFIED',
   backupCodes: syntheticBackupCodes,
+  contactNotice: null,
 };
 
 function enrollmentSource(overrides: Partial<SessionSource> = {}): SessionSource {
@@ -321,4 +322,67 @@ describe('MfaEnrollment', () => {
     expect(source.startMfaEnrollment).not.toHaveBeenCalled();
     expect(router.replace).toHaveBeenCalledWith('/staff/mfa');
   });
+});
+
+
+it.each([
+  ['SENT', 'We sent a notice to your verified mobile.'],
+  ['FAILED', 'We couldn’t send a notice to your verified mobile. Your new authenticator is active.'],
+  ['NO_VERIFIED_CONTACT', 'No verified contact to notify.'],
+  ['NOT_CONFIGURED', 'Security notices aren’t set up, so none was sent.'],
+] satisfies [ContactNotice, string][])('replaces an authenticator and holds the %s notice with its once-only codes', async (contactNotice, text) => {
+  const source = enrollmentSource({
+    restoreSession: vi.fn().mockResolvedValue(restoredStaff('REPLACEMENT_REQUIRED')),
+    verifyMfaEnrollment: vi.fn().mockResolvedValue({ ...enrolled, contactNotice }),
+  });
+  const page = await renderEnrollment(source);
+  expect(source.startMfaEnrollment).toHaveBeenCalledOnce();
+  expect(requiredElement(page, 'h1').textContent).toBe('Set up your new authenticator');
+  expect(page.textContent).toContain('Your old authenticator stops working once this one is verified.');
+  await enterCode(page, '287082');
+  expect(requiredElement(page, 'h1').textContent).toBe('Backup codes (shown once)');
+  expect(page.textContent).toContain(text);
+  expect(router.replace).not.toHaveBeenCalled();
+  await act(async () => window.dispatchEvent(pageTransition('pagehide', true)));
+  await settle();
+  expect(page.textContent).not.toContain(syntheticBackupCodes[0]);
+  expect(router.replace).toHaveBeenCalledWith('/staff');
+});
+
+it('keeps a first enrollment free of a replacement notice', async () => {
+  const page = await renderEnrollment();
+  await enterCode(page, '287082');
+  expect(page.querySelector('.secret .alert')).toBeNull();
+});
+
+
+it('hides the once-only codes when the header signs out of the session', async () => {
+  function Page() {
+    const session = useSession();
+    return createElement('div', null,
+      createElement('button', { onClick: () => void session.signOut() }, 'Leave session'),
+      createElement(MfaEnrollment));
+  }
+  const page = await renderEnrollment(enrollmentSource(), createElement(Page));
+  await enterCode(page, '287082');
+  expect(page.textContent).toContain(syntheticBackupCodes[0]);
+  await click(buttonNamed(page, 'Leave session'));
+  expect(page.querySelector('ul')).toBeNull();
+  expect(router.replace).toHaveBeenCalledWith('/sign-in');
+});
+
+
+it('never redisplays codes when verification finishes after pagehide', async () => {
+  const pending = deferred<EnrolledSession>();
+  const page = await renderEnrollment(enrollmentSource({
+    restoreSession: vi.fn().mockResolvedValue(restoredStaff('REPLACEMENT_REQUIRED')),
+    verifyMfaEnrollment: vi.fn(() => pending.promise),
+  }));
+  await enterCode(page, '287082');
+  await act(async () => window.dispatchEvent(pageTransition('pagehide', true)));
+  await act(async () => pending.resolve({ ...enrolled, contactNotice: 'SENT' }));
+  await settle();
+  expect(page.querySelector('ul')).toBeNull();
+  expect(page.textContent).not.toContain(syntheticBackupCodes[0]);
+  expect(router.replace).toHaveBeenCalledWith('/staff');
 });

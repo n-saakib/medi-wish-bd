@@ -4,7 +4,7 @@ Source: [`src/test/java/bd/mediwish/catalog/CatalogMigrationIT.java`](../../../.
 
 ## Purpose
 
-Finds `013-catalog` in the parsed Liquibase master changelog at runtime, applies the preceding changesets to a guarded test schema, and inserts a synthetic existing User and session. After migration it compares full JSON snapshots of the existing User and session rows, so changed credentials, expiry, revocation or other stored values cannot pass as mere row survival. The three catalog tables start empty and a fresh login using the existing credentials still works. The seeded session has no issued access or refresh credential; the row comparison proves preservation, without claiming an authenticated request using a pre-migration token. Direct SQL probes each new Product and change-type `CHECK` constraint against a valid seed Product.
+Finds `013-catalog` in the parsed Liquibase master changelog at runtime, applies the preceding changesets to a guarded test schema, and inserts a synthetic existing User and session. After migration it compares the full JSON snapshot of the existing User and every pre-existing session field, excluding only the additive `mfa_replacing_factor_id` field on both sides. A separate assertion requires that new recovery binding to be null after upgrade, so changed credentials, expiry, revocation or other stored values cannot pass as mere row survival. The three catalog tables start empty and a fresh login using the existing credentials still works. The seeded session has no issued access or refresh credential; the row comparison proves preservation, without claiming an authenticated request using a pre-migration token. Direct SQL probes each new Product and change-type `CHECK` constraint against a valid seed Product.
 
 ## Verification
 
@@ -15,3 +15,6 @@ The guarded PostgreSQL 18 gate passed 739 unit tests and all 11 selected catalog
 Evidence: [guarded T6/T7 run](<D:/Web Dev/medi-wish-bd/.scratch/ticket14-verification/t6-t7-confirmed-backend-20261007.log>).
 
 Final cumulative verification on2026-10-07,8b6924c plus frozenWIP: normal verify passed739 units and158executed integration checks (one expected compatibility-only skip) at15:27:47; compatibility verify passed739 units and159integration checks with no skips at15:34:26. Logs: main-checkout `.scratch/ticket14-verification/final-backend-{full,compatibility}-20261007.log`. All136production class/resource payloads match the ordinary browser runtime; the compatibility profile adds optional dependency jars only.
+
+
+Ticket 09 cumulative verification on 2026-10-20 at revision 13968d1 plus uncommitted implementation reproduced a snapshot failure at CatalogMigrationIT line 51: changeset 018 adds the nullable session recovery binding. The fixture now compares all pre-existing fields and separately verifies the new null default. Focused and full cumulative reruns of this correction are pending; the Ticket 14 passing evidence above is historical and does not verify this change.

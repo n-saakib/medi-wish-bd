@@ -894,3 +894,25 @@ databaseChangeLog:
               CREATE UNIQUE INDEX uq_saved_addresses_default ON saved_addresses (user_id) WHERE is_default;
               ALTER TABLE saved_address_changes ADD CONSTRAINT fk_saved_address_changes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
               CREATE INDEX ix_saved_address_changes_user ON saved_address_changes (user_id, changed_at);
+  - changeSet:
+      id: 018-staff-mfa-recovery
+      author: medi-wish
+      changes:
+        - addColumn:
+            tableName: user_sessions
+            columns:
+              - column:
+                  name: mfa_replacing_factor_id
+                  type: UUID
+        - addColumn:
+            tableName: staff_mfa_backup_codes
+            columns:
+              - column:
+                  name: consumed_session_id
+                  type: UUID
+        - sql:
+            splitStatements: true
+            sql: |-
+              ALTER TABLE user_sessions ADD CONSTRAINT fk_user_sessions_mfa_replacing_factor FOREIGN KEY (mfa_replacing_factor_id) REFERENCES staff_mfa_factors(id) ON DELETE SET NULL;
+              ALTER TABLE user_sessions ADD CONSTRAINT ck_user_sessions_replacing_unverified CHECK (mfa_replacing_factor_id IS NULL OR mfa_verified_at IS NULL);
+              ALTER TABLE staff_mfa_backup_codes ADD CONSTRAINT ck_staff_mfa_backup_codes_consumed CHECK ((consumed_at IS NULL) = (consumed_session_id IS NULL));

@@ -64,6 +64,7 @@ describe('SignInForm', () => {
 
   it.each([
     ['ENROLLMENT_REQUIRED', '/staff/mfa/enroll'],
+    ['REPLACEMENT_REQUIRED', '/staff/mfa/enroll'],
     ['VERIFICATION_REQUIRED', '/staff/mfa'],
     ['VERIFIED', '/staff'],
   ] as const)('sends a staff sign-in with MFA status %s to %s instead of the account page', async (mfa, target) => {

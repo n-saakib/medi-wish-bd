@@ -282,14 +282,14 @@ describe('sessionRedirect', () => {
 
 describe('sessionRedirect staff-MFA routing table', () => {
   const restored: SessionState = { ...initialSessionState, restoring: false };
-  const statuses: MfaStatus[] = ['NOT_REQUIRED', 'ENROLLMENT_REQUIRED', 'VERIFICATION_REQUIRED', 'VERIFIED'];
+  const statuses: MfaStatus[] = ['NOT_REQUIRED', 'ENROLLMENT_REQUIRED', 'VERIFICATION_REQUIRED', 'VERIFIED', 'REPLACEMENT_REQUIRED'];
   // Columns: no profile, then each status in the order above; null means the page stays.
   const table: Record<SessionGuard, (string | null)[]> = {
-    guest: [null, '/account', '/staff/mfa/enroll', '/staff/mfa', '/staff'],
-    account: ['/sign-in', null, '/staff/mfa/enroll', '/staff/mfa', null],
-    'mfa-enrollment': ['/sign-in', '/account', null, '/staff/mfa', '/staff'],
-    'mfa-challenge': ['/sign-in', '/account', '/staff/mfa/enroll', null, '/staff'],
-    staff: ['/sign-in', '/account', '/staff/mfa/enroll', '/staff/mfa', null],
+    guest: [null, '/account', '/staff/mfa/enroll', '/staff/mfa', '/staff', '/staff/mfa/enroll'],
+    account: ['/sign-in', null, '/staff/mfa/enroll', '/staff/mfa', null, '/staff/mfa/enroll'],
+    'mfa-enrollment': ['/sign-in', '/account', null, '/staff/mfa', '/staff', null],
+    'mfa-challenge': ['/sign-in', '/account', '/staff/mfa/enroll', null, '/staff', '/staff/mfa/enroll'],
+    staff: ['/sign-in', '/account', '/staff/mfa/enroll', '/staff/mfa', null, '/staff/mfa/enroll'],
   };
   const cells = Object.entries(table).flatMap(([guard, targets]) => [
     [guard, 'no profile', targets[0]],
@@ -331,13 +331,13 @@ describe('SessionProvider staff MFA', () => {
     const source = createSessionSource({
       restoreSession: vi.fn().mockResolvedValue(restoredStaff('ENROLLMENT_REQUIRED')),
       verifyMfaEnrollment: vi.fn().mockResolvedValue({
-        accessToken: 'access-verified', user: signedInUser, mfa: 'VERIFIED', backupCodes: syntheticBackupCodes,
+        accessToken: 'access-verified', user: signedInUser, mfa: 'VERIFIED', backupCodes: syntheticBackupCodes, contactNotice: null,
       }),
     });
     const session = await mountProvider(source);
 
     await act(async () => {
-      await expect(session.current().verifyMfaEnrollment('enrollment', '287082')).resolves.toEqual(syntheticBackupCodes);
+      await expect(session.current().verifyMfaEnrollment('enrollment', '287082')).resolves.toEqual({ backupCodes: syntheticBackupCodes, contactNotice: null });
     });
 
     expect(source.verifyMfaEnrollment).toHaveBeenCalledWith('enrollment', '287082');
@@ -375,6 +375,8 @@ describe('SessionProvider staff MFA', () => {
     ['enrollment start', (session: SessionContextValue) => session.startMfaEnrollment()],
     ['enrollment verification', (session: SessionContextValue) => session.verifyMfaEnrollment('enrollment', '287082')],
     ['challenge verification', (session: SessionContextValue) => session.verifyMfa('287082')],
+    ['backup-code redemption', (session: SessionContextValue) => session.redeemBackupCode('ABCD-2345')],
+    ['backup-code regeneration', (session: SessionContextValue) => session.regenerateBackupCodes('287082')],
   ])('ends the session when the %s is unauthorized', async (_, call) => {
     const session = await mountProvider(createSessionSource({
       restoreSession: vi.fn().mockResolvedValue(restoredStaff('ENROLLMENT_REQUIRED')),
@@ -393,5 +395,36 @@ describe('SessionProvider staff MFA', () => {
     await act(async () => session.current().signOut());
 
     expect(session.current()).toMatchObject({ profile: null, mfa: null });
+  });
+});
+
+
+describe('SessionProvider backup-code actions', () => {
+  it('adopts replacement assurance without retaining the code', async () => {
+    const source = createSessionSource({
+      restoreSession: vi.fn().mockResolvedValue(restoredStaff('VERIFICATION_REQUIRED')),
+      redeemBackupCode: vi.fn().mockResolvedValue({ accessToken: 'replacement', user: signedInUser, mfa: 'REPLACEMENT_REQUIRED' }),
+    });
+    const session = await mountProvider(source);
+    const generation = session.current().generation;
+    await act(async () => session.current().redeemBackupCode('ABCD-2345'));
+    expect(source.redeemBackupCode).toHaveBeenCalledWith('ABCD-2345');
+    expect(session.current()).toMatchObject({ mfa: 'REPLACEMENT_REQUIRED', generation: generation + 1 });
+    expect(JSON.stringify(session.current())).not.toContain('ABCD-2345');
+  });
+
+  it('returns regenerated codes without changing assurance or retaining the codes', async () => {
+    const source = createSessionSource({
+      restoreSession: vi.fn().mockResolvedValue(restoredStaff('VERIFIED')),
+      regenerateBackupCodes: vi.fn().mockResolvedValue(syntheticBackupCodes),
+    });
+    const session = await mountProvider(source);
+    const generation = session.current().generation;
+    await act(async () => {
+      await expect(session.current().regenerateBackupCodes('287082')).resolves.toEqual(syntheticBackupCodes);
+    });
+    expect(source.regenerateBackupCodes).toHaveBeenCalledWith('287082');
+    expect(session.current()).toMatchObject({ mfa: 'VERIFIED', generation });
+    expect(session.current()).not.toHaveProperty('backupCodes');
   });
 });

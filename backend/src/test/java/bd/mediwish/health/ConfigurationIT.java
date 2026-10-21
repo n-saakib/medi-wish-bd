@@ -49,6 +49,7 @@ class ConfigurationIT {
                                                                CapturedOutput output) throws Exception {
         try (var database = TestDatabase.create()) {
             Map<String, Object> properties = new HashMap<>(database.applicationProperties());
+            properties.put("app.notification.security.adapter", "disabled");
             properties.put("app.cors.allowed-origins", "https://shop.example.test");
             properties.put("app.auth.cookie.secure", "true");
             properties.put(property, value);
@@ -82,6 +83,7 @@ class ConfigurationIT {
     @Test void localAdapterRefusesHostedProfiles(CapturedOutput output) throws Exception {
         try (var database = TestDatabase.create()) {
             var properties = new HashMap<>(database.applicationProperties());
+            properties.put("app.notification.security.adapter", "disabled");
             properties.put("app.auth.cookie.secure", "true");
             properties.put("app.cors.allowed-origins", "https://shop.example.test");
             properties.put("app.storage.namespace", "prod-check");

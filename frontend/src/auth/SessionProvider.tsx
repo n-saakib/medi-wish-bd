@@ -5,12 +5,15 @@ import { usePathname } from 'next/navigation';
 import { ApiError } from '../lib/api';
 import {
   authenticatedFetch,
+  redeemBackupCode,
+  regenerateBackupCodes,
   restoreSession,
   signIn,
   signOut,
   startMfaEnrollment,
   verifyMfa,
   verifyMfaEnrollment,
+  type ContactNotice,
   type MfaEnrollment,
   type MfaStatus,
   type SessionClient,
@@ -18,7 +21,7 @@ import {
 } from '../lib/session';
 
 export type SessionSource = Pick<SessionClient, 'signIn' | 'restoreSession' | 'signOut' | 'authenticatedFetch'
-  | 'startMfaEnrollment' | 'verifyMfaEnrollment' | 'verifyMfa'>;
+  | 'startMfaEnrollment' | 'verifyMfaEnrollment' | 'verifyMfa' | 'redeemBackupCode' | 'regenerateBackupCodes'>;
 
 /** Feedback that outlives the page that caused it, until the visitor leaves the page that shows it. */
 export type SessionNotice = 'sessionExpired' | 'restoreError' | 'accountCreated' | 'signedOut' | 'signOutError';
@@ -115,9 +118,11 @@ export type SessionContextValue = SessionState & Pick<SessionClient, 'authentica
   signOut(): Promise<void>;
   showNotice(notice: SessionNotice): void;
   startMfaEnrollment(): Promise<MfaEnrollment>;
-  /** Completes authenticator setup and returns the backup codes, which the caller shows once and then forgets. */
-  verifyMfaEnrollment(enrollmentId: string, code: string): Promise<string[]>;
+  /** Completes setup and returns once-only backup codes and the optional replacement notice outcome. */
+  verifyMfaEnrollment(enrollmentId: string, code: string): Promise<{ backupCodes: string[]; contactNotice: ContactNotice | null }>;
   verifyMfa(code: string): Promise<void>;
+  redeemBackupCode(code: string): Promise<void>;
+  regenerateBackupCodes(code: string): Promise<string[]>;
 };
 
 const SessionContext = createContext<SessionContextValue | null>(null);
@@ -130,6 +135,8 @@ const defaultSource: SessionSource = {
   startMfaEnrollment,
   verifyMfaEnrollment,
   verifyMfa,
+  redeemBackupCode,
+  regenerateBackupCodes,
 };
 
 type SessionProviderProps = {
@@ -207,10 +214,10 @@ export function SessionProvider({ children, source = defaultSource }: SessionPro
   );
 
   const verifyEnrollment = useCallback(async (enrollmentId: string, code: string) => {
-    const { user, mfa, backupCodes } = await expireWhenUnauthorized(() => source.verifyMfaEnrollment(enrollmentId, code));
+    const { user, mfa, backupCodes, contactNotice } = await expireWhenUnauthorized(() => source.verifyMfaEnrollment(enrollmentId, code));
     sessionChanges.current += 1;
     dispatch({ type: 'mfa-verified', profile: user, mfa });
-    return backupCodes;
+    return { backupCodes, contactNotice };
   }, [source, expireWhenUnauthorized]);
 
   const verifyChallenge = useCallback(async (code: string) => {
@@ -218,6 +225,17 @@ export function SessionProvider({ children, source = defaultSource }: SessionPro
     sessionChanges.current += 1;
     dispatch({ type: 'mfa-verified', profile: user, mfa });
   }, [source, expireWhenUnauthorized]);
+
+  const redeemCode = useCallback(async (code: string) => {
+    const { user, mfa } = await expireWhenUnauthorized(() => source.redeemBackupCode(code));
+    sessionChanges.current += 1;
+    dispatch({ type: 'mfa-verified', profile: user, mfa });
+  }, [source, expireWhenUnauthorized]);
+
+  const regenerateCodes = useCallback(
+    (code: string) => expireWhenUnauthorized(() => source.regenerateBackupCodes(code)),
+    [source, expireWhenUnauthorized],
+  );
 
   const showNotice = useCallback((notice: SessionNotice) => dispatch({ type: 'show-notice', notice }), []);
 
@@ -230,8 +248,10 @@ export function SessionProvider({ children, source = defaultSource }: SessionPro
     startMfaEnrollment: startEnrollment,
     verifyMfaEnrollment: verifyEnrollment,
     verifyMfa: verifyChallenge,
+    redeemBackupCode: redeemCode,
+    regenerateBackupCodes: regenerateCodes,
   }), [state, signInWithPassword, signOutOfSession, authenticatedFetchOrExpire, showNotice, startEnrollment,
-    verifyEnrollment, verifyChallenge]);
+    verifyEnrollment, verifyChallenge, redeemCode, regenerateCodes]);
 
   return <SessionContext value={value}>{children}</SessionContext>;
 }

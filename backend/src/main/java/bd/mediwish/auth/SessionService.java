@@ -63,6 +63,32 @@ class SessionService {
         return persist(verified, now);
     }
 
+    /** Consumes the presenting session and starts a fixed-lifetime authenticator replacement. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    SessionCredential startReplacement(UUID restrictedSessionId, UUID factorId) {
+        UserSession restricted = sessions.findByIdForUpdate(restrictedSessionId)
+                .orElseThrow(AuthenticationRequiredException::new);
+        Instant now = clock.instant();
+        if (restricted.revoked() || !restricted.expiresAt().isAfter(now)) throw new AuthenticationRequiredException();
+        restricted.revoke(now, RevocationReason.MFA_REPLACEMENT_STARTED);
+        sessions.save(restricted);
+        UserSession replacement = new UserSession(UUID.randomUUID(), restricted.user(), now,
+                now.plus(properties.mfa().restrictedSessionLifetime()));
+        replacement.markReplacing(factorId);
+        return persist(replacement, now);
+    }
+
+    /** The caller holds the User lock; every old session is revoked before the verified session is created. */
+    @Transactional(propagation = Propagation.MANDATORY)
+    SessionCredential replaceAllWithVerified(UUID userId, UUID factorId) {
+        revokeAllForUser(userId, RevocationReason.MFA_REPLACED);
+        Instant now = clock.instant();
+        UserSession verified = new UserSession(UUID.randomUUID(), users.getReferenceById(userId), now,
+                now.plus(properties.refreshTokenLifetime()));
+        verified.markMfaVerified(factorId, now);
+        return persist(verified, now);
+    }
+
     private SessionCredential persist(UserSession session, Instant now) {
         String rawToken = generateRefreshToken();
         sessions.save(session);
@@ -124,7 +150,7 @@ class SessionService {
         if (!userId.equals(session.user().id()) || session.revoked() || !session.expiresAt().isAfter(at)) {
             throw new AuthenticationRequiredException();
         }
-        return new MfaEvidence(session.mfaFactorId(), session.mfaVerifiedAt());
+        return new MfaEvidence(session.mfaFactorId(), session.mfaVerifiedAt(), session.mfaReplacingFactorId());
     }
 
     private void revokeAll(List<UserSession> lockedSessions, RevocationReason reason) {
@@ -143,13 +169,13 @@ class SessionService {
 
     private static SessionCredential credential(UserSession session, String rawToken) {
         return new SessionCredential(session.user().id(), session.id(), rawToken, session.expiresAt(),
-                new MfaEvidence(session.mfaFactorId(), session.mfaVerifiedAt()));
+                new MfaEvidence(session.mfaFactorId(), session.mfaVerifiedAt(), session.mfaReplacingFactorId()));
     }
 
     record PasswordSession(User user, SessionCredential credential) {}
 
     record SessionCredential(UUID userId, UUID sessionId, String refreshToken, Instant expiresAt, MfaEvidence mfa) {}
 
-    /** Which factor verified the session and when; both null for a password-only session. */
-    record MfaEvidence(UUID factorId, Instant verifiedAt) {}
+    /** Verified factor/time or a replacement binding; all null for an ordinary password-only session. */
+    record MfaEvidence(UUID factorId, Instant verifiedAt, UUID replacingFactorId) {}
 }

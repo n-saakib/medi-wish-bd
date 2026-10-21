@@ -16,10 +16,11 @@ class AddressMigrationIT {
             migrate(database,true); UUID user=user(database,"01700000001"); UUID session=UUID.randomUUID();
             database.update("INSERT INTO user_sessions(id,user_id,created_at,expires_at,last_used_at) VALUES(?,?,now(),now()+interval '30 days',now())",session,user);
             String beforeUser=database.single("SELECT u::text FROM users u WHERE id=?",String.class,user);
-            String beforeSession=database.single("SELECT s::text FROM user_sessions s WHERE id=?",String.class,session);
+            String beforeSession=database.single("SELECT (to_jsonb(s) - 'mfa_replacing_factor_id')::text FROM user_sessions s WHERE id=?",String.class,session);
             migrate(database,false);
             assertThat(database.single("SELECT u::text FROM users u WHERE id=?",String.class,user)).isEqualTo(beforeUser);
-            assertThat(database.single("SELECT s::text FROM user_sessions s WHERE id=?",String.class,session)).isEqualTo(beforeSession);
+            assertThat(database.single("SELECT (to_jsonb(s) - 'mfa_replacing_factor_id')::text FROM user_sessions s WHERE id=?",String.class,session)).isEqualTo(beforeSession);
+            assertThat(database.single("SELECT mfa_replacing_factor_id IS NULL FROM user_sessions WHERE id=?",Boolean.class,session)).isTrue();
             assertThat(database.single("SELECT count(*) FROM saved_addresses",Long.class)).isZero();
             assertThat(database.single("SELECT count(*) FROM saved_address_changes",Long.class)).isZero();
         }

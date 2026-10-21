@@ -4,24 +4,28 @@ Source: [`src/main/java/bd/mediwish/auth/StaffMfaController.java`](../../../../.
 
 ## Purpose
 
-Package-private HTTP adapter for `/api/auth/mfa`, used with a restricted staff session's Bearer token. It validates input shape, delegates to `StaffMfaService` and writes the replacement refresh cookie through `RefreshCookieAdapter`.
+HTTP adapter for `/api/auth/mfa`. It validates request input before invoking enrollment/challenge or recovery services, maps the approved once-only responses and sets refresh cookies through `RefreshCookieAdapter`.
 
 ## Routes
 
 | Route | Authority | Behavior |
 | --- | --- | --- |
-| `POST /enrollment` | `MFA_ENROLLMENT` | `201` with `{enrollmentId, secret, otpauthUri, expiresIn}`. No body. |
-| `POST /enrollment/verify` | `MFA_ENROLLMENT` | Body `{enrollmentId, code}`. `200` with `{accessToken, tokenType: "Bearer", expiresIn, user, mfa: "VERIFIED", backupCodes}` and a new `MW_REFRESH` cookie for the verified session. The backup codes appear only in this response. |
-| `POST /verify` | `MFA_CHALLENGE` | Body `{code}`. `200` with the standard `AuthController.SessionResponse` and a new refresh cookie. |
+| `POST /enrollment` | `MFA_ENROLLMENT` or `MFA_REPLACEMENT` | Existing `201` enrollment ID, seed, URI and expiry. No body. |
+| `POST /enrollment/verify` | `MFA_ENROLLMENT` or `MFA_REPLACEMENT` | Existing typed enrollment ID/code body. Replacement assurance dispatches to `verifyReplacement`; first enrollment retains its original service. Both return a verified session, refresh cookie and once-only codes. Only replacement adds `contactNotice`. |
+| `POST /verify` | `MFA_CHALLENGE` | Existing typed TOTP body, standard session and refresh cookie. |
+| `POST /recovery` | `MFA_CHALLENGE` | Strict JSON object containing only string `backupCode`; parses D4 input and returns a replacement-only session and fixed-lifetime refresh cookie. |
+| `POST /backup-codes` | Verified `MODERATOR` or higher | Strict JSON object containing only string `code`; returns fresh backup codes without changing cookies or sessions. |
 
-## Input rules
+## Input and response boundaries
 
-The code has spaces removed and must then be exactly six ASCII digits (`123 456` is accepted). The enrollment ID must be a lower-case canonical UUID. Anything else throws `InvalidRequestException` (`400 INVALID_REQUEST`) before the service runs, so a malformed value never counts as a failed attempt.
+Only the two new routes use exact-key JsonNode validation; objects with extra/missing keys, non-objects and non-string values are `400 INVALID_REQUEST` before recovery service calls. Backup-code input uses `BackupCodes.parse`. TOTP input removes literal spaces then requires six ASCII digits. Existing enrollment request binding remains unchanged; its ID must remain a canonical lower-case UUID.
 
-## Boundaries
+The two new routes explicitly consume application/json, so unsupported media is bounded `415 INVALID_REQUEST`. Security includes all routes in Bearer protection, CSRF exemption and the 16 KiB JSON limit. All responses carry no-store and request correlation. Domain errors retain their existing bounded mapping, including committed wrong-code lockout and stale enrollment.
 
-The routes are in `SecurityConfiguration.MFA_ROUTES`: Bearer-only, CSRF-exempt and under the 16 KiB body limit. A session without the required authority gets `403 MFA_REQUIRED` (restricted staff) or `403 ACCESS_DENIED` (non-staff); no token gets `401`. Service errors map through `ApiExceptionHandler` to `400 MFA_CODE_INVALID`, `409 MFA_ENROLLMENT_STALE` and `429 TOO_MANY_ATTEMPTS`.
+`EnrolledSessionResponse.contactNotice` is omitted when null, preserving first-enrollment JSON. The newly returned BackupCodesResponse and modified enrollment response have redacted toString values so credentials, contacts and codes cannot expand through those representations. Raw codes are returned only by successful enrollment/replacement/regeneration.
 
 ## Verification
 
-`StaffMfaControllerTest` covers the verified response and cookie, the enrollment response with backup codes, and malformed codes and IDs that never reach the service or set a cookie. `StaffMfaIT` and `StaffMfaRegressionIT` cover the routes over HTTP, including CSRF exemption, missing Bearer and oversized bodies.
+StaffMfaControllerTest covers strict bodies, normalization, cookie mapping, first/replacement dispatch, notice omission and inclusion, redacted responses, malformed JSON and unsupported content types. StaffMfaSecurityTest executes the installed production filter chain across actors, verifies Bearer/CSRF boundaries and tests valid JSON at and above the 16 KiB limit. Real API/database acceptance is recorded separately.
+
+T4 verification on 2026-10-19, working tree over `13968d1`: `.\mvnw.cmd -o test -Dtest=StaffMfaControllerTest,StaffMfaSecurityTest,SecurityConfigurationTest` passed 39 focused tests; `.\mvnw.cmd -o test` passed all 1,033 backend units with zero failures/errors/skips at 15:00:14 +06:00. Before security wiring, the production-chain/matcher gate had 10 expected failures in 31 tests. A separate controlled controller mutation had 2 expected failures in 8 tests for relaxed exact-key validation and null contactNotice serialization. Exact original controller bytes were restored before the full gate. These targeted faults are distinguished from missing-method compile-red; real HTTP/PostgreSQL/API acceptance is recorded separately.

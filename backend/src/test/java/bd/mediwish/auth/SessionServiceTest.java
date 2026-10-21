@@ -80,7 +80,7 @@ class SessionServiceTest {
         ordered.verify(sessions).save(any(UserSession.class));
 
         assertThat(result.expiresAt()).isEqualTo(NOW.plus(Duration.ofMinutes(10)));
-        assertThat(result.mfa()).isEqualTo(new SessionService.MfaEvidence(null, null));
+        assertThat(result.mfa()).isEqualTo(new SessionService.MfaEvidence(null, null, null));
     }
 
     @Test
@@ -100,7 +100,7 @@ class SessionServiceTest {
         assertThat(restricted.revokedReason()).isEqualTo("mfa-verified");
         assertThat(verified.sessionId()).isNotEqualTo(restricted.id());
         assertThat(verified.expiresAt()).isEqualTo(NOW.plusSeconds(1000));
-        assertThat(verified.mfa()).isEqualTo(new SessionService.MfaEvidence(factorId, NOW));
+        assertThat(verified.mfa()).isEqualTo(new SessionService.MfaEvidence(factorId, NOW, null));
         assertThat(savedTokens().getFirst().tokenHash()).isEqualTo(RefreshTokenHasher.hash(verified.refreshToken()));
     }
 
@@ -214,6 +214,61 @@ class SessionServiceTest {
                 () -> service.requireActive(UUID.randomUUID(), user.id(), NOW))) {
             assertThatThrownBy(rejected::run).isInstanceOf(AuthenticationRequiredException.class);
         }
+    }
+
+    @Test
+    void replacementRevokesThePresentingSessionAndBindsANewFixedTenMinuteSession() {
+        var restricted = session(NOW.plusSeconds(60));
+        when(sessions.findByIdForUpdate(restricted.id())).thenReturn(Optional.of(restricted));
+        UUID factor = UUID.randomUUID();
+
+        var replacement = service.startReplacement(restricted.id(), factor);
+
+        assertThat(restricted.revokedReason()).isEqualTo("mfa-replacement-started");
+        assertThat(replacement.sessionId()).isNotEqualTo(restricted.id());
+        assertThat(replacement.expiresAt()).isEqualTo(NOW.plusSeconds(600));
+        assertThat(replacement.mfa()).isEqualTo(new SessionService.MfaEvidence(null, null, factor));
+        var saved = ArgumentCaptor.forClass(UserSession.class);
+        verify(sessions, org.mockito.Mockito.atLeastOnce()).save(saved.capture());
+        var newSession = saved.getAllValues().getLast();
+        when(sessions.findById(newSession.id())).thenReturn(Optional.of(newSession));
+        assertThat(service.requireActive(newSession.id(), user.id(), NOW)).isEqualTo(replacement.mfa());
+        presented(newSession);
+        var refreshed = service.rotate(PRESENTED);
+        assertThat(refreshed.expiresAt()).isEqualTo(replacement.expiresAt());
+        assertThat(refreshed.mfa()).isEqualTo(replacement.mfa());
+    }
+
+    @Test
+    void revokedOrExpiredSessionsCannotStartReplacementAndVerifiedEvidenceCannotBeRebound() {
+        var revoked = session(NOW.plusSeconds(60));
+        revoked.revoke(NOW, RevocationReason.LOGOUT);
+        for (var restricted : List.of(revoked, session(NOW))) {
+            when(sessions.findByIdForUpdate(restricted.id())).thenReturn(Optional.of(restricted));
+            assertThatThrownBy(() -> service.startReplacement(restricted.id(), UUID.randomUUID()))
+                    .isInstanceOf(AuthenticationRequiredException.class);
+        }
+        var verified = session(NOW.plusSeconds(60));
+        verified.markMfaVerified(UUID.randomUUID(), NOW);
+        assertThatThrownBy(() -> verified.markReplacing(UUID.randomUUID())).isInstanceOf(IllegalStateException.class);
+        verifyNoInteractions(refreshTokens);
+    }
+
+    @Test
+    void verifiedReplacementRevokesAllSessionsAndIssuesOnlyOneNewVerifiedSession() {
+        var first = session(NOW.plusSeconds(500));
+        var second = session(NOW.plusSeconds(500));
+        when(sessions.findActiveByUserIdForUpdate(user.id())).thenReturn(List.of(first, second));
+        when(users.getReferenceById(user.id())).thenReturn(user);
+        UUID factor = UUID.randomUUID();
+
+        var verified = service.replaceAllWithVerified(user.id(), factor);
+
+        assertThat(List.of(first, second)).allSatisfy(row -> assertThat(row.revokedReason()).isEqualTo("mfa-replaced"));
+        assertThat(verified.mfa()).isEqualTo(new SessionService.MfaEvidence(factor, NOW, null));
+        assertThat(verified.expiresAt()).isEqualTo(NOW.plusSeconds(1000));
+        assertThat(verified.sessionId()).isNotIn(first.id(), second.id());
+        assertThat(savedTokens()).hasSize(1);
     }
 
     private UserSession session(Instant expiresAt) {

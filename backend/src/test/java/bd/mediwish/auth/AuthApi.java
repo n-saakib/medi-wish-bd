@@ -1,5 +1,6 @@
 package bd.mediwish.auth;
 
+import bd.mediwish.notification.CaptureSecurityNotifier;
 import bd.mediwish.testsupport.TestApplication;
 import bd.mediwish.testsupport.TestDatabase;
 import org.bouncycastle.util.encoders.Base32;
@@ -14,6 +15,8 @@ import java.net.http.HttpResponse;
 import java.security.SecureRandom;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.time.Clock;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HexFormat;
@@ -54,6 +57,7 @@ final class AuthApi implements AutoCloseable {
     private final TestDatabase database;
     private final TestApplication app;
     private final Set<String> secrets = ConcurrentHashMap.newKeySet();
+    private final Set<String> totpCodes = ConcurrentHashMap.newKeySet();
     private String csrf;
 
     private AuthApi(TestDatabase database, TestApplication app) {
@@ -165,7 +169,8 @@ final class AuthApi implements AutoCloseable {
      * token and refresh cookie end with it; every other new session has the 15-minute token and the 30-day cookie.
      */
     Session session(HttpResponse<String> response, String mfa) {
-        boolean restricted = mfa.equals("ENROLLMENT_REQUIRED") || mfa.equals("VERIFICATION_REQUIRED");
+        boolean restricted = mfa.equals("ENROLLMENT_REQUIRED") || mfa.equals("VERIFICATION_REQUIRED")
+                || mfa.equals("REPLACEMENT_REQUIRED");
         return session(response, mfa, restricted ? RESTRICTED_LIFETIME_SECONDS : REFRESH_LIFETIME_SECONDS);
     }
 
@@ -173,9 +178,15 @@ final class AuthApi implements AutoCloseable {
     Session session(HttpResponse<String> response, String mfa, long lifetime) {
         assertThat(response.statusCode()).isEqualTo(200);
         Map<String, Object> body = json(response);
-        assertThat(body).containsOnlyKeys(mfa.equals("VERIFIED") && body.containsKey("backupCodes")
-                        ? new String[]{"accessToken", "tokenType", "expiresIn", "user", "mfa", "backupCodes"}
-                        : new String[]{"accessToken", "tokenType", "expiresIn", "user", "mfa"})
+        var fields = new ArrayList<>(List.of("accessToken", "tokenType", "expiresIn", "user", "mfa"));
+        if (mfa.equals("VERIFIED") && body.containsKey("backupCodes")) {
+            fields.add("backupCodes");
+            if (body.containsKey("contactNotice")) {
+                fields.add("contactNotice");
+                assertThat(body.get("contactNotice")).isIn("SENT", "FAILED", "NO_VERIFIED_CONTACT", "NOT_CONFIGURED");
+            }
+        }
+        assertThat(body).containsOnlyKeys(fields.toArray(String[]::new))
                 .containsEntry("tokenType", "Bearer").containsEntry("mfa", mfa);
         if (lifetime < 900) {
             assertThat(((Number) body.get("expiresIn")).longValue()).isBetween(lifetime - 60, lifetime);
@@ -346,6 +357,7 @@ final class AuthApi implements AutoCloseable {
     }
 
     HttpResponse<String> verifyEnrollment(String accessToken, Object enrollmentId, String code) throws Exception {
+        rememberTotp(code);
         var fields = new HashMap<String, Object>();
         fields.put("enrollmentId", enrollmentId);
         fields.put("code", code);
@@ -353,6 +365,7 @@ final class AuthApi implements AutoCloseable {
     }
 
     HttpResponse<String> verifyMfa(String accessToken, String code) throws Exception {
+        rememberTotp(code);
         var fields = new HashMap<String, Object>();
         fields.put("code", code);
         return post("/api/auth/mfa/verify", bearerJson(accessToken), JSON.writeValueAsString(fields));
@@ -366,15 +379,69 @@ final class AuthApi implements AutoCloseable {
         String restricted = session(login(user.username(), user.password()), "ENROLLMENT_REQUIRED").accessToken();
         var enrollment = startEnrollment(restricted);
         String secret = (String) enrollment.get("secret");
-        var response = verifyEnrollment(restricted, enrollment.get("enrollmentId"), totp(secret, 0));
+        var response = verifyEnrollment(restricted, enrollment.get("enrollmentId"), authenticatorCode(secret, 0));
         Session session = session(response, "VERIFIED");
-        @SuppressWarnings("unchecked") var codes = (List<String>) json(response).get("backupCodes");
-        assertThat(codes).hasSize(10).allMatch(code -> code.matches("[A-HJKMNP-TV-Z2-9]{4}-[A-HJKMNP-TV-Z2-9]{4}"));
-        codes.forEach(this::track);
-        return new Enrolled(session, secret, codes);
+        return new Enrolled(session, secret, backupCodes(response));
     }
 
     record Enrolled(Session session, String secret, List<String> backupCodes) {}
+
+    HttpResponse<String> useBackupCode(String accessToken, String backupCode) throws Exception {
+        track(backupCode);
+        track(BackupCodes.normalize(backupCode));
+        return post("/api/auth/mfa/recovery", bearerJson(accessToken),
+                JSON.writeValueAsString(Map.of("backupCode", backupCode)));
+    }
+
+    HttpResponse<String> regenerateBackupCodes(String accessToken, String code) throws Exception {
+        rememberTotp(code);
+        var response = post("/api/auth/mfa/backup-codes", bearerJson(accessToken),
+                JSON.writeValueAsString(Map.of("code", code)));
+        if (response.statusCode() == 200) backupCodes(response);
+        return response;
+    }
+
+    @SuppressWarnings("unchecked")
+    List<String> backupCodes(HttpResponse<String> response) {
+        var codes = (List<String>) json(response).get("backupCodes");
+        assertThat(codes).hasSize(10).doesNotHaveDuplicates()
+                .allMatch(code -> code.matches("[ABCDEFGHJKMNPQRSTVWXYZ23456789]{4}-[ABCDEFGHJKMNPQRSTVWXYZ23456789]{4}"));
+        codes.forEach(code -> { track(code); track(BackupCodes.normalize(code)); });
+        return codes;
+    }
+
+    CaptureSecurityNotifier notifier() { return app.bean(CaptureSecurityNotifier.class); }
+
+    Replaced replace(User user, Enrolled enrolled) throws Exception {
+        var challenge = session(login(user.username(), user.password()), "VERIFICATION_REQUIRED");
+        var replacing = session(useBackupCode(challenge.accessToken(), enrolled.backupCodes().getFirst()),
+                "REPLACEMENT_REQUIRED");
+        var pending = startEnrollment(replacing.accessToken());
+        String secret = (String) pending.get("secret");
+        var response = verifyEnrollment(replacing.accessToken(), pending.get("enrollmentId"), authenticatorCode(secret, 0));
+        return new Replaced(session(response, "VERIFIED"), secret, backupCodes(response),
+                (String) json(response).get("contactNotice"));
+    }
+
+    record Replaced(Session session, String secret, List<String> backupCodes, String contactNotice) {
+        @Override public String toString() { return "Replaced[redacted]"; }
+    }
+
+    /** Uses the application's clock, including an explicitly controlled integration-test clock. */
+    String authenticatorCode(String secret, int offset) {
+        return Totp.code(Base32.decode(secret), Totp.step(app.bean(Clock.class).instant()) + offset);
+    }
+
+    private void rememberTotp(String code) {
+        if (code != null && code.matches("[0-9]{6}")) totpCodes.add(code);
+    }
+
+    private void assertOmitsTotp(String where, String text) {
+        for (String code : totpCodes) {
+            assertThat(Pattern.compile("(?<![A-Za-z0-9])" + code + "(?![A-Za-z0-9])").matcher(text).find())
+                    .as("a submitted TOTP appeared in %s", where).isFalse();
+        }
+    }
 
     /** The authenticator code for the current 30-second step plus {@code stepOffset}. */
     static String totp(String base32Secret, int stepOffset) {
@@ -440,7 +507,10 @@ final class AuthApi implements AutoCloseable {
     HttpResponse<String> send(String method, String path, Map<String, String> headers, String body)
             throws IOException, InterruptedException {
         var response = app.send(method, path, headers, body);
-        if (response.statusCode() == 204 || response.statusCode() >= 400) assertOmits(response, secrets);
+        if (response.statusCode() == 204 || response.statusCode() >= 400) {
+            assertOmits(response, secrets);
+            assertOmitsTotp("error response", response.body());
+        }
         return response;
     }
 
@@ -448,6 +518,7 @@ final class AuthApi implements AutoCloseable {
     void assertLogsOmitSecrets(CapturedOutput output) {
         assertThat(output.getAll()).contains("\"message\":\"HTTP response status=");
         assertOmits("captured output", output.getAll(), secrets);
+        assertOmitsTotp("captured output", output.getAll());
     }
 
     String track(String secret) {

@@ -9,3 +9,5 @@ Component units through session/translation providers and the real HTTP client. 
 Staff UI correction (2026-10-08): the stale-reload case asserts that focus lands on the username heading after **Reload**, and the detail-error table adds `ACCESS_DENIED` (focused denial, no role form).
 
 The deleted-actor history line now expects the shared `d Mon yyyy, h:mm am|pm` time (2026-10-08).
+
+Ticket 09 adds `REPLACEMENT_REQUIRED → /staff/mfa/enroll` to the existing guard table. A replacement session redirects to setup without requesting user-list or user-detail data.

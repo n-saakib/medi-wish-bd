@@ -17,6 +17,7 @@ This is the Playwright global setup, and the documented way to start the test AP
    - a separate random 32-byte `APP_AUTH_MFA_SECRET_KEY` (Base64), set after the `APP_*` filtering so an inherited key never reaches the API; the API refuses to start without one;
    - non-Secure cookies, which the `test` profile allows;
    - `APP_AUTH_ACCESS_TOKEN_LIFETIME=PT10S`;
+   - `APP_NOTIFICATION_SECURITY_ADAPTER=capture` (Ticket 09): staff-MFA replacement notices are recorded in memory and never sent, so a replacement with a verified mobile reports `contactNotice` `SENT`; the API refuses this adapter outside the `local` and `test` profiles;
    - CORS allowed only for `http://127.0.0.1:3115`;
    - `APP_STORAGE_PROVIDER=local`, an absolute `backend/target/test-object-storage` root, and a unique `test-browser-<12 hex>` namespace tied to the run role. It creates only that namespace, which is available to worker-side image assertions through `MEDI_WISH_TEST_STORAGE_DIR`. Inherited storage settings are filtered out.
 

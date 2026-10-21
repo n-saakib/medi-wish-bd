@@ -8,7 +8,7 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 import java.util.UUID;
 
-/** The Argon2 verifier of one backup code, never the code; Ticket 09 consumes it. */
+/** The Argon2 verifier of one backup code, never the code; recovery consumes it atomically. */
 @Entity
 @Table(name = "staff_mfa_backup_codes")
 public class StaffMfaBackupCode {
@@ -22,6 +22,12 @@ public class StaffMfaBackupCode {
     private Instant createdAt;
     @Column(name = "consumed_at")
     private Instant consumedAt;
+
+    @Column(name = "consumed_session_id")
+    private UUID consumedSessionId;
+
+    UUID id() { return id; }
+    String codeVerifier() { return codeVerifier; }
 
     protected StaffMfaBackupCode() {}
 

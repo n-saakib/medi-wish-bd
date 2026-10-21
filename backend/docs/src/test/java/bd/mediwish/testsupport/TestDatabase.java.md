@@ -24,3 +24,5 @@ Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` pas
 ## Ticket 15 image storage
 
 Owns one guarded disposable PostgreSQL18 test schema and a matching test-it- storage namespace under the discovered backend target/test-object-storage root. Application properties include synthetic auth and storage settings. close validates ownership, drops only its schema and deletes only its namespace. Credential values are never printed; development credentials are never fallback inputs.
+
+T4 adds app.notification.security.adapter=capture to the mutable applicationProperties map, keeping syntheticAuthProperties unchanged. Every isolated integration startup therefore has a local in-memory security-notice adapter under TestApplication's test profile; no external delivery or credential is needed. The notification configuration still rejects capture under hosted profiles.

@@ -1,6 +1,9 @@
 package bd.mediwish.auth;
 
 import bd.mediwish.testsupport.TestAuthSettings;
+import bd.mediwish.notification.NoticeOutcome;
+import bd.mediwish.web.WebTestFixtures;
+import tools.jackson.databind.json.JsonMapper;
 import bd.mediwish.user.UserProfile;
 import bd.mediwish.user.UserRole;
 import org.junit.jupiter.api.BeforeEach;
@@ -22,6 +25,10 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -36,12 +43,14 @@ class StaffMfaControllerTest {
             MfaStatus.VERIFIED);
 
     @Mock StaffMfaService mfa;
+    @Mock StaffMfaRecoveryService recovery;
+    private final JsonMapper mapper = JsonMapper.builder().build();
     private StaffMfaController controller;
     private final MockHttpServletResponse response = new MockHttpServletResponse();
 
     @BeforeEach
     void setUp() {
-        controller = new StaffMfaController(mfa,
+        controller = new StaffMfaController(mfa, recovery,
                 new RefreshCookieAdapter(TestAuthSettings.properties(), Clock.fixed(NOW, ZoneOffset.UTC)));
     }
 
@@ -66,8 +75,90 @@ class StaffMfaControllerTest {
                 new StaffMfaController.EnrollmentVerification(enrollmentId.toString(), "654321"), response);
 
         assertThat(body).isEqualTo(new StaffMfaController.EnrolledSessionResponse("access", "Bearer", 900, PROFILE,
-                MfaStatus.VERIFIED, List.of("ABCD-EFGH")));
+                MfaStatus.VERIFIED, List.of("ABCD-EFGH"), null));
         assertThat(response.getHeader("Set-Cookie")).startsWith("MW_REFRESH=verified-refresh;");
+        assertThat(mapper.valueToTree(body).has("contactNotice")).isFalse();
+        assertThat(body.toString()).isEqualTo("EnrolledSessionResponse[redacted]");
+    }
+
+    @Test
+    void newCodeRoutesRejectWrongShapesAndMalformedCodesWithoutRecoveryCalls() {
+        for (String json : new String[]{"{}", "[]", "null", "\"x\"", "{\"backupCode\":12345678}",
+                "{\"backupCode\":null}", "{\"backupCode\":true}", "{\"backupCode\":[\"ABCD-2345\"]}",
+                "{\"backupCode\":\"ABCD-2345\",\"extra\":1}", "{\"code\":\"123456\"}",
+                "{\"backupCode\":\"ABCI-2345\"}", "{\"backupCode\":\"ABCD--2345\"}",
+                "{\"backupCode\":\"" + "A".repeat(300) + "\"}"}) {
+            assertThatThrownBy(() -> controller.useBackupCode(RESTRICTED, mapper.readTree(json), response))
+                    .isInstanceOf(InvalidRequestException.class);
+        }
+        for (String json : new String[]{"{}", "[]", "null", "\"123456\"", "{\"code\":123456}",
+                "{\"code\":null}", "{\"code\":true}", "{\"code\":[\"123456\"]}",
+                "{\"code\":\"123456\",\"extra\":1}", "{\"code\":\"123456\",\"backupCode\":\"x\"}",
+                "{\"code\":\"12345\"}", "{\"code\":\"١٢٣٤٥٦\"}", "{\"code\":\"" + "1".repeat(300) + "\"}"}) {
+            assertThatThrownBy(() -> controller.regenerate(RESTRICTED, mapper.readTree(json)))
+                    .isInstanceOf(InvalidRequestException.class);
+        }
+        assertThatThrownBy(() -> controller.useBackupCode(RESTRICTED, null, response)).isInstanceOf(InvalidRequestException.class);
+        assertThatThrownBy(() -> controller.regenerate(RESTRICTED, null)).isInstanceOf(InvalidRequestException.class);
+        verifyNoInteractions(recovery, mfa);
+        assertThat(response.getHeader("Set-Cookie")).isNull();
+    }
+
+    @Test
+    void recoveryNormalizesTheCodeAndSetsTheFixedLifetimeReplacementCookie() {
+        var replacement = new AuthenticationService.AuthenticatedSession("replacement-access", 600, "replacement-refresh",
+                NOW.plusSeconds(600), PROFILE, MfaStatus.REPLACEMENT_REQUIRED);
+        when(recovery.useBackupCode(RESTRICTED.userId(), RESTRICTED.sessionId(), "ABCD2345")).thenReturn(replacement);
+
+        var body = controller.useBackupCode(RESTRICTED, mapper.readTree("{\"backupCode\":\" abcd-2345 \"}"), response);
+
+        assertThat(body).isEqualTo(AuthController.SessionResponse.from(replacement));
+        assertThat(response.getHeader("Set-Cookie")).startsWith("MW_REFRESH=replacement-refresh; Path=/api/auth; Max-Age=600;");
+        verifyNoInteractions(mfa);
+    }
+
+    @Test
+    void regenerationNormalizesTotpAndReturnsCodesWithoutChangingTheCookie() {
+        when(recovery.regenerateBackupCodes(RESTRICTED.userId(), RESTRICTED.sessionId(), "123456"))
+                .thenReturn(List.of("ABCD-2345"));
+
+        var body = controller.regenerate(RESTRICTED, mapper.readTree("{\"code\":\"123 456\"}"));
+
+        assertThat(body.backupCodes()).containsExactly("ABCD-2345");
+        assertThat(body.toString()).isEqualTo("BackupCodesResponse[redacted]");
+        assertThat(response.getHeader("Set-Cookie")).isNull();
+        verifyNoInteractions(mfa);
+    }
+
+    @Test
+    void replacementVerificationDispatchesToRecoveryAndIncludesTheNotice() {
+        var current = new CurrentUserAuthentication.CurrentUser(RESTRICTED.userId(), RESTRICTED.sessionId(), PROFILE,
+                Set.of(UserRole.ADMIN), MfaStatus.REPLACEMENT_REQUIRED, Set.of(StaffAccessPolicy.MFA_REPLACEMENT));
+        UUID enrollmentId = UUID.randomUUID();
+        when(recovery.verifyReplacement(current.userId(), current.sessionId(), enrollmentId, "654321"))
+                .thenReturn(new StaffMfaRecoveryService.ReplacedSession(VERIFIED, List.of("ABCD-2345"), NoticeOutcome.SENT));
+
+        var body = controller.verifyEnrollment(current,
+                new StaffMfaController.EnrollmentVerification(enrollmentId.toString(), "654 321"), response);
+
+        assertThat(body.contactNotice()).isEqualTo(NoticeOutcome.SENT);
+        assertThat(body.backupCodes()).containsExactly("ABCD-2345");
+        assertThat(mapper.valueToTree(body).get("contactNotice").asString()).isEqualTo("SENT");
+        assertThat(response.getHeader("Set-Cookie")).startsWith("MW_REFRESH=verified-refresh;");
+        verifyNoInteractions(mfa);
+    }
+
+    @Test
+    void newRoutesBoundMalformedJsonAndRejectNonJsonContentTypes() throws Exception {
+        var mvc = WebTestFixtures.catalogMvc(controller);
+        for (String path : new String[]{"/api/auth/mfa/recovery", "/api/auth/mfa/backup-codes"}) {
+            mvc.perform(post(path).contentType("text/plain").content("{\"code\":\"123456\"}"))
+                    .andExpect(status().isUnsupportedMediaType()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                    .andExpect(header().string("Cache-Control", "no-store")).andExpect(header().exists("X-Request-ID"));
+            mvc.perform(post(path).contentType("application/json").content("{"))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        }
+        verifyNoInteractions(recovery, mfa);
     }
 
     @Test

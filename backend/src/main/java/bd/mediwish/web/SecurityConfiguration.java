@@ -54,11 +54,14 @@ class SecurityConfiguration {
             route(HttpMethod.POST, "/api/auth/mfa/enrollment"),
             route(HttpMethod.POST, "/api/auth/mfa/enrollment/verify"));
     private static final RequestMatcher MFA_CHALLENGE_ROUTE = route(HttpMethod.POST, "/api/auth/mfa/verify");
+    private static final RequestMatcher MFA_RECOVERY_ROUTE = route(HttpMethod.POST, "/api/auth/mfa/recovery");
+    private static final RequestMatcher MFA_BACKUP_CODES_ROUTE = route(HttpMethod.POST, "/api/auth/mfa/backup-codes");
     /**
      * Staff authenticator routes: Bearer-only, so CSRF-exempt (a cross-site page cannot send the in-memory token),
      * and body-limited like sign-in.
      */
-    static final RequestMatcher MFA_ROUTES = new OrRequestMatcher(MFA_ENROLLMENT_ROUTES, MFA_CHALLENGE_ROUTE);
+    static final RequestMatcher MFA_ROUTES = new OrRequestMatcher(
+            MFA_ENROLLMENT_ROUTES, MFA_CHALLENGE_ROUTE, MFA_RECOVERY_ROUTE, MFA_BACKUP_CODES_ROUTE);
     static final RequestMatcher STAFF_CATALOG_READS = new OrRequestMatcher(
             route(HttpMethod.GET, "/api/staff/categories"),
             route(HttpMethod.GET, "/api/staff/products"),
@@ -162,8 +165,9 @@ class SecurityConfiguration {
                         .requestMatchers(HttpMethod.POST, "/api/auth/refresh", "/api/auth/logout").permitAll()
                         // Authorities come from StaffAccessPolicy: a restricted staff session holds only one MFA
                         // authority, and staff roles apply only to an MFA-verified session.
-                        .requestMatchers(MFA_ENROLLMENT_ROUTES).hasAuthority(StaffAccessPolicy.MFA_ENROLLMENT)
-                        .requestMatchers(MFA_CHALLENGE_ROUTE).hasAuthority(StaffAccessPolicy.MFA_CHALLENGE)
+                        .requestMatchers(MFA_ENROLLMENT_ROUTES).hasAnyAuthority(StaffAccessPolicy.MFA_ENROLLMENT, StaffAccessPolicy.MFA_REPLACEMENT)
+                        .requestMatchers(MFA_CHALLENGE_ROUTE, MFA_RECOVERY_ROUTE).hasAuthority(StaffAccessPolicy.MFA_CHALLENGE)
+                        .requestMatchers(MFA_BACKUP_CODES_ROUTE).hasRole("MODERATOR")
                         .requestMatchers(STAFF_PROFILE).hasRole("MODERATOR")
                         .requestMatchers(USER_PROFILE).hasRole("CUSTOMER")
                         .requestMatchers(USER_PROFILE_READ, USER_PROFILE_COMMANDS).hasAnyRole("CUSTOMER", "ADMIN", "MODERATOR", "DELIVERY_PERSON")

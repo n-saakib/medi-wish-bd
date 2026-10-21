@@ -281,13 +281,16 @@ sequenceDiagram
   sign-out is pending;
 - a signed-in session has one home page chosen by its MFA status
   (`NOT_REQUIRED` `/account`, `ENROLLMENT_REQUIRED` `/staff/mfa/enroll`,
-  `VERIFICATION_REQUIRED` `/staff/mfa`, `VERIFIED` `/staff`). The `guest` guard
+  `VERIFICATION_REQUIRED` `/staff/mfa`, `REPLACEMENT_REQUIRED` `/staff/mfa/enroll`,
+  `VERIFIED` `/staff`). The `guest` guard
   (sign-in and registration) sends signed-in users there, so sign-in success
   lands without an explicit navigation in the form;
 - the `mfa-enrollment`, `mfa-challenge` and `staff` guards admit only their own
-  status, send other sessions to their home page and signed-out visitors to
+  statuses (enrollment also accepts replacement), send other sessions to their home page and signed-out visitors to
   `/sign-in`; `account` admits `NOT_REQUIRED` and `VERIFIED`. Setup holds its
   redirect while a code is verifying and while the backup codes are shown.
+
+The verified staff page `/staff/backup-codes` asks for a fresh authenticator code before replacing unused backup codes. Its once-only panel clears on leaving the page, hides if verified session state is lost, and returns to `/staff` after saving. Replacement enrollment uses the same setup and panel with the notification outcome; the session provider returns codes to the view without retaining them in session state.
 
 Redirects use `router.replace` with fixed paths; no identifier, credential or
 token is placed in a URL. The store header renders no account link until the

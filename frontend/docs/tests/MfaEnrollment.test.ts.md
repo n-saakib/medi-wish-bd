@@ -20,3 +20,11 @@ Mounted jsdom coverage for [`MfaEnrollment`](../src/auth/MfaEnrollment.tsx.md) a
 - A session that is not `ENROLLMENT_REQUIRED` starts no setup and is redirected.
 
 Staff UI correction (2026-10-08): a component mounted inside `StrictMode` after the session restore calls `startMfaEnrollment` once and verifies against that enrollment; `Try again` leaves focus on the heading.
+
+Ticket 09 compatibility: the typed first-enrollment session fixture includes `contactNotice: null`, matching the session client's projection of the absent API field. Existing first-enrollment behavior remains unchanged in this slice.
+
+## Ticket 09 replacement coverage
+
+A table covers every contact-notice value: replacement setup starts, the replacement heading/intro render, verification holds the notice and once-only codes without redirecting, and pagehide clears codes before the staff redirect. First enrollment renders no replacement notice. A regression test reproduces and protects removal of displayed codes when the header signs out.
+
+The late-verification regression holds replacement verification pending, dispatches pagehide and then resolves success. It asserts no codes reappear and the now-verified session continues to `/staff`. Existing successful-enrollment and replacement tables retain coverage of visible once-only panels.

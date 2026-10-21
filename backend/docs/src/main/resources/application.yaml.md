@@ -36,3 +36,5 @@ The file supports local startup, packaged startup and health checks with the sam
 
 Ticket 15 configures servlet multipart at 3 MB file / 4 MB request and Tomcat swallow at 8 MB so oversized and unauthorized uploads yield readable bounded errors. Storage provider/root/namespace are mandatory runtime settings. The local adapter is confined to exclusively local/test serving profiles.
 app.addresses.change-limits.per-week and per-month configure successful address changes (5 and 10). Both values must be present integers at least one; service construction rejects invalid limits. Limits change through configuration and restart, with no schema change.
+
+`app.notification.security.adapter` reads APP_NOTIFICATION_SECURITY_ADAPTER with disabled as the default; timeout reads APP_NOTIFICATION_SECURITY_TIMEOUT with PT5S as the default. NotificationProperties rejects unknown adapters and timeouts shorter than one second. Capture delivery is confined to exclusively local/test profiles; this configuration supplies no real SMS provider.
