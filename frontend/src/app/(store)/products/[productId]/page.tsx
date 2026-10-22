@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { connection } from 'next/server';
 import { notFound } from 'next/navigation';
+import { CurrentCategoryMark } from '../../../../storefront/CategoryNavLinks';
 import { ProductDetailsView } from '../../../../storefront/ProductDetailsView';
 import { loadProduct } from '../../../../storefront/loaders';
 import { isPublicId, productMetadata } from '../../../../lib/storefrontView';
@@ -23,5 +24,11 @@ export async function generateMetadata(props: ProductPageProps): Promise<Metadat
 }
 
 export default async function ProductPage(props: ProductPageProps) {
-  return <ProductDetailsView product={await resolveProduct(props)} />;
+  const product = await resolveProduct(props);
+  return (
+    <>
+      {product.category && <CurrentCategoryMark href={`/categories/${product.category.id}`} current="true" />}
+      <ProductDetailsView product={product} />
+    </>
+  );
 }

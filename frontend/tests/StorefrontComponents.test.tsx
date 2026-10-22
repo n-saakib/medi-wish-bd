@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { act, createElement } from 'react';
+import { act, createElement, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import CategoryPage from '../src/app/(store)/categories/[categoryId]/page';
+import ProductPage from '../src/app/(store)/products/[productId]/page';
 import RootNotFound from '../src/app/not-found';
 import { Breadcrumb } from '../src/storefront/Breadcrumb';
 import { CategoryNavLinks, CurrentCategoryMark, CurrentCategoryProvider } from '../src/storefront/CategoryNavLinks';
@@ -19,7 +21,15 @@ import { renderWithSession, requiredElement, unmountAll } from './renderWithSess
 
 const productPath = '/products/7d1c3a90-2b8e-4c7f-9e11-0a4b5c6d7e01';
 const navigation = vi.hoisted(() => ({ pathname: '' }));
-vi.mock('next/navigation', () => ({ usePathname: () => navigation.pathname }));
+vi.mock('next/navigation', () => ({
+  usePathname: () => navigation.pathname,
+  notFound: () => { throw new Error('notFound'); },
+  redirect: () => { throw new Error('redirect'); },
+}));
+const loaders = vi.hoisted(() => ({ loadCategoryPage: vi.fn(), loadProduct: vi.fn() }));
+vi.mock('../src/storefront/loaders', () => loaders);
+vi.mock('next/server', () => ({ connection: async () => {} }));
+vi.mock('next-intl/server', () => ({ getTranslations: async () => (key: string) => key }));
 vi.mock('next/link', () => ({ default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) =>
   createElement('a', { href, ...props }, children) }));
 vi.mock('next/image', () => ({ default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => createElement('img', props) }));
@@ -111,6 +121,65 @@ describe('storefront navigation and states', () => {
     expect([...all.querySelectorAll('nav a[aria-current="page"]')].map((link) => link.textContent)).toEqual(['All categories']);
   });
 
+  it('marks the bar category of a later listing page or a Product as current without calling it the page', async () => {
+    const view = await render(createElement(CurrentCategoryProvider, null,
+      createElement(CategoryNavLinks, { categories: [category(1), category(2)] }),
+      createElement(CurrentCategoryMark, { href: `/categories/${category(1).id}`, current: 'true' })));
+    expect(view.querySelector('nav a[aria-current="page"]')).toBeNull();
+    const current = [...view.querySelectorAll('nav a[aria-current="true"]')];
+    expect(current.map((link) => link.textContent)).toEqual(['Category 1']);
+    expect(current[0].classList.contains('is-active')).toBe(true);
+  });
+
+  it('keeps the newest mark when a page changes its mark or another page replaces it', async () => {
+    let show: (step: number) => void = () => {};
+    function Pages() {
+      const [step, setStep] = useState(0);
+      show = setStep;
+      if (step === 0) return createElement(CurrentCategoryMark, { href: `/categories/${category(1).id}` });
+      if (step === 1) return createElement(CurrentCategoryMark, { href: `/categories/${category(1).id}`, current: 'true' });
+      return createElement('div', null, createElement(CurrentCategoryMark, { href: `/categories/${category(2).id}`, current: 'true' }));
+    }
+    const view = await render(createElement(CurrentCategoryProvider, null,
+      createElement(CategoryNavLinks, { categories: [category(1), category(2)] }), createElement(Pages)));
+    const marked = () => [...view.querySelectorAll('nav a.is-active')].map((link) => [link.textContent, link.getAttribute('aria-current')]);
+    expect(marked()).toEqual([['Category 1', 'page']]);
+    await act(async () => show(1));
+    expect(marked()).toEqual([['Category 1', 'true']]);
+    await act(async () => show(2));
+    expect(marked()).toEqual([['Category 2', 'true']]);
+  });
+
+  it('has the category route mark its category as the page on page 1 and as belonging on later pages', async () => {
+    loaders.loadCategoryPage.mockResolvedValue({ category: category(1), items: [card], page: 0, size: 24, totalItems: 30 });
+    const route = async (page?: string) => render(createElement(CurrentCategoryProvider, null,
+      createElement(CategoryNavLinks, { categories: [category(1), category(2)] }),
+      await CategoryPage({ params: Promise.resolve({ categoryId: category(1).id }), searchParams: Promise.resolve({ page }) })));
+    const marked = (view: HTMLElement, selector: string) =>
+      [...view.querySelectorAll(`${selector} a[aria-current]`)].map((link) => [link.textContent, link.getAttribute('aria-current')]);
+    const first = await route();
+    expect(marked(first, '.catnav')).toEqual([['Category 1', 'page']]);
+    expect(marked(first, '.breadcrumb')).toEqual([['Category 1', 'page']]);
+    const second = await route('2');
+    expect(loaders.loadCategoryPage).toHaveBeenLastCalledWith(category(1).id, 1);
+    expect(marked(second, '.catnav')).toEqual([['Category 1', 'true']]);
+    expect(marked(second, '.breadcrumb')).toEqual([['Category 1', 'true']]);
+  });
+
+  it('has the Product route mark its category as belonging, and nothing without a category', async () => {
+    const route = async (product: PublicProductDetails) => {
+      loaders.loadProduct.mockResolvedValue(product);
+      return render(createElement(CurrentCategoryProvider, null,
+        createElement(CategoryNavLinks, { categories: [category(1), category(2)] }),
+        await ProductPage({ params: Promise.resolve({ productId: product.id }) })));
+    };
+    const withCategory = await route(details);
+    expect([...withCategory.querySelectorAll('.catnav a.is-active')].map((link) => [link.textContent, link.getAttribute('aria-current')]))
+      .toEqual([['Category 1', 'true']]);
+    const withoutCategory = await route({ ...details, category: null });
+    expect(withoutCategory.querySelector('.catnav a[aria-current], .catnav a.is-active')).toBeNull();
+  });
+
   it('marks no category when a store 404 renders on a listed category URL', async () => {
     navigation.pathname = `/categories/${category(1).id}`;
     const view = await render(createElement(CurrentCategoryProvider, null,
@@ -157,8 +226,11 @@ describe('storefront navigation and states', () => {
     const withoutCategory = await render(createElement(Breadcrumb, { category: null }));
     expect([...withoutCategory.querySelectorAll('a')].map((link) => link.textContent)).toEqual(['Home']);
     expect(withCategory.querySelector('a[aria-current]')).toBeNull();
-    const onCategoryPage = await render(createElement(Breadcrumb, { category: category(1), current: true }));
+    const onCategoryPage = await render(createElement(Breadcrumb, { category: category(1), current: 'page' }));
     expect([...onCategoryPage.querySelectorAll('a[aria-current="page"]')].map((link) => link.textContent)).toEqual(['Category 1']);
+    const onLaterPage = await render(createElement(Breadcrumb, { category: category(1), current: 'true' }));
+    expect(onLaterPage.querySelector('a[aria-current="page"]')).toBeNull();
+    expect([...onLaterPage.querySelectorAll('a[aria-current="true"]')].map((link) => link.textContent)).toEqual(['Category 1']);
   });
 
   it('shows one home link in not-found content', async () => {

@@ -36,10 +36,11 @@ export default async function CategoryPage(props: CategoryPageProps) {
   const { data, page } = await resolvePage(props);
   const t = await getTranslations('storefront');
   const totalPages = Math.ceil(data.totalItems / data.size);
+  const current = page.number === 1 ? 'page' : 'true';
   return (
     <main className="container page">
-      <CurrentCategoryMark href={`/categories/${data.category.id}`} />
-      <Breadcrumb category={data.category} current />
+      <CurrentCategoryMark href={`/categories/${data.category.id}`} current={current} />
+      <Breadcrumb category={data.category} current={current} />
       <div className="section-title category-heading">
         <h1>{data.category.name}</h1>
         <p className="small muted mb-0">{t('productCount', { count: data.totalItems })}</p>

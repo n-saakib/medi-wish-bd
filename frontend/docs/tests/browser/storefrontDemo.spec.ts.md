@@ -17,4 +17,4 @@ Steps:
 
 Run only through the plan §2.6 harness: `browser.ps1 -Label t8-demo -Grep "@t17-demo" -Demo`. Run it alone, so that Demo Fever is among the first 8 categories.
 
-Written test-first before the storefront existed. The isolated demonstration passed on Chrome and Edge on 2026-10-21 (`t12-demo-alone`, revision `c63359c` plus the working tree). Keep the documented demo-only grep: an unfiltered demo-enabled cumulative run can legitimately fail its first-eight-category fixture guard. Current completion evidence is linked from the Ticket 17 E2E report.
+Written test-first before the storefront existed. The isolated demonstration passed on Chrome and Edge on 2026-10-21 (`t12-demo-alone`, revision `c63359c` plus the working tree), with the previous medicine-specific review note. With the product-neutral note adopted on 2026-10-22, it passed alone on Chrome and Edge on 2026-10-22 (`t18-demo`, working tree on `c9568a6`). Keep the documented demo-only grep: an unfiltered demo-enabled cumulative run can legitimately fail its first-eight-category fixture guard. Current completion evidence is linked from the Ticket 17 E2E report.

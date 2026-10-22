@@ -36,6 +36,17 @@ async function target(link: Locator): Promise<string> {
   return new URL(href!, link.page().url()).href;
 }
 
+/**
+ * Waits until React has claimed `element` during hydration and the network is idle, so a client-only state such as the
+ * bar's current mark has had time to appear before a test asserts that it is absent. React keeps its fiber on hydrated
+ * DOM nodes; the fiber key is a React internal and the idle wait is a timing heuristic, not a guarantee.
+ */
+async function hydrated(element: Locator): Promise<void> {
+  await expect.poll(() => element.evaluate((node) => Object.keys(node).some((key) => key.startsWith('__reactFiber$'))),
+    'React hydrated the element').toBe(true);
+  await element.page().waitForLoadState('networkidle');
+}
+
 async function mainText(page: Page): Promise<string> {
   return normalizedMain(await storefront(page).main.innerText());
 }
@@ -228,6 +239,37 @@ test.describe('a listed category of 25 discounted Products', () => {
       await Promise.all(headerChecks);
       expect(withAuthorization, 'no request carried an Authorization header').toEqual([]);
     });
+
+  test('E2E-17-07 the category bar marks only the destination the rendered page shows', t5(), async ({ page, api }) => {
+    const [first] = firstCategories(await publicCatalog(api).categories());
+    const view = storefront(page);
+    const marked = view.categoryNav.locator('a[aria-current]');
+    const firstLink = view.categoryNav.getByRole('link', { name: first.name, exact: true });
+
+    await openStorefront(page, '/categories');
+    await expect(view.allCategoriesLink).toHaveAttribute('aria-current', 'page');
+    await expect(marked).toHaveCount(1);
+
+    await openStorefront(page, `/categories/${first.id}`);
+    await expect(firstLink).toHaveAttribute('aria-current', 'page');
+    await expect(firstLink).toHaveClass('is-active');
+    await expect(marked).toHaveCount(1);
+    await expect(view.breadcrumbLinks.last()).toHaveAttribute('aria-current', 'page');
+
+    await view.cards.first().getByRole('link').first().click();
+    await expect(page).toHaveURL(/\/products\//);
+    await expect(firstLink, 'a Product marks its category without calling it the page').toHaveAttribute('aria-current', 'true');
+    await expect(marked).toHaveCount(1);
+
+    await openStorefront(page, url('?page=2'));
+    await expect(view.breadcrumbLinks.last(), 'a later page is not the category link it shows').toHaveAttribute('aria-current', 'true');
+
+    await openStorefront(page, `/categories/${first.id}?page=99`, 404);
+    await expect(view.notFoundTitle).toBeVisible();
+    await hydrated(firstLink);
+    await expect(marked, 'a store 404 on a listed category URL marks nothing').toHaveCount(0);
+    await expect(view.categoryNav.locator('a.is-active')).toHaveCount(0);
+  });
 
   test('E2E-17-08 ?page=1 redirects to the bare category URL', t5(), async ({ request }) => {
     const response = await request.get(url('?page=1'), { maxRedirects: 0 });
