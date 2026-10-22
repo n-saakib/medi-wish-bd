@@ -50,3 +50,5 @@ Ticket 16 reuses catalog controls and adds pill status tabs with 44 px minimum c
 Ticket 12 ports the three-column responsive address grid, outlined default card and dashed Add tile from the design. Adds danger-ghost Remove, spacing, 44px small buttons, and anywhere wrapping for accepted maximum-length text. The existing native profile dialog, checkbox and alert styles are reused.
 
 The integrated stylesheet keeps one unchanged shared empty-slot rule and its hover rule. Address grid breakpoints at 960px and 640px and the image grid breakpoint at 700px remain independent; image-upload-slot alone supplies the square override.
+
+Ticket 17 adds the category bar, responsive category tiles and five-column Product grid, price hierarchy and badges, 44 px navigation/card/pager/gallery targets, the two-column Product details layout, visible description line breaks, gallery thumbnails and generic empty/not-found/error views. At narrow widths the product grid becomes two columns, details stack, and only the category bar scrolls horizontally. Existing amber focus-visible styling remains shared.

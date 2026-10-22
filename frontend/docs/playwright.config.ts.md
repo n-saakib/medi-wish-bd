@@ -16,3 +16,5 @@ Runs the browser specs in `tests/browser/` on the installed stable Chrome (`chro
 ## Use and verification
 
 From `frontend/`, build the backend jar first (`cd ../backend; .\mvnw.cmd -o package -DskipTests`), then run `npm run test:browser`. The [test API page](tests/browser/testApi.ts.md) lists the database settings.
+
+Ticket 17 configures both MEDI_WISH_SERVER_API_URL and MEDI_WISH_SITE_URL from the locked test API/frontend origins alongside the public image API URL. The server-rendered catalog uses these settings for request-time API reads and absolute canonical metadata.

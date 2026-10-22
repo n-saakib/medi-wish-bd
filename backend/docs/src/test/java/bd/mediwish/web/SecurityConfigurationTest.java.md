@@ -17,3 +17,4 @@ The catalog PUT wildcard matches exactly one segment and never captures pricing;
 
 Ticket 16 pins protected read/command membership, Bearer command exemptions, exact end wildcard matching, and the anonymous product-price matcher outside PROTECTED_ROUTES.
 Ticket 12 verifies collection reads and collection/item commands are Bearer-protected, only commands are CSRF-exempt, and item wildcards consume exactly one path segment.
+Ticket 17 pins exact GET-only public catalog matcher coverage, separation from the price, staff and deeper paths, and exclusion from Bearer-protected routes.

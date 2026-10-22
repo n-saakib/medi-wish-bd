@@ -137,6 +137,22 @@ class SecurityConfigurationTest {
     }
 
     @Test
+    void publicCatalogMatchersCoverOnlyTheirThreeGetRoutesAndNeverRequireBearer() {
+        for (String path : new String[]{"/api/categories", "/api/categories/id/products", "/api/products/id"}) {
+            var get = new MockHttpServletRequest("GET", path);
+            assertThat(SecurityConfiguration.PUBLIC_CATALOG_READS.matches(get)).as(path).isTrue();
+            assertThat(SecurityConfiguration.PROTECTED_ROUTES.matches(get)).as(path).isFalse();
+            assertThat(SecurityConfiguration.PUBLIC_CATALOG_READS.matches(new MockHttpServletRequest("POST", path)))
+                    .as(path).isFalse();
+        }
+        for (String path : new String[]{"/api/categories/id", "/api/categories/id/products/extra",
+                "/api/products/id/price", "/api/products/id/extra", "/api/staff/products/id"}) {
+            assertThat(SecurityConfiguration.PUBLIC_CATALOG_READS.matches(new MockHttpServletRequest("GET", path)))
+                    .as(path).isFalse();
+        }
+    }
+
+    @Test
     void addressReadsAndCommandsHaveBearerProtectionAndOnlyCommandsAreCsrfExempt() {
         for (String[] route : new String[][]{{"GET", "/api/user/me/addresses"}, {"POST", "/api/user/me/addresses"},
                 {"PUT", "/api/user/me/addresses/4c1f6f1e-6f3c-4a9e-9d62-0b8f7f3b2a11"},

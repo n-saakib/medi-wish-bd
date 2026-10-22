@@ -20,3 +20,5 @@ Inlining avoids an icon font or extra requests. Add an icon here only when a pag
 Checked by `npm run typecheck` and exercised indirectly by the header and form tests; on 2026-09-26 both passed, and again on 2026-09-27 with `logout`, which the staff header test exercises.
 
 Ticket 15 adds the design's image glyph for upload controls and labelled failure placeholders.
+
+Ticket 17 adds only the grid tile and verified-medicine review icons used by category and Product details views; the SVGs remain decorative and inherit the surrounding text color.

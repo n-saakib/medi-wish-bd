@@ -160,6 +160,8 @@ The session client keeps the access token in memory, refuses off-origin Bearer r
 
 The package requires Node.js `>=24.15.0 <25` and npm `11.19.0`, and pins Next.js `16.3.6`; the [manifest page](package.json.md) records the security-update rationale. From `frontend/`, use `npm ci` to install the locked dependency graph. `npm run verify` runs linting, strict TypeScript checking, unit tests, and the production build. The full `npm run test:integration` suite and `npm run probe` require a running backend URL in `MEDI_WISH_API_URL`; the focused CLI process test can run without the backend using `npx vitest run --project integration tests/health-probe.integration.test.ts`. The probe otherwise targets `http://127.0.0.1:8080`.
 
+Ticket 17's public storefront reads the API origin per server request from `MEDI_WISH_SERVER_API_URL`; when unset it falls back to `NEXT_PUBLIC_MEDI_WISH_API_URL`, then `http://127.0.0.1:8080`. Set `MEDI_WISH_SITE_URL` to the public site's bare HTTP or HTTPS origin for absolute canonical URLs; it defaults to `http://127.0.0.1:3000` and rejects paths, credentials, queries and fragments.
+
 Unit tests use injected or stubbed fetch functions, the shared `tests/fakeApi.ts` routes and injected session sources, so they do not require a server. They cover the registration and profile calls, the memory-only session lifecycle (restore `204`/`401`/other failures, refreshing before a request without a token, the single retry, sign-out races), the cross-tab lock, the 10-second timeouts and error-code copy. Mounted jsdom tests render the session provider, store and staff headers, sign-in and registration forms, account summary, authenticator setup and code pages, backup codes and staff landing through `tests/renderWithSession.ts` with a mocked router, several with a real session client over the fake API; they cover restore and redirect rules, the `/account` loading, profile, expiry and error states, the sign-out retry, POST form defaults, busy and password-clearing behavior, bounded alerts, focused notices, and keeping the access token and registration details out of URLs; the MFA tests cover the full status-by-guard redirect table, only the latest setup being shown, stale, invalid and locked codes, clearing secrets on `pagehide` and unmount, and keeping secrets and backup codes out of storage, URLs and the console. Catalog tests cover strict response projections and decimal-string formatting, mounted catalog/pricing forms and dependent error recovery, preserved unsaved drafts, pending-save and post-save loading behavior, and exact list/history copy. The catalog browser specs exercise real API/database contracts, role journeys, paging, keyboard controls and mobile scrolling; helper units cover token renewal and failed staff-context cleanup. The MFA privacy journey waits for the signed-in destination link before back navigation, preserving its secret, storage and no-store assertions. `tests/testApi.test.ts` unit-tests the browser-test setup itself: the filtered environment, the run's own MFA key, the occupied-port refusal, cleanup after a failed start and the `grantRole` guards; `tests/totp.test.ts` checks the test authenticator against the RFC 6238 vectors. `npm run test:browser` builds the frontend for the test API and runs the Playwright journey, privacy, matrix, staff MFA and catalog specs on the installed Chrome and Edge (`--grep @smoke` runs only the Admin enrollment smoke path); the [test API page](tests/browser/testApi.ts.md) lists its database settings and the command that runs `test:integration` and `probe` against the same API. On 2026-09-27, on the working tree over revision `bef3b76` with the staff MFA changes, `npm run verify` passed: lint, typecheck, `npm run test:unit` (14 files, 255 tests) and `npm run build`, which produced static `/`, `/account`, `/register`, `/sign-in`, `/staff`, `/staff/mfa`, `/staff/mfa/enroll` and `/icon.svg`. Against the test API started by `tests/browser/testApi.ts` (PostgreSQL 18 on `127.0.0.1:55432`, backend jar built with `./mvnw.cmd -o -q package -DskipTests`), `npm run test:integration` (3 files, 4 tests) and `npm run probe` (`{"liveness":"up","readiness":"up"}`) passed, and `npm run test:browser` passed 22 tests (11 per channel) on Chrome 154.0.8037.57 and Edge 154.0.4258.37; `npx playwright test --grep @smoke` passed 2. The test API's teardown left no run role and freed ports 18080 and 3100. The integration suite includes a live-backend test that fails with a setup message when its URL is absent and the health-probe CLI test that uses its own controlled local fixture.
 
 **Ticket acceptance tests.** End-to-end tests written ahead of a ticket are named `E2E-<ticket>-<nn> <title>` and tagged `{ tag: ['@t<ticket>', '@t<ticket>-T<n>'] }`, with exactly one sub-ticket tag: the sub-ticket whose completion first makes the test pass. A sub-ticket's gate is `npm run test:browser -- --grep @t<ticket>-T<n>` plus every earlier gate of that ticket, and `--grep @t<ticket>` runs the whole ticket. Run one browser run at a time, because the test API and the frontend use fixed ports 18115 and 3115 in this worktree. A ticket's smoke path also carries `@smoke`. Tests that need two tickets are tagged `@cross-<a>-<b>` and are added by whichever of the two merges second. Each spec's page lists its IDs and whether they have run; the ID tables and gates are in §10 of each ticket's implementation plan. `testApi.ts` and `support.ts` are shared by these tickets: change them identically on every open ticket branch, or after the others merge.
@@ -266,3 +268,70 @@ Ticket 12 current coverage additions and verification: [ticket-12-e2e-current.md
 | `tests/addresses.integration.test.ts` | [Real API integration](tests/addresses.integration.test.ts.md) |
 
 Address dialog regressions additionally cover confirmation click default actions, held stale reconciliation and keyboard focus boundaries.
+
+## Ticket 17 acceptance tests
+
+Written test-first on 2026-10-17 before the storefront pages and public catalog routes existed. The public catalog and storefront are implemented; the current verification record and remaining cumulative ticket gates are in the report. See [coverage and targeting](ticket-17-e2e.md) for the tag scheme and commands.
+
+E2E-17-06 compares each seeded Product's public API image order and first category-card image directly with the same values extracted from JavaScript-disabled server-rendered HTML.
+
+| Source | Documentation |
+| --- | --- |
+| [tests/browser/storefrontSupport.ts](../tests/browser/storefrontSupport.ts) | [tests/browser/storefrontSupport.ts.md](tests/browser/storefrontSupport.ts.md) |
+| [tests/storefrontSupport.test.ts](../tests/storefrontSupport.test.ts) | [tests/storefrontSupport.test.ts.md](tests/storefrontSupport.test.ts.md) |
+| [tests/storefront.integration.test.ts](../tests/storefront.integration.test.ts) | [tests/storefront.integration.test.ts.md](tests/storefront.integration.test.ts.md) |
+| [tests/browser/storefrontApi.spec.ts](../tests/browser/storefrontApi.spec.ts) | [tests/browser/storefrontApi.spec.ts.md](tests/browser/storefrontApi.spec.ts.md) |
+| [tests/browser/storefrontPages.spec.ts](../tests/browser/storefrontPages.spec.ts) | [tests/browser/storefrontPages.spec.ts.md](tests/browser/storefrontPages.spec.ts.md) |
+| [tests/browser/storefrontSmoke.spec.ts](../tests/browser/storefrontSmoke.spec.ts) | [tests/browser/storefrontSmoke.spec.ts.md](tests/browser/storefrontSmoke.spec.ts.md) |
+| [tests/browser/storefrontRegression.spec.ts](../tests/browser/storefrontRegression.spec.ts) | [tests/browser/storefrontRegression.spec.ts.md](tests/browser/storefrontRegression.spec.ts.md) |
+| [tests/browser/storefrontA11y.spec.ts](../tests/browser/storefrontA11y.spec.ts) | [tests/browser/storefrontA11y.spec.ts.md](tests/browser/storefrontA11y.spec.ts.md) |
+| [tests/browser/storefrontOutage.spec.ts](../tests/browser/storefrontOutage.spec.ts) | [tests/browser/storefrontOutage.spec.ts.md](tests/browser/storefrontOutage.spec.ts.md) |
+| [tests/browser/storefrontDemo.spec.ts](../tests/browser/storefrontDemo.spec.ts) | [tests/browser/storefrontDemo.spec.ts.md](tests/browser/storefrontDemo.spec.ts.md) |
+
+## Ticket 17 storefront implementation
+
+The server-rendered storefront uses the anonymous public catalog API. Category navigation and the home grid share one request-cached list and hide on failure; the category directory, category pages and Product details propagate API failures to the generic retry boundary. It adds no cart controls, stock claims, offers, related Products or medicine-use guidance.
+
+| Source | Documentation |
+| --- | --- |
+| `src/app/(store)/layout.tsx` | [Store layout](src/app/(store)/layout.tsx.md) |
+| `src/app/(store)/page.tsx` | [Home page](src/app/(store)/page.tsx.md) |
+| `src/app/(store)/categories/page.tsx` | [Category directory](<src/app/(store)/categories/page.tsx.md>) |
+| `src/app/(store)/categories/[categoryId]/page.tsx` | [Category page](<src/app/(store)/categories/[categoryId]/page.tsx.md>) |
+| `src/app/(store)/products/[productId]/page.tsx` | [Product details page](<src/app/(store)/products/[productId]/page.tsx.md>) |
+| `src/app/(store)/error.tsx` | [Store error boundary](<src/app/(store)/error.tsx.md>) |
+| `src/app/(store)/not-found.tsx` | [Store not-found page](<src/app/(store)/not-found.tsx.md>) |
+| `src/app/not-found.tsx` | [Root not-found page](src/app/not-found.tsx.md) |
+| `src/storefront/loaders.ts` | [Request-time loaders](src/storefront/loaders.ts.md) |
+| `src/storefront/CategoryNav.tsx` | [Category bar](src/storefront/CategoryNav.tsx.md) |
+| `src/storefront/CategoryNavLinks.tsx` | [Category bar links](src/storefront/CategoryNavLinks.tsx.md) |
+| `src/storefront/CategoryTiles.tsx` | [Category tiles](src/storefront/CategoryTiles.tsx.md) |
+| `src/storefront/HomeCategories.tsx` | [Home category section](src/storefront/HomeCategories.tsx.md) |
+| `src/storefront/ProductCard.tsx` | [Product card](src/storefront/ProductCard.tsx.md) |
+| `src/storefront/PriceBlock.tsx` | [Price block](src/storefront/PriceBlock.tsx.md) |
+| `src/storefront/Pager.tsx` | [Category pager](src/storefront/Pager.tsx.md) |
+| `src/storefront/Breadcrumb.tsx` | [Breadcrumb](src/storefront/Breadcrumb.tsx.md) |
+| `src/storefront/EmptyState.tsx` | [Empty state](src/storefront/EmptyState.tsx.md) |
+| `src/storefront/ProductGallery.tsx` | [Product gallery](src/storefront/ProductGallery.tsx.md) |
+| `src/storefront/ProductAbout.tsx` | [About section](src/storefront/ProductAbout.tsx.md) |
+| `src/storefront/ProductDetailsView.tsx` | [Details view](src/storefront/ProductDetailsView.tsx.md) |
+| `src/storefront/NotFoundView.tsx` | [Shared not-found view](src/storefront/NotFoundView.tsx.md) |
+| `src/storefront/StorefrontError.tsx` | [Generic error view](src/storefront/StorefrontError.tsx.md) |
+| `src/lib/storefront.ts` | [Public API client and projections](src/lib/storefront.ts.md) |
+| `src/lib/storefrontView.ts` | [Route, price and metadata helpers](src/lib/storefrontView.ts.md) |
+| `src/catalog/ProductImage.tsx` | [Shared public image renderer](src/catalog/ProductImage.tsx.md) |
+| `src/lib/productImages.ts` | [Shared image helpers](src/lib/productImages.ts.md) |
+| `src/shell/Icon.tsx` | [Shared SVG icons](src/shell/Icon.tsx.md) |
+| `src/app/globals.css` | [Shared responsive styles](src/app/globals.css.md) |
+| `messages/en.json` | [English storefront strings](messages/en.json.md) |
+| `playwright.config.ts` | [Browser environment](playwright.config.ts.md) |
+| `tests/storefront.test.ts` | [Public API and projection units](tests/storefront.test.ts.md) |
+| `tests/storefrontView.test.ts` | [Route and metadata units](tests/storefrontView.test.ts.md) |
+| `tests/StorefrontComponents.test.tsx` | [Mounted storefront units](tests/StorefrontComponents.test.tsx.md) |
+| `tests/ProductImage.test.tsx` | [Shared image component units](tests/ProductImage.test.tsx.md) |
+
+Ticket 17 critical review: [five-round outcomes and verification](ticket-17-e2e.md#critical-review-2026-10-1718), including strict 404 correlation, complete fixture-log checks, card destinations, visible description line breaks, focus rings, unstruck MRP and ordered gallery thumbnails. See the report for current implementation verification; the linked review records describe their dated test-first boundaries.
+
+Ticket 17 additional review: [rounds 6-8 and verification](ticket-17-e2e.md#additional-critical-review-2026-10-19), including purchase links, indistinguishable error metadata, the home canonical and narrow bar scrolling; current inventory is 108 browser cases, including a production-page regression for a correlated category-list NOT_FOUND response. See the report for current implementation verification; the linked review records describe their dated test-first boundaries.
+
+Ticket 17 final local verification (2026-10-21): [current acceptance report](ticket-17-e2e.md) records the clean cumulative candidate and completed child tasks; parent closure still requires Tickets 15 and 16 to be done.

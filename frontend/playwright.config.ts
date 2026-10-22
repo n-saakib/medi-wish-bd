@@ -19,6 +19,10 @@ export default defineConfig({
     url: frontendUrl,
     reuseExistingServer: false,
     timeout: 300_000,
-    env: { NEXT_PUBLIC_MEDI_WISH_API_URL: apiUrl },
+    env: {
+      MEDI_WISH_SERVER_API_URL: apiUrl,
+      MEDI_WISH_SITE_URL: frontendUrl,
+      NEXT_PUBLIC_MEDI_WISH_API_URL: apiUrl,
+    },
   },
 });

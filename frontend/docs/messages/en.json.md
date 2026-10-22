@@ -8,7 +8,7 @@ The English catalog supplies all user-visible text through `next-intl`. Server r
 
 ## Namespaces
 
-- `metadata`, `header` and `home`: document titles, shell navigation, store preparation and sign-out notices.
+- `metadata`, `header` and `home`: document titles, shell navigation, the storefront hero and sign-out notices.
 - `signIn` and `register`: authentication fields, notices and submit states. Registration states the 6–30 character password hint and one message per refused field: `usernameInvalid`, `mobileInvalid`, `emailInvalid` and `passwordInvalid`; a server `INVALID_REQUEST` uses `errors.checkDetails`.
 - `account`: current account labels, session loading, sign-out and **Edit profile** navigation.
 - `profile`: profile metadata title, loading, editable field labels with the Email/Date of birth optional marker, the 11-digit New mobile hint, mobile verification chips, pending-number interpolation, stage/cancel controls, save, reload and mobile-change-cancelled notices and client field errors. The mobile dialog explains that the current number stays active and text-message verification is coming later.
@@ -42,3 +42,5 @@ Ticket 16 externalizes the discounts namespace for tab counts, table/dialog labe
 Unknown-create guidance requires retrying the original command before another change. Retry pending discount reopens the retained frozen command after Cancel; a list refresh alone does not establish its outcome.
 
 Ticket 12 adds addresses for page/dialog labels, full/empty/recovery/default-promotion copy and a changeNotice interpolating configured calendar limits and remaining allowance. account.addresses names the navigation link. errors.addressBookFull and errors.addressChangeLimit supply bounded refusal copy.
+
+Ticket 17 adds request-time category navigation and server-rendered public Product details. The new storefront namespace externalizes category links, page counts, empty/not-found/error states, price/MRP labels, the conditional review note, About fields, gallery controls and canonical descriptions. The home hero keeps its existing copy; the category bar and home grid hide on a failed shared read, while dedicated catalog routes show their generic error boundary.

@@ -1,0 +1,3 @@
+# `PublicCatalogViews.java`
+
+Defines the package-private immutable response records for listable categories, category pages, cards, `PublicCatalogImage`, prices and Product details. The catalog-specific image name keeps this public metadata projection separate from the existing product-image storage response record. The projections omit staff state and audit data. `price(EffectivePrice)` is the shared mapping for the public catalog and the existing Ticket 16 price route: money and savings keep two decimal places, percentages drop insignificant zeros, flat discount amounts retain two places, and absent MRP or Discount values remain null.

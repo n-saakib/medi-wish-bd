@@ -74,6 +74,10 @@ class SecurityConfiguration {
             route(HttpMethod.PUT, "/api/staff/discounts/*"),
             route(HttpMethod.POST, "/api/staff/discounts/*/end"));
     static final RequestMatcher PUBLIC_PRODUCT_PRICE = route(HttpMethod.GET, "/api/products/*/price");
+    static final RequestMatcher PUBLIC_CATALOG_READS = new OrRequestMatcher(
+            route(HttpMethod.GET, "/api/categories"),
+            route(HttpMethod.GET, "/api/categories/*/products"),
+            route(HttpMethod.GET, "/api/products/*"));
     static final RequestMatcher STAFF_PRICING = route(HttpMethod.PUT, "/api/staff/products/*/pricing");
     static final RequestMatcher STAFF_PRODUCT_IMAGE_READS = route(HttpMethod.GET, "/api/staff/products/*/images");
     static final RequestMatcher STAFF_PRODUCT_IMAGE_JSON = new OrRequestMatcher(
@@ -156,7 +160,7 @@ class SecurityConfiguration {
                         .dispatcherTypeMatchers(jakarta.servlet.DispatcherType.ERROR).permitAll()
                         .requestMatchers(HttpMethod.GET, "/actuator/health/liveness", "/actuator/health/readiness").permitAll()
                         .requestMatchers(HttpMethod.HEAD, "/actuator/health/liveness", "/actuator/health/readiness").permitAll()
-                        .requestMatchers(PUBLIC_PRODUCT_PRICE, PUBLIC_PRODUCT_IMAGES).permitAll()
+                        .requestMatchers(PUBLIC_PRODUCT_PRICE, PUBLIC_PRODUCT_IMAGES, PUBLIC_CATALOG_READS).permitAll()
                         .requestMatchers(CREDENTIAL_ROUTES).permitAll()
                         .requestMatchers(HttpMethod.GET, "/api/auth/csrf").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/auth/refresh", "/api/auth/logout").permitAll()

@@ -2,6 +2,7 @@ package bd.mediwish.catalog;
 
 import org.springframework.data.jpa.repository.*;
 import org.springframework.data.repository.query.Param;
+import java.util.Collection;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -9,6 +10,8 @@ import java.util.UUID;
 
 public interface ProductImageRepository extends JpaRepository<ProductImage, UUID> {
     List<ProductImage> findByProductIdOrderByDisplayOrder(UUID productId);
+    @Query("select i from ProductImage i where i.productId in :ids and i.displayOrder = 0")
+    List<ProductImage> findMainImages(@Param("ids") Collection<UUID> ids);
     Optional<ProductImage> findByIdAndProductId(UUID id, UUID productId);
     long countByProductId(UUID productId);
     @Query(value="select 1 from pg_advisory_xact_lock(hashtextextended(cast(:id as text), 15))",nativeQuery=true)
