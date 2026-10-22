@@ -1,5 +1,6 @@
 import { connection } from 'next/server';
 import { CategoryNav } from '../../storefront/CategoryNav';
+import { CurrentCategoryProvider } from '../../storefront/CategoryNavLinks';
 import { SiteHeader } from '../../shell/SiteHeader';
 
 export default async function StoreLayout({ children }: Readonly<{ children: React.ReactNode }>) {
@@ -7,8 +8,10 @@ export default async function StoreLayout({ children }: Readonly<{ children: Rea
   return (
     <>
       <SiteHeader />
-      <CategoryNav />
-      {children}
+      <CurrentCategoryProvider>
+        <CategoryNav />
+        {children}
+      </CurrentCategoryProvider>
     </>
   );
 }

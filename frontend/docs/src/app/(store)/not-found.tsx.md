@@ -8,4 +8,4 @@ This segment-level route wraps [`NotFoundView`](../../storefront/NotFoundView.ts
 
 ## Verification
 
-Ticket 17 browser tests compare the rendered 404 copy across unavailable and malformed catalog URLs. They were authored but were not run while the baseline browser suite used `.next`.
+Ticket 17 browser tests compare the rendered 404 copy across unavailable and malformed catalog URLs. They passed in the [2026-10-21 completion verification](<../../../ticket-17-e2e.md#completion-verification-2026-10-21>) on `c63359c` plus the Ticket 17 working tree: 1,024 units in `npm run verify` and 1,164 Chrome/Edge browser cases with zero failures.

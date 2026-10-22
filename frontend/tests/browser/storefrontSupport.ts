@@ -84,7 +84,7 @@ export const storefrontCopy = {
   emptyText: 'Please try another category.',
   browseCategories: 'Browse categories',
   noCategories: 'No categories yet',
-  reviewNote: 'Our team reviews this medicine before dispatch. No prescription upload needed.',
+  reviewNote: 'Our team reviews this product before dispatch. No prescription upload needed.',
   about: 'About',
   brand: 'Brand',
   genericName: 'Generic name',

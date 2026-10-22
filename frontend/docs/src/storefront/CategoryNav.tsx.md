@@ -8,4 +8,4 @@ Request-time server component mounted below the storefront header. It uses the s
 
 ## Verification
 
-Mounted tests cover the named navigation landmark, first eight category links and the All categories destination. Tests are authored but not run while the baseline browser suite uses `.next`.
+Mounted tests cover the named navigation landmark, first eight category links and the All categories destination. They passed in the [2026-10-21 completion verification](<../../ticket-17-e2e.md#completion-verification-2026-10-21>) on `c63359c` plus the Ticket 17 working tree: 1,024 units in `npm run verify` and 1,164 Chrome/Edge browser cases with zero failures.

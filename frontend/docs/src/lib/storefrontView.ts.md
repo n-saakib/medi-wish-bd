@@ -1,5 +1,3 @@
-# src/lib/storefrontView.ts
-
 # `src/lib/storefrontView.ts`
 
 Source: [`src/lib/storefrontView.ts`](../../../src/lib/storefrontView.ts)

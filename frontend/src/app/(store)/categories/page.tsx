@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { connection } from 'next/server';
+import { CurrentCategoryMark } from '../../../storefront/CategoryNavLinks';
 import { CategoryTiles } from '../../../storefront/CategoryTiles';
 import { EmptyState } from '../../../storefront/EmptyState';
 import { loadCategories } from '../../../storefront/loaders';
@@ -17,6 +18,7 @@ export default async function CategoriesPage() {
   if (categories === null) throw new Error('Public category list answered not found.');
   return (
     <main className="container page">
+      <CurrentCategoryMark href="/categories" />
       <h1>{t('categoriesTitle')}</h1>
       {categories.length > 0
         ? <CategoryTiles categories={categories} />

@@ -3,6 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { connection } from 'next/server';
 import { notFound, redirect } from 'next/navigation';
 import { Breadcrumb } from '../../../../storefront/Breadcrumb';
+import { CurrentCategoryMark } from '../../../../storefront/CategoryNavLinks';
 import { EmptyState } from '../../../../storefront/EmptyState';
 import { Pager } from '../../../../storefront/Pager';
 import { ProductCard } from '../../../../storefront/ProductCard';
@@ -37,7 +38,8 @@ export default async function CategoryPage(props: CategoryPageProps) {
   const totalPages = Math.ceil(data.totalItems / data.size);
   return (
     <main className="container page">
-      <Breadcrumb category={data.category} />
+      <CurrentCategoryMark href={`/categories/${data.category.id}`} />
+      <Breadcrumb category={data.category} current />
       <div className="section-title category-heading">
         <h1>{data.category.name}</h1>
         <p className="small muted mb-0">{t('productCount', { count: data.totalItems })}</p>

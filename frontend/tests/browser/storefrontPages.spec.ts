@@ -396,6 +396,19 @@ test('E2E-17-09 unpurchasable and malformed URLs show one identical not-found pa
     for (const [label, text] of Object.entries(texts)) expect(text, label).toBe(texts['unknown Product']);
   });
 
+test('E2E-17-09 an unmatched URL answers 404 with the store header Logo link home and the shared not-found copy', t5(),
+  async ({ page, request }) => {
+    const view = storefront(page);
+    for (const path of [`/products/${unknownId()}/x`, `/no-such-page-${token()}`]) {
+      expect((await request.get(path, { maxRedirects: 0 })).status(), path).toBe(404);
+      await openStorefront(page, path, 404);
+      const logo = page.getByRole('banner').getByRole('link', { name: storefrontCopy.siteTitle, exact: true });
+      expect(await target(logo), `${path}: the Logo link goes home`).toBe(`${frontendUrl}/`);
+      await expect(view.notFoundTitle, path).toBeVisible();
+      await expect(view.main.getByText(copyPattern(storefrontCopy.notFoundText)), path).toBeVisible();
+    }
+  });
+
 test('E2E-17-10 an empty active category shows the empty state without a pager', t5(), async ({ actors, browser, page }) => {
   const admin = await actors('admin');
   const empty = await createCategory(admin, `Empty ${token()}`);

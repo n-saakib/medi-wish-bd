@@ -1,8 +1,9 @@
 // @vitest-environment jsdom
 import { act, createElement } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import RootNotFound from '../src/app/not-found';
 import { Breadcrumb } from '../src/storefront/Breadcrumb';
-import { CategoryNavLinks } from '../src/storefront/CategoryNavLinks';
+import { CategoryNavLinks, CurrentCategoryMark, CurrentCategoryProvider } from '../src/storefront/CategoryNavLinks';
 import { CategoryTiles } from '../src/storefront/CategoryTiles';
 import { EmptyState } from '../src/storefront/EmptyState';
 import { NotFoundView } from '../src/storefront/NotFoundView';
@@ -16,11 +17,14 @@ import { StorefrontError } from '../src/storefront/StorefrontError';
 import type { PublicCard, PublicCategory, PublicProductDetails } from '../src/lib/storefront';
 import { renderWithSession, requiredElement, unmountAll } from './renderWithSession';
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/products/7d1c3a90-2b8e-4c7f-9e11-0a4b5c6d7e01' }));
+const productPath = '/products/7d1c3a90-2b8e-4c7f-9e11-0a4b5c6d7e01';
+const navigation = vi.hoisted(() => ({ pathname: '' }));
+vi.mock('next/navigation', () => ({ usePathname: () => navigation.pathname }));
 vi.mock('next/link', () => ({ default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) =>
   createElement('a', { href, ...props }, children) }));
 vi.mock('next/image', () => ({ default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => createElement('img', props) }));
 
+beforeEach(() => { navigation.pathname = productPath; });
 afterEach(unmountAll);
 
 const category = (index: number): PublicCategory => ({
@@ -93,6 +97,26 @@ describe('storefront navigation and states', () => {
     expect(links[8].textContent).toBe('All categories');
     expect(links[8].getAttribute('href')).toBe('/categories');
     expect(requiredElement(view, 'nav').getAttribute('aria-label')).toBe('Categories');
+    expect(view.querySelector('nav a[aria-current], nav a.is-active')).toBeNull();
+  });
+
+  it('marks the category bar link that the rendered page declares as current', async () => {
+    const withMark = (href: string, categories: PublicCategory[]) => createElement(CurrentCategoryProvider, null,
+      createElement(CategoryNavLinks, { categories }), createElement(CurrentCategoryMark, { href }));
+    const view = await render(withMark(`/categories/${category(2).id}`, [category(1), category(2)]));
+    const current = [...view.querySelectorAll('nav a[aria-current="page"]')];
+    expect(current.map((link) => link.textContent)).toEqual(['Category 2']);
+    expect(current[0].classList.contains('is-active')).toBe(true);
+    const all = await render(withMark('/categories', [category(1)]));
+    expect([...all.querySelectorAll('nav a[aria-current="page"]')].map((link) => link.textContent)).toEqual(['All categories']);
+  });
+
+  it('marks no category when a store 404 renders on a listed category URL', async () => {
+    navigation.pathname = `/categories/${category(1).id}`;
+    const view = await render(createElement(CurrentCategoryProvider, null,
+      createElement(CategoryNavLinks, { categories: [category(1), category(2)] }), createElement(NotFoundView)));
+    expect(view.querySelectorAll('nav a')).toHaveLength(3);
+    expect(view.querySelector('nav a[aria-current], nav a.is-active')).toBeNull();
   });
 
   it('hides category navigation and renders the shared empty state for no categories', async () => {
@@ -132,12 +156,21 @@ describe('storefront navigation and states', () => {
     expect(withCategory.querySelector('a[href="/categories/00000001-0000-4000-8000-000000000001"]')).not.toBeNull();
     const withoutCategory = await render(createElement(Breadcrumb, { category: null }));
     expect([...withoutCategory.querySelectorAll('a')].map((link) => link.textContent)).toEqual(['Home']);
+    expect(withCategory.querySelector('a[aria-current]')).toBeNull();
+    const onCategoryPage = await render(createElement(Breadcrumb, { category: category(1), current: true }));
+    expect([...onCategoryPage.querySelectorAll('a[aria-current="page"]')].map((link) => link.textContent)).toEqual(['Category 1']);
   });
 
   it('shows one home link in not-found content', async () => {
     const view = await render(createElement(NotFoundView));
     expect(view.textContent).toContain("We couldn't find that page.");
     expect([...view.querySelectorAll('a')].map((link) => link.getAttribute('href'))).toEqual(['/']);
+  });
+
+  it('gives the root not-found page the store header with its Logo link home', async () => {
+    const view = await render(createElement(RootNotFound));
+    expect(requiredElement<HTMLAnchorElement>(view, 'header a.logo').getAttribute('href')).toBe('/');
+    expect(requiredElement(view, 'main').textContent).toContain("We couldn't find that page.");
   });
 });
 
@@ -162,9 +195,9 @@ describe('Product details and error recovery', () => {
 
   it('shows the review note only when the Product requires it', async () => {
     const required = await render(createElement(ProductDetailsView, { product: details }));
-    expect(required.textContent).toContain('Our team reviews this medicine before dispatch. No prescription upload needed.');
+    expect(required.textContent).toContain('Our team reviews this product before dispatch. No prescription upload needed.');
     const optional = await render(createElement(ProductDetailsView, { product: { ...details, requireValidation: false } }));
-    expect(optional.textContent).not.toContain('Our team reviews this medicine');
+    expect(optional.textContent).not.toContain('Our team reviews this product');
   });
 
   it('switches the main image when a thumbnail is selected', async () => {

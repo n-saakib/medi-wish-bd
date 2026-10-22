@@ -12,4 +12,4 @@ Request-rendered public details page for a listable, priced Product.
 
 ## Verification
 
-Ticket 17 browser tests cover Product details server HTML, canonical metadata, gallery interactions, unavailable/malformed resources and upstream failures. They are authored but were not run while the baseline browser suite used `.next`.
+Ticket 17 browser tests cover Product details server HTML, canonical metadata, gallery interactions, unavailable/malformed resources and upstream failures. They passed in the [2026-10-21 completion verification](<../../../../../ticket-17-e2e.md#completion-verification-2026-10-21>) on `c63359c` plus the Ticket 17 working tree: 1,024 units in `npm run verify` and 1,164 Chrome/Edge browser cases with zero failures.

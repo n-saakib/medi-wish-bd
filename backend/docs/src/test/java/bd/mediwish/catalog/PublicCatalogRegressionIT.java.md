@@ -24,4 +24,4 @@ N/A, recorded in the class Javadoc: duplicate, stale and concurrent commands and
 
 ## Verification
 
-Written test-first on 2026-10-17. `.\mvnw.cmd -o -q test-compile` passes. The test has not been run yet.
+Written test-first on 2026-10-17. `.\mvnw.cmd -o -q test-compile` passes. It passed in the 2026-10-21 final-tree backend run (`-o -Pcompatibility verify` on `c63359c` plus the Ticket 17 working tree: 348 integration tests, zero failures); see the [completion verification](<../../../../../../../../frontend/docs/ticket-17-e2e.md#completion-verification-2026-10-21>).

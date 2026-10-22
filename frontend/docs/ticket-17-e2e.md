@@ -28,7 +28,7 @@ Current commands, build identities, results, retained failed/interrupted runs an
   - `/products/{id}` shows the gallery, price block, About rows and the review note.
   - Only lower-case UUIDs are accepted in page URLs.
   - Every page has its title, meta description and absolute canonical link.
-  - One not-found page covers every unpurchasable case. An API outage gives a 5xx error page, and the home page still works without the bar.
+  - One not-found page covers every unpurchasable case. Unmatched URLs answer 404 from the root not-found page, which keeps the store header's Logo link home. An API outage gives a 5xx error page, and the home page still works without the bar.
 - **Never shown.** No purchase control, stock wording, filter, sort, staff field, scheduled Discount or executed injected markup ever appears.
 
 ## Files
@@ -55,7 +55,7 @@ Cross-story tags mark tests that cross an earlier story's contract:
 | `@cross-15-17` | E2E-17-03 and 06 |
 | `@cross-16-17` | E2E-17-04, 10 and 17 |
 
-Each E2E id is split into focused tests whose titles all start with the id, so `--grep "E2E-17-08"` selects one behavior. 54 tests per browser project (108 across `chrome` and `msedge`), including the home canonical case and the correlated category-list NOT_FOUND regression added on 2026-10-21. Backend coverage is in [the backend report](../../backend/docs/ticket-17-e2e.md).
+Each E2E id is split into focused tests whose titles all start with the id, so `--grep "E2E-17-08"` selects one behavior. 55 tests per browser project (110 across `chrome` and `msedge`). This includes the home canonical case and the correlated category-list NOT_FOUND regression added on 2026-10-21, and the E2E-17-09 unmatched-URL case added on 2026-10-22, which is authored but not yet run. Backend coverage is in [the backend report](../../backend/docs/ticket-17-e2e.md).
 
 ## Targeting during development
 
