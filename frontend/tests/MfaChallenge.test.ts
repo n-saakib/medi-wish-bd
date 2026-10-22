@@ -126,6 +126,50 @@ describe('MfaChallenge', () => {
     expect(requiredElement<HTMLButtonElement>(page, 'button[type="submit"]').disabled).toBe(true);
   });
 
+  it('locks the challenge after the backup-code dialog reaches the shared throttle lock', async () => {
+    const source = challengeSource({ redeemBackupCode: vi.fn().mockRejectedValue(new ApiError('TOO_MANY_ATTEMPTS', 429)) });
+    const page = await renderWithSession(createElement(MfaChallenge), source);
+    const lost = [...page.querySelectorAll('button')].find((button) => button.textContent === 'Lost your phone?')!;
+    await act(async () => lost.click());
+    const dialog = requiredElement<HTMLDialogElement>(page, 'dialog');
+    setInputValue(dialog, '#backup-code', 'ABCD-2345');
+    await submitForm(dialog);
+    await settle();
+    const cancel = [...dialog.querySelectorAll('button')].find((button) => button.textContent === 'Cancel')!;
+    await act(async () => cancel.click());
+
+    expect(dialog.open).toBe(false);
+    const alert = requiredElement(page, '[role="alert"]');
+    expect(alert.textContent).toBe('Too many attempts. Try again later.');
+    expect(document.activeElement).toBe(alert);
+    expect([...page.querySelectorAll('button')].some((button) => button.textContent === 'Lost your phone?')).toBe(false);
+    expect(requiredElement<HTMLInputElement>(page, '#mfa-challenge-code').disabled).toBe(true);
+    expect(requiredElement<HTMLButtonElement>(page, 'form:not([noValidate]) button[type="submit"]').disabled).toBe(true);
+  });
+
+  it('locks the challenge when the locked backup-code dialog is closed natively', async () => {
+    const source = challengeSource({ redeemBackupCode: vi.fn().mockRejectedValue(new ApiError('TOO_MANY_ATTEMPTS', 429)) });
+    const page = await renderWithSession(createElement(MfaChallenge), source);
+    const lost = [...page.querySelectorAll('button')].find((button) => button.textContent === 'Lost your phone?')!;
+    await act(async () => lost.click());
+    const dialog = requiredElement<HTMLDialogElement>(page, 'dialog');
+    setInputValue(dialog, '#backup-code', 'ABCD-2345');
+    await submitForm(dialog);
+    await settle();
+    await act(async () => {
+      dialog.close();
+      dialog.dispatchEvent(new Event('close'));
+    });
+
+    expect(dialog.open).toBe(false);
+    const alert = requiredElement(page, '[role="alert"]');
+    expect(alert.textContent).toBe('Too many attempts. Try again later.');
+    expect(document.activeElement).toBe(alert);
+    expect([...page.querySelectorAll('button')].some((button) => button.textContent === 'Lost your phone?')).toBe(false);
+    expect(requiredElement<HTMLInputElement>(page, '#mfa-challenge-code').disabled).toBe(true);
+    expect(requiredElement<HTMLButtonElement>(page, 'form:not([noValidate]) button[type="submit"]').disabled).toBe(true);
+  });
+
   it.each([
     ['MFA_REQUIRED', 403, 'Authenticator verification is required.'],
     ['INVALID_REQUEST', 400, 'Check your details and try again.'],

@@ -56,8 +56,11 @@ class StaffReplacementNotices {
             case NO_VERIFIED_CONTACT -> SecurityAuditEvent.Type.MFA_REPLACEMENT_NOTICE_NO_VERIFIED_CONTACT;
             case NOT_CONFIGURED -> SecurityAuditEvent.Type.MFA_REPLACEMENT_NOTICE_NOT_CONFIGURED;
         };
+        // An interrupted wait must not cost the audit row: clear the flag for the audit, then restore it.
+        boolean interrupted = Thread.interrupted();
         try { transactions.executeWithoutResult(status -> audit.record(type, userId, null)); }
         catch (Exception failure) { /* Replacement has committed; audit failure cannot change the outcome. */ }
+        finally { if (interrupted) Thread.currentThread().interrupt(); }
         return outcome;
     }
 

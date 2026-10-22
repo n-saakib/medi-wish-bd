@@ -31,9 +31,11 @@ class NotificationConfigurationTest {
         }
     }
 
-    @Test void invalidAdapterAndTooShortTimeoutAreRejected() {
+    @Test void invalidAdapterAndOutOfRangeTimeoutAreRejected() {
         assertThatThrownBy(() -> new NotificationProperties("sms", null)).isInstanceOf(IllegalArgumentException.class);
         assertThatThrownBy(() -> new NotificationProperties(null, Duration.ofMillis(999))).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new NotificationProperties(null, Duration.ofMillis(5001))).isInstanceOf(IllegalArgumentException.class);
         assertThat(new NotificationProperties(null, Duration.ofSeconds(1)).timeout()).isEqualTo(Duration.ofSeconds(1));
+        assertThat(new NotificationProperties(null, Duration.ofSeconds(5)).timeout()).isEqualTo(Duration.ofSeconds(5));
     }
 }

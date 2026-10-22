@@ -11,8 +11,8 @@ public record NotificationProperties(String adapter, Duration timeout) {
         if (!adapter.equals("disabled") && !adapter.equals("capture")) {
             throw new IllegalArgumentException("app.notification.security.adapter must be disabled or capture");
         }
-        if (timeout.compareTo(Duration.ofSeconds(1)) < 0) {
-            throw new IllegalArgumentException("app.notification.security.timeout must be at least 1 second");
+        if (timeout.compareTo(Duration.ofSeconds(1)) < 0 || timeout.compareTo(Duration.ofSeconds(5)) > 0) {
+            throw new IllegalArgumentException("app.notification.security.timeout must be between 1 and 5 seconds");
         }
     }
 }

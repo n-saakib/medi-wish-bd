@@ -17,4 +17,4 @@ Mounted jsdom coverage for [`MfaChallenge`](../src/auth/MfaChallenge.tsx.md) wit
 
 Ticket 11 aligns INVALID_REQUEST assertions with the shared bounded checkDetails copy: Check your details and try again. No API message is rendered.
 
-Ticket 09 replaces the omitted-backup-code assertion with the recovery trigger. A real-client fake-API journey opens the modal, checks initial field focus, posts normalized backup input and asserts `/staff/mfa/enroll`. Authenticator lockout asserts that the recovery trigger is hidden. Native-dialog methods are stubbed only for jsdom.
+Ticket 09 replaces the omitted-backup-code assertion with the recovery trigger. A real-client fake-API journey opens the modal, checks initial field focus, posts normalized backup input and asserts `/staff/mfa/enroll`. Authenticator lockout asserts that the recovery trigger is hidden. A `429` inside the backup-code dialog, after Cancel or a native `close` event, asserts the focused challenge lock alert, a hidden trigger and a disabled code form. Native-dialog methods are stubbed only for jsdom.

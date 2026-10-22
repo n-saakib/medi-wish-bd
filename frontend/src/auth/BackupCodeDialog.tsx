@@ -8,7 +8,8 @@ import { Icon } from '../shell/Icon';
 import { backupCodeInput } from './backupCode';
 import { useSession } from './SessionProvider';
 
-type Props = { open: boolean; onClose(): void; returnFocus(): void };
+/** `onClose(locked)` reports a shared-throttle lock so the challenge page can lock too. */
+type Props = { open: boolean; onClose(locked: boolean): void; returnFocus(): void };
 
 /** Password-bound recovery with a once-only backup code; success continues to new-authenticator setup. */
 export function BackupCodeDialog({ open, onClose, returnFocus }: Props) {
@@ -52,7 +53,7 @@ export function BackupCodeDialog({ open, onClose, returnFocus }: Props) {
     if (flight.current) return;
     setCode('');
     setFeedback(null);
-    onClose();
+    onClose(locked);
   }
 
   function trapFocus(event: KeyboardEvent<HTMLDialogElement>) {

@@ -12,7 +12,7 @@ The native modal uses existing profile-dialog, row and action styles. Opening ex
 
 `backupCodeInput` validates and formats a D4 code before calling `redeemBackupCode`. Malformed input sends nothing and gets a linked danger alert. A request disables all controls, uses “Checking…” and prevents Escape or duplicate submission. A refused code clears the field and refocuses it after re-enabling. Throttle lockout disables the field and Continue while leaving Cancel and Close available. Other failures use bounded translated error copy; current-session `401` expiry remains the provider's responsibility.
 
-Cancel, Close and Escape clear entered code/error, close the modal and restore trigger focus. A queued native close event cannot dismiss a reopened dialog. No credential enters storage, history or navigation arguments.
+Cancel, Close, Escape and a native close event clear entered code/error, close the modal and hand focus back through `returnFocus` (the host restores its trigger, or focuses its lock alert after a lockout). `onClose(locked)` reports whether the dialog ended in throttle lockout, so the host can lock its own shared-throttle form. A queued native close event cannot dismiss a reopened dialog. No credential enters storage, history or navigation arguments.
 
 ## Design decisions
 

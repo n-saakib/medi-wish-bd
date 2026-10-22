@@ -26,4 +26,4 @@ Ticket 09 delivers the design's recovery dialog. “Lost your phone?” is a lin
 
 [`tests/MfaChallenge.test.ts`](../../tests/MfaChallenge.test.ts.md).
 
-The recovery trigger is hidden after an authenticator throttle lockout. Opening focuses the backup-code field; closing restores focus to the trigger. Successful redemption adopts replacement assurance and the existing guard opens `/staff/mfa/enroll`. See [`BackupCodeDialog`](BackupCodeDialog.tsx.md) for modal behavior.
+The recovery trigger is hidden after an authenticator throttle lockout. Because the dialog shares that throttle, a lockout reached in the dialog locks the challenge too once the dialog closes: the focused lock alert appears and the code field, Verify and the trigger are unavailable. Opening focuses the backup-code field; closing restores focus to the trigger, or after a dialog lockout to the lock alert while the trigger stays hidden. Successful redemption adopts replacement assurance and the existing guard opens `/staff/mfa/enroll`. See [`BackupCodeDialog`](BackupCodeDialog.tsx.md) for modal behavior.

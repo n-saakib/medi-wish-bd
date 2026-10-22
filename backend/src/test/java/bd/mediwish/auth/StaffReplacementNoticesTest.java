@@ -103,4 +103,19 @@ class StaffReplacementNoticesTest {
         verify(audit).record(SecurityAuditEvent.Type.MFA_REPLACEMENT_NOTICE_FAILED, user.id(), null);
     }
 
+    @Test void interruptedWaitStillAuditsOutsideTheInterruptAndRestoresIt() {
+        user.activateMobile(user.mobile());
+        when(notifier.send(any())).thenReturn(NoticeOutcome.SENT);
+        var interruptedDuringAudit = new boolean[]{true};
+        doAnswer(call -> { interruptedDuringAudit[0] = Thread.currentThread().isInterrupted(); return null; })
+                .when(audit).record(any(), any(), any());
+        Thread.currentThread().interrupt();
+        NoticeOutcome outcome;
+        try { outcome = notices.notifyReplacement(user.id()); }
+        finally { assertThat(Thread.interrupted()).as("interrupt restored").isTrue(); }
+        assertThat(outcome).isEqualTo(NoticeOutcome.FAILED);
+        assertThat(interruptedDuringAudit[0]).isFalse();
+        verify(audit).record(SecurityAuditEvent.Type.MFA_REPLACEMENT_NOTICE_FAILED, user.id(), null);
+    }
+
 }

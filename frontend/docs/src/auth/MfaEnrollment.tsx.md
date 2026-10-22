@@ -10,7 +10,7 @@ Client component for `/staff/mfa/enroll`: first-time or replacement authenticato
 
 ### `MfaEnrollment()`
 
-Uses `useSessionRedirect('mfa-enrollment', { enabled })`. Once the restore reports `ENROLLMENT_REQUIRED` or `REPLACEMENT_REQUIRED`, it calls the provider's `startMfaEnrollment()` once and shows the step bar, `Set up your authenticator`, the QR code, a `Can’t scan?` disclosure with the manual key in groups of four, and the `Enter the 6-digit code` field with `Verify`. While the setup loads it shows `Preparing your setup…` with `Verify` disabled.
+Uses `useSessionRedirect('mfa-enrollment', { enabled })`. Once the restore reports `ENROLLMENT_REQUIRED` or `REPLACEMENT_REQUIRED`, it calls the provider's `startMfaEnrollment()` once and shows the step bar, `Set up your authenticator` (`Set up your new authenticator` for a replacement), the QR code, a `Can’t scan?` disclosure with the manual key in groups of four, and the `Enter the 6-digit code` field with `Verify`. While the setup loads it shows `Preparing your setup…` with `Verify` disabled.
 
 ## Observable behavior
 

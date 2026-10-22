@@ -350,8 +350,12 @@ it.each([
 });
 
 it('keeps a first enrollment free of a replacement notice', async () => {
-  const page = await renderEnrollment();
+  const page = await renderEnrollment(enrollmentSource({
+    verifyMfaEnrollment: vi.fn().mockResolvedValue({ ...enrolled, contactNotice: 'SENT' }),
+  }));
   await enterCode(page, '287082');
+  expect(page.textContent).toContain(syntheticBackupCodes[0]);
+  expect(page.textContent).not.toContain('We sent a notice to your verified mobile.');
   expect(page.querySelector('.secret .alert')).toBeNull();
 });
 
