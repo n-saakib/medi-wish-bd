@@ -22,3 +22,5 @@ Checked by `npm run typecheck` and exercised indirectly by the header and form t
 Ticket 15 adds the design's image glyph for upload controls and labelled failure placeholders.
 
 Ticket 09 adds only the design `x` path for the recovery dialog Close button. The surrounding labelled icon button supplies its accessible name; the SVG remains decorative.
+
+Ticket 17 adds only the grid tile and verified-medicine review icons used by category and Product details views; the SVGs remain decorative and inherit the surrounding text color.

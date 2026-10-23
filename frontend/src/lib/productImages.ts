@@ -44,7 +44,7 @@ export function precheckImageFile(file: File): 'tooLarge' | 'wrongType' | null {
   return (file.type === 'image/png' && /\.png$/i.test(file.name))
     || (file.type === 'image/jpeg' && /\.jpe?g$/i.test(file.name)) ? null : 'wrongType';
 }
-export function imageAlt(image: ProductImage, productName: string, index: number,
+export function imageAlt(image: Pick<ProductImage, 'altText'>, productName: string, index: number,
   t: (key: 'fallbackAlt', values: { name: string; n: number }) => string): string {
   return image.altText ?? t('fallbackAlt', { name: productName, n: index + 1 });
 }

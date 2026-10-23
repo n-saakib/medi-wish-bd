@@ -8,7 +8,7 @@ direction and the observable request boundaries.
 **Current scope:** health baseline, shared User profile/roles, Ticket 03
 password sessions with Bearer, CSRF, CORS and refresh-cookie adapters, and
 Ticket 06 first-Admin provisioning, staff TOTP MFA, security audit events and
-the staff route, Ticket 11 profile editing with staged mobile changes, Ticket 12 saved addresses, Ticket 05 verified secondary-email recovery, Ticket 14 staff catalog, Ticket 15 Product images and Ticket 16 Discounts.
+the staff route, Ticket 11 profile editing with staged mobile changes, Ticket 12 saved addresses, Ticket 05 verified secondary-email recovery, Ticket 14 staff catalog, Ticket 15 Product images, Ticket 16 Discounts and Ticket 17 public catalog reads.
 **Later boundaries:** mobile OTP, staff management beyond the current role/MFA workflows, and deployment.
 
 Ticket08 adds `bd.mediwish.admin.AdminUserController`: strict JSON commands and UUID reads. It calls `auth.RoleAssignmentService`, which owns the role policy, bounded projections, audit persistence and atomic revocation because it shares the package-private SessionService. The User aggregate exposes one role and rolesVersion over the retained private role collection; PostgreSQL enforces exactly-one at commit. The Spring role hierarchy expands the single authority only at authorization; restricted MFA sessions hold no role authority. Password session creation locks the User FOR SHARE, rejects a password hash changed since verification, reads the current role, then writes sessions; bearer authentication holds the same User share lock while reading current session evidence, role and factor in one transaction, releasing it before route handling; role commands lock actor/target in UUID order before sessions.
@@ -381,6 +381,10 @@ Inspection validates PNG/JPEG input, 3 MiB and 4096-pixel limits, then re-encode
 ## Ticket 16 current-pricing boundary
 
 The catalog feature owns Discount entities, command rules/audit repositories, Dhaka calendar, exact-decimal calculator, CurrentPrices and derived Product history. Staff commands reuse pricing authorization, lock one Discount row and commit its audit snapshot atomically. Repeatable-read Product/Discount reads capture the business date once and batch candidate lookup, target labels/counts and usernames. CurrentPrices is the shared immutable-snapshot boundary for future carts and accepted Orders; no Order persistence or background scheduler is added here.
+
+## Ticket 17 public catalog reads
+
+`PublicCatalogService` maps only active Categories with active priced Products and reads fixed 24-item category pages plus active priced Product details. Category-page images and current prices are batched; page and detail reads join `CurrentPrices` in read-only repeatable-read transactions. The response records omit staff state and retain medicine-only fields only for medicines. No schema change is required.
 ## Ticket 12 saved-address boundary
 
 bd.mediwish.address owns strict owner-only JSON routes, pure normalization/default/calendar rules, the composite-key entity, native repository and User-locked transactional service. Every mutation takes the User lock before addresses or change rows; reads remain available while closing. Shared web security authorizes all four roles, bounds command bodies and errors, and keeps personal values out of logs. Configured Dhaka week/month counts and address writes share the transaction. Ticket 25's optional save must call create in a separate request after the Order commits.

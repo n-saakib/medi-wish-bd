@@ -1,3 +1,3 @@
 # `CategoryRepository.java`
 
-JPA category access: row-locked edit, stable paged list, one grouped Product count for the page, and PostgreSQL insert-on-ID-conflict for replay-safe create. A name collision remains a database conflict.
+JPA category access: row-locked edit, stable paged list, one grouped Product count for the page, and PostgreSQL insert-on-ID-conflict for replay-safe create. `findListable` returns active categories with at least one active priced Product, ordered by lower-case name and ID. It has no size cap, by accepted decision P4 (one unpaged list serves the bar, home grid and directory). The frontend rejects public JSON bodies over 256 KiB, so the ceiling is about 885 categories at the 80-character, 3-byte-UTF-8 worst case (489 if every name character were JSON-escaped); beyond that `/categories` and the bar fail as an invalid response. The 2026-10-19 contract evidence records the arithmetic. A name collision remains a database conflict.

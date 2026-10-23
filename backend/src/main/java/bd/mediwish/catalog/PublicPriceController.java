@@ -18,13 +18,9 @@ class PublicPriceController {
         try { productId = CatalogRequests.uuid(id); }
         catch (InvalidCatalogException invalid) { throw new CatalogNotFoundException(); }
         var price = prices.forActiveProduct(productId).orElseThrow(CatalogNotFoundException::new);
-        var discount = price.discountId() == null ? null : new PublicDiscount(price.discountTarget(),
-                price.discountKind(), price.discountKind() == DiscountKind.PERCENTAGE
-                ? price.discountValue().stripTrailingZeros().toPlainString() : price.discountValue().toPlainString());
-        return new PublicPrice(price.productId(), price.sellingPrice().toString(),
-                price.mrp() == null ? null : price.mrp().toString(), price.price().toString(), price.saving().toPlainString(), discount);
+        var view = PublicCatalogViews.price(price);
+        return new PublicPrice(price.productId(), view.sellingPrice(), view.mrp(), view.price(), view.saving(), view.discount());
     }
 
     record PublicPrice(UUID productId, String sellingPrice, String mrp, String price, String saving, PublicDiscount discount) {}
-    record PublicDiscount(DiscountTargetType targetType, DiscountKind kind, String value) {}
 }

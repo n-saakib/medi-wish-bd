@@ -1,21 +1,17 @@
 # `src/app/(store)/page.tsx`
 
-Source: [`src/app/(store)/page.tsx`](../../../../src/app/(store)/page.tsx)
+Source: [`src/app/(store)/page.tsx`](<../../../../src/app/(store)/page.tsx>)
 
 ## Purpose
 
-The `/` route. It shows the store's preparation message in the home hero and is the page a visitor returns to after signing out, where the sign-out result is announced.
+The dynamically rendered public home page. It keeps the sign-out notice and store hero, and adds a compact category grid for browsing the catalog.
 
-## Export
+## Exports and behavior
 
-### `HomePage()`
+`generateMetadata()` waits for a request-time connection and sets `/` as the canonical URL. `HomePage()` also opts into request-time rendering, loads the English `home` messages, and renders the hero with `SignOutNotice` followed by [`HomeCategories`](../../storefront/HomeCategories.tsx.md).
 
-The async server component loads the `home` namespace with `getTranslations('home')` and renders a `<main>` containing [`SignOutNotice`](../../auth/SignOutNotice.tsx.md) and a `hero-main` section labelled by its `<h1>`. The heading is the store name and the paragraph is the preparation copy. The page has no title export, so the root layout's default title (the store name) applies.
-
-## Use cases and boundaries
-
-The page is built from `agent-docs/ui-design/home.html` but keeps only the hero: the design's offers button, category, product and promotion sections are omitted because the catalog is not implemented, and the hero keeps the preparation copy instead of promotional text. `SignOutNotice` renders nothing unless the session provider holds a sign-out result, so ordinary visits show only the hero.
+The hero keeps its existing copy: the store name and the `home.description` notice that the online store is being prepared. `HomeCategories` uses the shared React-cached category read, displays up to eight category tiles and a See all link when categories are available, and renders nothing when that shared read fails or returns no categories. This matches the category bar's graceful fallback. The home page has no offers or Most Sold rail.
 
 ## Verification
 
-On 2026-09-26 `npm run build` produced `/` as a static route. The sign-out announcement shown here is covered by [`tests/AccountSummary.test.ts`](../../../tests/AccountSummary.test.ts.md); browser verification is recorded in the Ticket 03.01 evidence.
+Ticket 17 browser page and outage tests cover the request-time home and category fallback behavior. They passed in the [2026-10-21 completion verification](<../../../ticket-17-e2e.md#completion-verification-2026-10-21>) on `c63359c` plus the Ticket 17 working tree: 1,024 units in `npm run verify` and 1,164 Chrome/Edge browser cases with zero failures.

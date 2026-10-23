@@ -1,0 +1,3 @@
+# `PublicCatalogReadIT.java`
+
+Real-PostgreSQL T2 proof that listable-category queries exclude inactive categories, empty categories and categories without an active priced Product, while accepting equipment. It checks case-insensitive Product order and the ID tie-breaker, an uploaded image after reordering, current Category Discount prices, and Product detail reads after the Category is deactivated. The test uses the shared `DiscountTestApi.successful` response assertion and calls the Spring service proxy directly so lazy Category fields and batched reads are exercised inside the service transaction rather than relying on open-in-view.

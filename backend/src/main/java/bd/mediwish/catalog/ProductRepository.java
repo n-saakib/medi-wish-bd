@@ -24,6 +24,18 @@ public interface ProductRepository extends JpaRepository<Product, UUID> {
     @Query("select p.id as productId, p.name as name from Product p where p.id in :ids")
     List<ProductName> findNamesById(@Param("ids") Collection<UUID> ids);
 
+    @Query("select count(p) from Product p where p.category.id = :categoryId and p.active = true "
+            + "and p.sellingPrice is not null")
+    long countListed(@Param("categoryId") UUID categoryId);
+
+    @Query("select p from Product p join fetch p.category c where c.id = :categoryId and p.active = true "
+            + "and p.sellingPrice is not null order by lower(p.name), p.id")
+    List<Product> findListed(@Param("categoryId") UUID categoryId, Pageable page);
+
+    @Query("select p from Product p join fetch p.category where p.id = :id and p.active = true "
+            + "and p.sellingPrice is not null")
+    Optional<Product> findListedById(@Param("id") UUID id);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select p from Product p where p.id = :id")
     Optional<Product> findByIdForUpdate(@Param("id") UUID id);

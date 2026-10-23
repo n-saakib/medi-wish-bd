@@ -85,6 +85,8 @@ Staff catalog routes use strict local request binding, typed public projections,
 | `src/main/java/bd/mediwish/catalog/ProductRules.java` | [ProductRules](src/main/java/bd/mediwish/catalog/ProductRules.java.md) |
 | `src/main/java/bd/mediwish/catalog/Category.java` | [Category](src/main/java/bd/mediwish/catalog/Category.java.md) |
 | `src/main/java/bd/mediwish/catalog/CategoryRepository.java` | [CategoryRepository](src/main/java/bd/mediwish/catalog/CategoryRepository.java.md) |
+| `src/main/java/bd/mediwish/catalog/PublicCatalogService.java` | [PublicCatalogService](src/main/java/bd/mediwish/catalog/PublicCatalogService.java.md) |
+| `src/main/java/bd/mediwish/catalog/PublicCatalogViews.java` | [PublicCatalogViews](src/main/java/bd/mediwish/catalog/PublicCatalogViews.java.md) |
 | `src/main/java/bd/mediwish/catalog/CategoryService.java` | [CategoryService](src/main/java/bd/mediwish/catalog/CategoryService.java.md) |
 | `src/main/java/bd/mediwish/catalog/Product.java` | [Product](src/main/java/bd/mediwish/catalog/Product.java.md) |
 | `src/main/java/bd/mediwish/catalog/ProductRepository.java` | [ProductRepository](src/main/java/bd/mediwish/catalog/ProductRepository.java.md) |
@@ -385,3 +387,26 @@ The shared HTTP security/error pages also describe the four recovery routes, bou
 AuthApi recovery helpers and the existing profile fixture adapters retain their matching mirror pages. Test results and outstanding cumulative gates are recorded in the Ticket 05 evidence.
 
 Ticket 05 mail settings bind only transport and capture directory; sender configuration is deferred with the SES adapter.
+
+## Ticket 17 public catalog reads and acceptance tests
+
+The public read model maps only listable Categories and active priced Products; page `PublicCatalogImage` values and current prices are fetched in batches inside read-only repeatable-read transactions. Backend query-count, HTTP contract and regression coverage is listed below; see [coverage and targeting](ticket-17-e2e.md).
+
+| Source | Documentation |
+| --- | --- |
+| [src/test/java/bd/mediwish/catalog/PublicCatalogIT.java](../src/test/java/bd/mediwish/catalog/PublicCatalogIT.java) | [src/test/java/bd/mediwish/catalog/PublicCatalogIT.java.md](src/test/java/bd/mediwish/catalog/PublicCatalogIT.java.md) |
+| [src/main/java/bd/mediwish/catalog/PublicCatalogController.java](../src/main/java/bd/mediwish/catalog/PublicCatalogController.java) | [src/main/java/bd/mediwish/catalog/PublicCatalogController.java.md](src/main/java/bd/mediwish/catalog/PublicCatalogController.java.md) |
+| [src/test/java/bd/mediwish/catalog/PublicCatalogControllerTest.java](../src/test/java/bd/mediwish/catalog/PublicCatalogControllerTest.java) | [src/test/java/bd/mediwish/catalog/PublicCatalogControllerTest.java.md](src/test/java/bd/mediwish/catalog/PublicCatalogControllerTest.java.md) |
+| [src/test/java/bd/mediwish/catalog/PublicCatalogServiceTest.java](../src/test/java/bd/mediwish/catalog/PublicCatalogServiceTest.java) | [src/test/java/bd/mediwish/catalog/PublicCatalogServiceTest.java.md](src/test/java/bd/mediwish/catalog/PublicCatalogServiceTest.java.md) |
+| [src/test/java/bd/mediwish/catalog/PublicCatalogViewsTest.java](../src/test/java/bd/mediwish/catalog/PublicCatalogViewsTest.java) | [src/test/java/bd/mediwish/catalog/PublicCatalogViewsTest.java.md](src/test/java/bd/mediwish/catalog/PublicCatalogViewsTest.java.md) |
+| [src/test/java/bd/mediwish/catalog/PublicCatalogReadIT.java](../src/test/java/bd/mediwish/catalog/PublicCatalogReadIT.java) | [src/test/java/bd/mediwish/catalog/PublicCatalogReadIT.java.md](src/test/java/bd/mediwish/catalog/PublicCatalogReadIT.java.md) |
+| [src/test/java/bd/mediwish/catalog/PublicCatalogRegressionIT.java](../src/test/java/bd/mediwish/catalog/PublicCatalogRegressionIT.java) | [src/test/java/bd/mediwish/catalog/PublicCatalogRegressionIT.java.md](src/test/java/bd/mediwish/catalog/PublicCatalogRegressionIT.java.md) |
+| [src/test/java/bd/mediwish/catalog/PublicCatalogQueriesIT.java](../src/test/java/bd/mediwish/catalog/PublicCatalogQueriesIT.java) | [src/test/java/bd/mediwish/catalog/PublicCatalogQueriesIT.java.md](src/test/java/bd/mediwish/catalog/PublicCatalogQueriesIT.java.md) |
+
+Ticket 17 critical review: [backend findings and verification boundaries](ticket-17-e2e.md#critical-review-2026-10-1718), including exact concurrent card prices and guaranteed observations of both activation states. This historical review preceded the production implementation; [current backend verification](ticket-17-e2e.md#verification) records 999 unit and 348 integration passes including compatibility on 2026-10-20 at `c63359c` plus the uncommitted implementation, with all 16 public catalog integration tests passing.
+
+Ticket 17 additional review: [backend rounds 6-8 and compilation boundary](ticket-17-e2e.md#additional-critical-review-2026-10-19), including gallery/card projection after staff image reordering. Current query checks measure bounded page/detail/category costs of 5/3/1 statements and payloads of 23,034/7,412 bytes; the [query-test mirror](src/test/java/bd/mediwish/catalog/PublicCatalogQueriesIT.java.md) explains the total-statement assertion boundary.
+
+Ticket 17 final local verification (2026-10-21): [current acceptance report](ticket-17-e2e.md) records the clean cumulative candidate and completed child tasks; parent closure still requires Tickets 15 and 16 to be done.
+
+Tickets 05 and 09 integrate authenticator replacement notices with the verified-email transport and the verified-mobile notifier after commit. Both eligible channels share one timeout; `SENT` means at least one delivery succeeded. Missing verified contacts, absent configuration and failures retain bounded outcomes and cannot hide new backup codes. See [StaffReplacementNotices](src/main/java/bd/mediwish/auth/StaffReplacementNotices.java.md) and the [message bundle](src/main/resources/messages.properties.md).

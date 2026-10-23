@@ -23,6 +23,10 @@ public interface CategoryRepository extends JpaRepository<Category, UUID> {
     @Query("select c from Category c where :includeInactive = true or c.active = true order by lower(c.name), c.id")
     Page<Category> findPage(@Param("includeInactive") boolean includeInactive, Pageable page);
 
+    @Query("select c from Category c where c.active = true and exists (select p.id from Product p "
+            + "where p.category = c and p.active = true and p.sellingPrice is not null) order by lower(c.name), c.id")
+    List<Category> findListable();
+
     interface ProductCount {
         UUID getCategoryId();
         long getProductCount();

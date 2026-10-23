@@ -4,3 +4,5 @@ Exports strict public ProductImage metadata/list projection, safe public source 
 
 
 Alt projection preserves NBSP, BOM and other Unicode whitespace accepted by Java String.trim; ASCII boundary spaces and ISO control characters remain invalid canonical metadata.
+
+Ticket 17 widens imageAlt to the public altText projection, so public card/gallery metadata can reuse the translated fallback without carrying staff-only image fields.

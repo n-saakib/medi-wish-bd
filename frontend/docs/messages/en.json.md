@@ -8,7 +8,7 @@ The English catalog supplies all user-visible text through `next-intl`. Server r
 
 ## Namespaces
 
-- `metadata`, `header` and `home`: document titles, shell navigation, store preparation and sign-out notices.
+- `metadata`, `header` and `home`: document titles, shell navigation, the storefront hero and sign-out notices.
 - `signIn` and `register`: authentication fields, notices and submit states. Registration states the 6–30 character password hint and one message per refused field: `usernameInvalid`, `mobileInvalid`, `emailInvalid` and `passwordInvalid`; a server `INVALID_REQUEST` uses `errors.checkDetails`.
 - `account`: current account labels, session loading, sign-out and **Edit profile** navigation.
 - `profile`: profile metadata title, loading, editable field labels with the Email/Date of birth optional marker, the 11-digit New mobile hint, mobile verification chips, pending-number interpolation, stage/cancel controls, save, reload and mobile-change-cancelled notices and client field errors. The mobile dialog explains that the current number stays active and text-message verification is coming later.
@@ -49,6 +49,8 @@ Ticket 05 adds forgotPassword form copy, sign-in link/reset notice, profile emai
 
 ## Ticket 09
 
-`staffMfa.replaceTitle` and `replaceIntro` identify authenticator replacement. `staffMfa.contactNotice` supplies the four bounded notification outcome texts. `staffMfa.regenerate` supplies page metadata, heading, fresh-code explanation, field label, submit/busy copy and back link. `staffHome.backupCodes` names the navigation destination. English text uses typographic apostrophes and ellipses consistently; no recipient details or secrets are interpolated.
+`staffMfa.replaceTitle` and `replaceIntro` identify authenticator replacement. `staffMfa.contactNotice` supplies the four bounded notification outcome texts. `SENT` and `FAILED` refer to verified contacts because replacement may notify verified mobile and email; they expose no recipient details. `staffMfa.regenerate` supplies page metadata, heading, fresh-code explanation, field label, submit/busy copy and back link. `staffHome.backupCodes` names the navigation destination. English text uses typographic apostrophes and ellipses consistently; no recipient details or secrets are interpolated.
 
 Ticket 09 also supplies recovery trigger/title/field/placeholder/help, local format error, Close/Cancel/Continue and checking-state copy under `staffMfa`. Exhausted-code help names the store owner, following accepted P12.
+
+Ticket 17 adds request-time category navigation and server-rendered public Product details. The new storefront namespace externalizes category links, page counts, empty/not-found/error states, price/MRP labels, the conditional review note (product-neutral, because Equipment can also require validation; owner decision 2026-10-22, passed the Ticket 17 browser suites the same day), About fields, gallery controls and canonical descriptions. The home hero keeps its existing copy; the category bar and home grid hide on a failed shared read, while dedicated catalog routes show their generic error boundary.

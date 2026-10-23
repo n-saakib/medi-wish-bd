@@ -19,3 +19,8 @@ it('refuses an unsafe source before rendering an image',async()=>{
  expect(view.querySelector('img')).toBeNull();
  expect(requiredElement(view,'.image-placeholder').getAttribute('aria-label')).toBe('Synthetic front');
 });
+it('renders the shared accessible placeholder when no image is available',async()=>{
+ const view=await renderWithSession(createElement(ProductImage,{image:null,alt:'Product name',sizes:'50vw'}));
+ expect(view.querySelector('img')).toBeNull();
+ expect(requiredElement(view,'[role="img"]').getAttribute('aria-label')).toBe('Product name');
+});

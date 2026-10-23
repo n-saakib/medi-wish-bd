@@ -106,6 +106,24 @@ class CatalogSecurityTest {
     }
 
     @Test
+    void publicCatalogReadsIgnoreBearerHeadersAndOtherMethodsStayDenied() throws Exception {
+        try (var context = context()) {
+            var mvc = mvc(context);
+            for (String path : new String[]{"/api/categories", "/api/categories/" + ID + "/products",
+                    "/api/products/" + ID}) {
+                for (String bearer : new String[]{"", "Bearer invalid"}) {
+                    var command = request(HttpMethod.GET, path);
+                    if (!bearer.isEmpty()) command.header("Authorization", bearer);
+                    mvc.perform(command).andExpect(status().isOk())
+                            .andExpect(header().string("Cache-Control", "no-store"))
+                            .andExpect(header().exists("X-Request-ID"));
+                }
+                mvc.perform(request(HttpMethod.POST, path)).andExpect(status().isForbidden());
+            }
+        }
+    }
+
+    @Test
     void imageRoutesAuthorizeEveryActorBeforeReadingBodiesAndOnlyPublicGetHeadAreAllowed() throws Exception {
         try (var context = context()) {
             var mvc = mvc(context); var users = context.getBean(CurrentUserAuthentication.class);
@@ -188,7 +206,8 @@ class CatalogSecurityTest {
     static class ProbeController {
         @RequestMapping({"/api/staff/categories", "/api/staff/categories/{id}", "/api/staff/products",
                 "/api/staff/products/{id}", "/api/staff/products/{id}/pricing", "/api/staff/products/{id}/images",
-                "/api/staff/products/{id}/images/{imageId}", "/api/staff/products/{id}/image-order", "/api/public/product-images/{fileName}"})
+                "/api/staff/products/{id}/images/{imageId}", "/api/staff/products/{id}/image-order", "/api/public/product-images/{fileName}",
+                "/api/categories", "/api/categories/{id}/products", "/api/products/{id}"})
         Map<String, Boolean> accepted() { return Map.of("accepted", true); }
     }
 }
