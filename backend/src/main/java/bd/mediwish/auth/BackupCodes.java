@@ -3,6 +3,7 @@ package bd.mediwish.auth;
 import java.security.SecureRandom;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 /** Single-use backup codes (D4): 10 codes of 8 characters without look-alikes, shown as {@code XXXX-XXXX}. */
@@ -26,7 +27,20 @@ final class BackupCodes {
         return List.copyOf(codes);
     }
 
-    /** The value whose Argon2 verifier is stored: the code without its separator, for Ticket 09 to compare. */
+    /** Accepts only D4's ASCII alphabet, literal spaces and at most one separator. */
+    static String parse(String raw) {
+        if (raw == null || raw.chars().anyMatch(character -> character > 127)
+                || raw.chars().filter(character -> character == '-').count() > 1) {
+            throw new InvalidRequestException();
+        }
+        String code = raw.trim().replace(" ", "").replace("-", "").toUpperCase(Locale.ROOT);
+        if (code.length() != LENGTH || code.chars().anyMatch(character -> ALPHABET.indexOf(character) < 0)) {
+            throw new InvalidRequestException();
+        }
+        return code;
+    }
+
+    /** The value whose Argon2 verifier is stored: the code without its separator, for comparison during recovery. */
     static String normalize(String code) {
         return code.replace("-", "");
     }

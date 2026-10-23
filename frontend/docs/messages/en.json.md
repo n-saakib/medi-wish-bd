@@ -46,3 +46,9 @@ Ticket 12 adds addresses for page/dialog labels, full/empty/recovery/default-pro
 ## Ticket 05 email recovery
 
 Ticket 05 adds forgotPassword form copy, sign-in link/reset notice, profile email verification/current-password copy and three bounded errors. All recovery-facing strings are localized here; help is plain support text until a support route is delivered.
+
+## Ticket 09
+
+`staffMfa.replaceTitle` and `replaceIntro` identify authenticator replacement. `staffMfa.contactNotice` supplies the four bounded notification outcome texts. `staffMfa.regenerate` supplies page metadata, heading, fresh-code explanation, field label, submit/busy copy and back link. `staffHome.backupCodes` names the navigation destination. English text uses typographic apostrophes and ellipses consistently; no recipient details or secrets are interpolated.
+
+Ticket 09 also supplies recovery trigger/title/field/placeholder/help, local format error, Close/Cancel/Continue and checking-state copy under `staffMfa`. Exhausted-code help names the store owner, following accepted P12.

@@ -4,7 +4,7 @@ import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslations } from 'next-intl';
 import { toString as renderQrSvg } from 'qrcode';
 import { errorMessageKey } from '../lib/api';
-import type { MfaEnrollment as PendingEnrollment } from '../lib/session';
+import type { ContactNotice, MfaEnrollment as PendingEnrollment } from '../lib/session';
 import { Alert } from '../shell/Alert';
 import { authenticatorCodeDigits, AuthenticatorCodeField } from './AuthenticatorCodeField';
 import { BackupCodesPanel } from './BackupCodesPanel';
@@ -31,7 +31,7 @@ async function drawQr(otpauthUri: string): Promise<string | null> {
 }
 
 /**
- * First-time authenticator setup for a restricted staff session: QR code and manual key, then the 6-digit code,
+ * First-time or replacement authenticator setup for a restricted staff session: QR code and manual key, then the 6-digit code,
  * then the once-only backup codes. The secret and the codes are kept only in this component's state and are
  * dropped on unmount and whenever the page is hidden, so they never reach storage, the URL or the back/forward cache.
  */
@@ -47,17 +47,21 @@ export function MfaEnrollment() {
   const feedbackSerial = useRef(0);
   const [submitting, setSubmitting] = useState(false);
   const [backupCodes, setBackupCodes] = useState<string[] | null>(null);
+  const [contactNotice, setContactNotice] = useState<ContactNotice | null>(null);
+  const [replacement, setReplacement] = useState(false);
   const codeRef = useRef<HTMLInputElement>(null);
   // Only the latest start request may show its secret; an older response is ignored.
   const latestStart = useRef(0);
+  const displayEpoch = useRef(0);
   // The start still in flight; a StrictMode re-run of the mount effect reuses it instead of superseding it.
   const pendingStart = useRef<Promise<PendingEnrollment> | null>(null);
   const headingRef = useRef<HTMLHeadingElement>(null);
-  const needsEnrollment = !session.restoring && session.mfa === 'ENROLLMENT_REQUIRED';
+  const needsEnrollment = !session.restoring && (session.mfa === 'ENROLLMENT_REQUIRED' || session.mfa === 'REPLACEMENT_REQUIRED');
+  const canShowCodes = session.profile !== null && session.mfa === 'VERIFIED';
   const needsEnrollmentRef = useRef(needsEnrollment);
 
   // Verification turns the session VERIFIED; the redirect waits until the backup codes are saved.
-  useSessionRedirect('mfa-enrollment', { enabled: !submitting && !backupCodes });
+  useSessionRedirect('mfa-enrollment', { enabled: !submitting && !(backupCodes && canShowCodes) });
 
   const start = useCallback((reusePending = false) => {
     const request = ++latestStart.current;
@@ -70,13 +74,16 @@ export function MfaEnrollment() {
     void pending.then(
       async (enrollment) => {
         const qrSvg = await drawQr(enrollment.otpauthUri);
-        if (request === latestStart.current) setSetup({ enrollment, qrSvg });
+        if (request === latestStart.current) {
+          setReplacement(session.mfa === 'REPLACEMENT_REQUIRED');
+          setSetup({ enrollment, qrSvg });
+        }
       },
       () => {
         if (request === latestStart.current) setStartFailed(true);
       },
     );
-  }, [startMfaEnrollment]);
+  }, [startMfaEnrollment, session.mfa]);
 
   useEffect(() => {
     needsEnrollmentRef.current = needsEnrollment;
@@ -87,8 +94,11 @@ export function MfaEnrollment() {
     };
   }, [needsEnrollment, start]);
 
+  useEffect(() => () => { displayEpoch.current += 1; }, []);
+
   useEffect(() => {
     function forgetSecrets() {
+      displayEpoch.current += 1;
       latestStart.current += 1;
       setSetup(null);
       setBackupCodes(null);
@@ -127,14 +137,18 @@ export function MfaEnrollment() {
       codeRef.current?.focus();
       return;
     }
+    const epoch = displayEpoch.current;
     setSubmitting(true);
     setFeedback(null);
     try {
-      const codes = await verifyMfaEnrollment(setup.enrollment.enrollmentId, digits);
+      const result = await verifyMfaEnrollment(setup.enrollment.enrollmentId, digits);
+      if (epoch !== displayEpoch.current) return;
       setSetup(null);
       setCode('');
-      setBackupCodes(codes);
+      setBackupCodes(result.backupCodes);
+      setContactNotice(result.contactNotice);
     } catch (reason) {
+      if (epoch !== displayEpoch.current) return;
       const key = errorMessageKey(reason);
       setCode('');
       if (key === 'mfaEnrollmentStale') {
@@ -152,9 +166,10 @@ export function MfaEnrollment() {
     }
   }
 
-  if (backupCodes) return <BackupCodesPanel codes={backupCodes} onSaved={() => setBackupCodes(null)} />;
+  if (backupCodes && canShowCodes) return <BackupCodesPanel codes={backupCodes}
+    notice={replacement ? contactNotice : undefined} onSaved={() => setBackupCodes(null)} />;
 
-  if (!needsEnrollment && !setup) {
+  if (!session.profile || (!needsEnrollment && !setup)) {
     return session.restoring || session.profile ? <p className="muted" role="status">{t('checking')}</p> : null;
   }
 
@@ -162,8 +177,8 @@ export function MfaEnrollment() {
   return (
     <>
       <div className="steps-mini" aria-hidden="true"><span className="is-done" /><span /></div>
-      <h1 ref={headingRef} tabIndex={-1}>{t('enrollTitle')}</h1>
-      <p className="muted">{t('enrollIntro')}</p>
+      <h1 ref={headingRef} tabIndex={-1}>{t(replacement ? 'replaceTitle' : 'enrollTitle')}</h1>
+      <p className="muted">{t(replacement ? 'replaceIntro' : 'enrollIntro')}</p>
       {feedback && <EnrollmentFeedback key={feedback.serial} feedback={feedback} />}
       {startFailed
         ? <div className="mt-16 stack">

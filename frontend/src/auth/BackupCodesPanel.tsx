@@ -3,16 +3,19 @@
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
+import type { ContactNotice } from '../lib/session';
 import { Alert } from '../shell/Alert';
 
 type BackupCodesPanelProps = {
   codes: string[];
+  notice?: ContactNotice | null;
+  steps?: boolean;
   /** Forgets the codes; called before leaving for the staff page. */
   onSaved(): void;
 };
 
 /** The once-only backup codes, with Copy all and I've saved them. The codes live only in the caller's state. */
-export function BackupCodesPanel({ codes, onSaved }: BackupCodesPanelProps) {
+export function BackupCodesPanel({ codes, onSaved, notice, steps = true }: BackupCodesPanelProps) {
   const t = useTranslations('staffMfa');
   const router = useRouter();
   const [copy, setCopy] = useState<'idle' | 'copied' | 'failed'>('idle');
@@ -37,9 +40,10 @@ export function BackupCodesPanel({ codes, onSaved }: BackupCodesPanelProps) {
 
   return (
     <>
-      <div className="steps-mini" aria-hidden="true"><span className="is-done" /><span className="is-done" /></div>
+      {steps && <div className="steps-mini" aria-hidden="true"><span className="is-done" /><span className="is-done" /></div>}
       <h1 ref={headingRef} tabIndex={-1}>{t('backupTitle')}</h1>
       <div className="secret mt-16">
+        {notice && <Alert tone={notice === 'SENT' ? 'success' : 'warn'}>{t(`contactNotice.${notice}`)}</Alert>}
         <p className="small mb-0"><strong>{t('backupWarningStrong')}</strong> {t('backupWarning')}</p>
         <ul className="code-grid" aria-label={t('backupListLabel')}>
           {codes.map((code) => <li key={code}><code>{code}</code></li>)}

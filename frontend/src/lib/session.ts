@@ -20,9 +20,9 @@ export type SessionUser = {
 };
 
 /** How far a session is from staff access; only Admin and Moderator sessions need an authenticator. */
-export type MfaStatus = 'NOT_REQUIRED' | 'ENROLLMENT_REQUIRED' | 'VERIFICATION_REQUIRED' | 'VERIFIED';
+export type MfaStatus = 'NOT_REQUIRED' | 'ENROLLMENT_REQUIRED' | 'VERIFICATION_REQUIRED' | 'REPLACEMENT_REQUIRED' | 'VERIFIED';
 
-const mfaStatuses: readonly unknown[] = ['NOT_REQUIRED', 'ENROLLMENT_REQUIRED', 'VERIFICATION_REQUIRED', 'VERIFIED'];
+const mfaStatuses: readonly unknown[] = ['NOT_REQUIRED', 'ENROLLMENT_REQUIRED', 'VERIFICATION_REQUIRED', 'REPLACEMENT_REQUIRED', 'VERIFIED'];
 
 export type SessionResponse = {
   accessToken: string;
@@ -43,8 +43,11 @@ export type MfaEnrollment = {
   expiresIn: number;
 };
 
-/** The MFA-verified session that replaces a restricted one, with the backup codes issued once at enrollment. */
-export type EnrolledSession = SessionResponse & { backupCodes: string[] };
+/** The outcome of notifying a verified contact after an authenticator replacement. */
+export type ContactNotice = 'SENT' | 'FAILED' | 'NO_VERIFIED_CONTACT' | 'NOT_CONFIGURED';
+
+/** The verified session and once-only backup codes, plus a notice outcome only after replacement. */
+export type EnrolledSession = SessionResponse & { backupCodes: string[]; contactNotice: ContactNotice | null };
 
 export type SessionClient = {
   signIn(identifier: string, password: string): Promise<SessionResponse>;
@@ -60,6 +63,10 @@ export type SessionClient = {
   verifyMfaEnrollment(enrollmentId: string, code: string): Promise<EnrolledSession>;
   /** Checks an authenticator code and replaces the restricted session with an MFA-verified one. */
   verifyMfa(code: string): Promise<SessionResponse>;
+  /** Exchanges a password-only session and one backup code for restricted replacement enrollment. */
+  redeemBackupCode(code: string): Promise<SessionResponse>;
+  /** Replaces unused backup codes after a fresh authenticator code, retaining the verified session. */
+  regenerateBackupCodes(code: string): Promise<string[]>;
   /** Ends the in-memory session at once, then asks the API to revoke the refresh cookie. */
   signOut(): Promise<void>;
 };
@@ -121,7 +128,10 @@ function projectEnrolledSession(body: unknown): EnrolledSession | undefined {
   if (!session || !isRecord(body) || !Array.isArray(body.backupCodes)) return undefined;
   const backupCodes: unknown[] = body.backupCodes;
   if (backupCodes.length !== backupCodeCount || !backupCodes.every(isBackupCode)) return undefined;
-  return { ...session, backupCodes: backupCodes.filter(isBackupCode) };
+  const contactNotice = body.contactNotice;
+  if (contactNotice !== undefined && contactNotice !== 'SENT' && contactNotice !== 'FAILED'
+      && contactNotice !== 'NO_VERIFIED_CONTACT' && contactNotice !== 'NOT_CONFIGURED') return undefined;
+  return { ...session, backupCodes: backupCodes.filter(isBackupCode), contactNotice: contactNotice ?? null };
 }
 
 function isEnrollmentLifetime(value: unknown): value is number {
@@ -267,7 +277,7 @@ export function createSessionClient(options: ApiClientOptions = {}): SessionClie
   }
 
   /**
-   * Posts an authenticator code with the restricted session's Bearer token. On success the API revokes that session
+   * Posts an authenticator or backup code with the restricted session's Bearer token. On success the API revokes that session
    * and sets a new refresh cookie, so the exchange holds the cookie-mutation lock, and the new access token makes the
    * results of requests that used the old one stale, as a sign-in does.
    */
@@ -323,6 +333,27 @@ export function createSessionClient(options: ApiClientOptions = {}): SessionClie
     return replaceWithVerifiedSession('/api/auth/mfa/verify', { code }, projectSession);
   }
 
+  function redeemBackupCode(code: string): Promise<SessionResponse> {
+    return replaceWithVerifiedSession('/api/auth/mfa/recovery', { backupCode: code }, projectSession);
+  }
+
+  function regenerateBackupCodes(code: string): Promise<string[]> {
+    return authenticatedFetch('/api/auth/mfa/backup-codes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code }),
+    }, async (response) => {
+      if (!response.ok) throw await boundedError(response);
+      if (response.status !== 200) throw invalidResponse(response.status);
+      const body = await readJsonResponse(response);
+      if (!isRecord(body) || !Array.isArray(body.backupCodes)
+          || body.backupCodes.length !== backupCodeCount || !body.backupCodes.every(isBackupCode)) {
+        throw invalidResponse(response.status);
+      }
+      return body.backupCodes.filter(isBackupCode);
+    });
+  }
+
   async function signOut(): Promise<void> {
     // Results of pending requests, refreshes and sign-ins become stale, so none can revive the session.
     sessionEpoch += 1;
@@ -341,7 +372,8 @@ export function createSessionClient(options: ApiClientOptions = {}): SessionClie
     });
   }
 
-  return { signIn, restoreSession, authenticatedFetch, startMfaEnrollment, verifyMfaEnrollment, verifyMfa, signOut };
+  return { signIn, restoreSession, authenticatedFetch, startMfaEnrollment, verifyMfaEnrollment, verifyMfa,
+    redeemBackupCode, regenerateBackupCodes, signOut };
 }
 
 export const {
@@ -351,5 +383,7 @@ export const {
   startMfaEnrollment,
   verifyMfaEnrollment,
   verifyMfa,
+  redeemBackupCode,
+  regenerateBackupCodes,
   signOut,
 } = createSessionClient();

@@ -88,7 +88,7 @@ export function signInByApi(api: APIRequestContext, identifier: string, password
 }
 
 /** The MFA status a session response reports (plan T1 actor table; Ticket 06). */
-export type MfaStatus = 'NOT_REQUIRED' | 'ENROLLMENT_REQUIRED' | 'VERIFICATION_REQUIRED' | 'VERIFIED';
+export type MfaStatus = 'NOT_REQUIRED' | 'ENROLLMENT_REQUIRED' | 'VERIFICATION_REQUIRED' | 'REPLACEMENT_REQUIRED' | 'VERIFIED';
 
 /**
  * The profile routes for one User over the API, with a Bearer token renewed once the 10-second test access token is

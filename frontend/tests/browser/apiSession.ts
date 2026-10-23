@@ -4,8 +4,8 @@ import { freshCode, registerThroughApi, syntheticCustomer, type Authenticator, t
 import { accessTokenLifetimeMs, apiUrl, checkedTarget, grantRole, makeSuperAdmin, psql, rolledBackSql } from './testApi';
 import { totpCode, totpStep } from './totp';
 
-/** The staff-MFA status a sign-in, refresh or verification reports. */
-export type MfaStatus = 'NOT_REQUIRED' | 'ENROLLMENT_REQUIRED' | 'VERIFICATION_REQUIRED' | 'VERIFIED';
+/** The staff-MFA status a sign-in, refresh, verification or backup-code recovery (Ticket 09) reports. */
+export type MfaStatus = 'NOT_REQUIRED' | 'ENROLLMENT_REQUIRED' | 'VERIFICATION_REQUIRED' | 'REPLACEMENT_REQUIRED' | 'VERIFIED';
 
 /** The four roles, lowest to highest; a User holds exactly one, with every permission of the roles below it (S6). */
 export const roleOrder = ['CUSTOMER', 'DELIVERY_PERSON', 'MODERATOR', 'ADMIN'] as const;
@@ -43,12 +43,15 @@ export const userSummaryFields = ['createdAt', 'id', 'role', 'staffMfa', 'superA
 export const userRolesFields = [...userSummaryFields, 'assignableRoles', 'roleChanges', 'rolesVersion', 'self'].sort();
 export const roleChangeFields = ['actorUsername', 'newRole', 'occurredAt', 'oldRole'];
 
-/** The backend's `messages.properties` text for each error code the role API answers with. */
+/** The backend's `messages.properties` text for each error code the role and staff-MFA APIs answer with. */
 export const errorMessages = {
   INVALID_REQUEST: 'The request is invalid.',
   AUTHENTICATION_REQUIRED: 'Authentication is required.',
   ACCESS_DENIED: 'Access is denied.',
   MFA_REQUIRED: 'Authenticator verification is required.',
+  MFA_CODE_INVALID: 'The code is invalid or has already been used.',
+  MFA_ENROLLMENT_STALE: 'This setup has expired. Start again.',
+  TOO_MANY_ATTEMPTS: 'Too many attempts. Try again later.',
   NOT_FOUND: 'The requested resource was not found.',
   STALE_UPDATE: 'This record changed after you opened it. Reload and try again.',
   ROLE_CHANGE_REFUSED: 'This role change is not allowed.',
@@ -118,13 +121,15 @@ export class ApiSession {
   /** Enrolls an authenticator through the API from a session that must set one up; the session becomes VERIFIED. */
   async enroll(): Promise<Authenticator> {
     expect(this.mfa).toBe('ENROLLMENT_REQUIRED');
-    const started = await this.call('POST', '/api/auth/mfa/enrollment', { token: this.accessToken });
+    const started = await this.call('POST', '/api/auth/mfa/enrollment');
     expect(started.status(), 'enrollment start').toBe(201);
+    expect(started.headers()['cache-control'], 'enrollment start caching').toBe('no-store');
     const { enrollmentId, secret } = await started.json() as { enrollmentId: string; secret: string };
     const step = totpStep();
     const verified = await this.call('POST', '/api/auth/mfa/enrollment/verify',
-      { token: this.accessToken, data: { enrollmentId, code: totpCode(secret, step) } });
+      { data: { enrollmentId, code: totpCode(secret, step) } });
     expect(verified.status(), 'enrollment verification').toBe(200);
+    expect(verified.headers()['cache-control'], 'enrollment verification caching').toBe('no-store');
     this.accept(await verified.json() as SessionBody);
     expect(this.mfa).toBe('VERIFIED');
     return { key: secret, step };
@@ -134,7 +139,7 @@ export class ApiSession {
   async verify(authenticator: Authenticator): Promise<void> {
     expect(this.mfa).toBe('VERIFICATION_REQUIRED');
     const response = await this.call('POST', '/api/auth/mfa/verify',
-      { token: this.accessToken, data: { code: await freshCode(authenticator) } });
+      { data: { code: await freshCode(authenticator) } });
     expect(response.status(), 'code verification').toBe(200);
     this.accept(await response.json() as SessionBody);
     expect(this.mfa).toBe('VERIFIED');

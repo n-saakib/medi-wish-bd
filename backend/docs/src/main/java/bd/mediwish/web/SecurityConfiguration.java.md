@@ -11,7 +11,7 @@ The static RoleHierarchy bean declares ADMIN > MODERATOR > DELIVERY_PERSON > CUS
 | Matcher | Routes and use |
 | --- | --- |
 | `CREDENTIAL_ROUTES` | `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/password-reset/request` and `/password-reset/confirm`: public, CSRF-exempt and body-limited. Reset routes ignore Bearer headers. Percent-encoded spellings match as Spring MVC routes them. |
-| `MFA_ROUTES` | `POST /api/auth/mfa/enrollment`, `/enrollment/verify` and `/mfa/verify`: Bearer-only, so CSRF-exempt, and body-limited like sign-in. |
+| `MFA_ROUTES` | `POST /api/auth/mfa/enrollment`, `/api/auth/mfa/enrollment/verify`, `/api/auth/mfa/verify`, `/api/auth/mfa/recovery` and `/api/auth/mfa/backup-codes`: Bearer-only, CSRF-exempt and body-limited like sign-in. |
 | `USER_PROFILE_READ`, `USER_PROFILE_COMMANDS` | Ticket 11: `GET /api/user/me/profile`; `PUT /api/user/me/profile` and `POST`/`DELETE /api/user/me/mobile-change`. |
 | `USER_EMAIL_VERIFICATION_COMMANDS` | `POST /api/user/me/email-verification` and `/email-verification/confirm`: owner-bound Bearer commands, CSRF-exempt and limited to 16 KiB. |
 | `ADMIN_USER_SEARCH`, `ADMIN_USER_DETAIL`, `ADMIN_ROLE_CHANGE` | Ticket 08: `POST /api/admin/users/search`, `GET /api/admin/users/*` and `PUT /api/admin/users/*/roles`. |
@@ -29,8 +29,9 @@ The catalog wildcard captures exactly one segment and excludes pricing. Explicit
   | --- | --- |
   | ERROR dispatches, `GET`/`HEAD` liveness and readiness, `POST /api/auth/register\|login\|refresh\|logout`, `GET /api/auth/csrf` | permitted |
   | `POST /api/auth/password-reset/request`, `/password-reset/confirm` | permitted; Bearer headers ignored |
-  | `POST /api/auth/mfa/enrollment`, `/enrollment/verify` | authority `StaffAccessPolicy.MFA_ENROLLMENT` |
-  | `POST /api/auth/mfa/verify` | authority `StaffAccessPolicy.MFA_CHALLENGE` |
+  | `POST /api/auth/mfa/enrollment`, `/enrollment/verify` | either authority `StaffAccessPolicy.MFA_ENROLLMENT` or `StaffAccessPolicy.MFA_REPLACEMENT` |
+  | `POST /api/auth/mfa/verify`, `/recovery` | authority `StaffAccessPolicy.MFA_CHALLENGE` |
+  | `POST /api/auth/mfa/backup-codes` | role `MODERATOR` or higher |
   | `GET /api/staff/me` | role `MODERATOR` or higher (only a verified staff session has a staff role) |
   | `GET /api/user/me` | role `CUSTOMER` or higher |
   | profile read/commands and email-verification commands | explicitly `CUSTOMER`, `DELIVERY_PERSON`, `MODERATOR` or `ADMIN` (correct with or without the hierarchy) |
@@ -47,7 +48,6 @@ The catalog wildcard captures exactly one segment and excludes pricing. Explicit
 
 `SecurityConfigurationTest` covers the Secure-cookie profile rule, credentialed CORS limits and methods, the local origin fallback, wildcard rejection, the `XSRF-TOKEN` cookie attributes, the role hierarchy, exact catalog wildcard separation, and that the profile, admin and catalog routes are Bearer-protected Bearer commands. `BoundedCorsFilterTest`, `AuthRequestBodyLimitFilterTest`, `ProfileBodyLimitTest` and `BearerAccessTokenFilterTest` cover the installed filters. `CatalogSecurityTest` runs the production chain over every catalog route for each actor, including oversized-body authorization order and `PUT` preflight. `SessionIT`, `HealthIT`, `ProfileIT`, `RoleAuthorizationIT`, `StaffMfaIT`, `StaffMfaRegressionIT`, `StaffRoleIT` and `UserProfilePermissionIT` cover CSRF, route rules, MFA and role denials and error statuses over real HTTP and PostgreSQL.
 
-
 Ticket 15 adds explicit staff image reads/commands for verified Admin and Moderator. Multipart uploads bypass the JSON limiter and are bounded globally at 3 MiB per file and 4 MiB request. Alt/order JSON remains limited after authorization. Public images permit GET/HEAD only; denied image-path methods get ACCESS_DENIED even for anonymous callers with valid CSRF. All error responses remain no-store.
 ## Ticket 16 discount routes
 
@@ -57,3 +57,11 @@ Ticket 12 adds USER_ADDRESSES_READ and USER_ADDRESS_COMMANDS to Bearer-protected
 Ticket 05 adds public reset POSTs to the credential matcher and verification POSTs to bearer authentication, CSRF exemptions, 16 KiB limits and all-role owner permissions. Restricted staff still require MFA. Reset routes ignore bearer headers.
 
 `RecoverySecurityTest` executes the production chain over every new recovery route and actor, exact body-size boundaries and browser preflights. Controller tests cover strict wire shapes and domain error mappings.
+
+## Ticket 09 recovery authorization
+
+The explicit POST matchers `MFA_RECOVERY_ROUTE` and `MFA_BACKUP_CODES_ROUTE` join `MFA_ROUTES`, so both receive Bearer authentication, the CSRF exemption and the shared 16 KiB JSON limit. Recovery accepts only `MFA_CHALLENGE`; regeneration accepts verified Moderator or Admin through the existing hierarchy. Both enrollment routes also accept `MFA_REPLACEMENT`. Replacement sessions have no role authority and cannot verify the old factor, redeem another backup code or regenerate codes. Restricted callers denied by authorization receive `MFA_REQUIRED`; other authenticated callers receive `ACCESS_DENIED`.
+
+`StaffMfaSecurityTest` runs the production chain without PostgreSQL across all five MFA POST routes and eight actor states. It checks admission, bounded errors, Bearer challenges, CSRF exemption, no-store and request correlation. Valid JSON padded to exactly 16 KiB passes on both new routes; one additional byte is refused before the probe controller. `SecurityConfigurationTest` also guards exact POST matcher membership and the absence of role inheritance for all three restricted authorities.
+
+T4 verification on 2026-10-19, working tree over `13968d1`: `.\mvnw.cmd -o test -Dtest=StaffMfaControllerTest,StaffMfaSecurityTest,SecurityConfigurationTest` passed 39 focused tests; `.\mvnw.cmd -o test` passed all 1,033 backend units with zero failures/errors/skips at 15:00:14 +06:00. Before security wiring, the production-chain/matcher gate had 10 expected failures in 31 tests. A separate controlled controller mutation had 2 expected failures in 8 tests for relaxed exact-key validation and null contactNotice serialization. Exact original controller bytes were restored before the full gate. These targeted faults are distinguished from missing-method compile-red; real HTTP/PostgreSQL/API acceptance is recorded separately.

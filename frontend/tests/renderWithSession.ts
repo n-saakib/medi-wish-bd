@@ -24,6 +24,8 @@ export function createSessionSource(overrides: Partial<SessionSource> = {}): Ses
     startMfaEnrollment: vi.fn().mockRejectedValue(new ApiError('AUTHENTICATION_REQUIRED', 401)),
     verifyMfaEnrollment: vi.fn().mockRejectedValue(new ApiError('AUTHENTICATION_REQUIRED', 401)),
     verifyMfa: vi.fn().mockRejectedValue(new ApiError('AUTHENTICATION_REQUIRED', 401)),
+    redeemBackupCode: vi.fn().mockRejectedValue(new ApiError('AUTHENTICATION_REQUIRED', 401)),
+    regenerateBackupCodes: vi.fn().mockRejectedValue(new ApiError('AUTHENTICATION_REQUIRED', 401)),
     ...overrides,
   };
 }

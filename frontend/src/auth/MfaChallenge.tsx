@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { errorMessageKey } from '../lib/api';
 import { Alert } from '../shell/Alert';
 import { authenticatorCodeDigits, AuthenticatorCodeField } from './AuthenticatorCodeField';
+import { BackupCodeDialog } from './BackupCodeDialog';
 import { useSession } from './SessionProvider';
 import { useSessionRedirect } from './sessionRedirect';
 
@@ -21,6 +22,9 @@ export function MfaChallenge() {
   const [feedback, setFeedbackState] = useState<Feedback>(null);
   const [submitting, setSubmitting] = useState(false);
   const codeRef = useRef<HTMLInputElement>(null);
+  const lostRef = useRef<HTMLButtonElement>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const lockedInDialog = useRef(false);
   const feedbackSerial = useRef(0);
   const locked = feedback?.locked ?? false;
 
@@ -76,6 +80,17 @@ export function MfaChallenge() {
           {submitting ? t('verifying') : t('verify')}
         </button>
       </form>
+      {!locked && <p className="center small muted mt-24">
+        <button type="button" ref={lostRef} className="link-btn" onClick={() => setDialogOpen(true)}>{t('lostPhone')}</button>
+      </p>}
+      <BackupCodeDialog open={dialogOpen}
+        onClose={(dialogLocked) => { lockedInDialog.current = dialogLocked; setDialogOpen(false); }}
+        // The dialog shares the challenge throttle; show its lock here only once the dialog has closed.
+        returnFocus={() => {
+          if (!lockedInDialog.current) return lostRef.current?.focus();
+          lockedInDialog.current = false;
+          setFeedback(tErrors('tooManyAttempts'), true);
+        }} />
       <p className="center mt-24">
         <button className="btn btn-ghost" type="button" onClick={() => void session.signOut()} disabled={session.signingOut}>
           {session.signingOut ? t('signingOut') : t('signOut')}

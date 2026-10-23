@@ -194,6 +194,14 @@ flowchart LR
   `staff_bootstrap` singleton and the security audit log. Only
   `AuthController` and `StaffMfaController` use `RefreshCookieAdapter`;
   session services never see cookie policy.
+- `StaffMfaAttempts` supplies shared User/session checks, throttling, TOTP matching
+  and failure outcomes inside the MFA service transaction; callers supply the time,
+  and failures are thrown only after counted failures commit.
+- `StaffMfaRecoveryService` coordinates backup-code consumption, verified factor replacement
+  and regeneration under the same User lock. Argon2 runs before its transaction;
+  factor/codes/session changes commit together. `StaffReplacementNotices` runs after
+  commit through the profile-guarded notification adapter, so delivery failure cannot
+  undo a replacement or suppress its fresh codes.
 - `StaffAccessPolicy` is the single decision on staff assurance: it turns
   roles, the active factor and the session's evidence into an `MfaStatus` and
   authorities. `CurrentUserAuthentication` applies it on every request and
@@ -254,9 +262,20 @@ as a unit and the cookie is not cleared.
 A password sign-in by an `ADMIN` or `MODERATOR` gets a restricted session of
 10 minutes: `mfa: ENROLLMENT_REQUIRED` (authority `MFA_ENROLLMENT`) without an
 active factor, `VERIFICATION_REQUIRED` (authority `MFA_CHALLENGE`) with one.
-`expiresIn` never exceeds the time left in the session. Every other route
-answers `403 MFA_REQUIRED` to that session. Customers and Delivery Persons
+`expiresIn` never exceeds the time left in the session. Protected staff/data routes
+answer `403 MFA_REQUIRED` to that session. Customers and Delivery Persons
 get `NOT_REQUIRED` and their full session as before.
+
+A challenge session can redeem an unused backup code through `POST /api/auth/mfa/recovery`.
+That revokes the presenting session and issues a factor-bound `REPLACEMENT_REQUIRED`
+session with only `MFA_REPLACEMENT`, a fixed ten-minute expiry and enrollment access.
+Verified replacement atomically revokes the old factor, deletes its codes, revokes all
+sessions and activates the new factor with a new verified session and ten codes.
+First-enrollment verification rejects any retained replacement binding as stale.
+The post-commit notice adds `contactNotice` only to replacement verification responses.
+A verified Admin or Moderator can regenerate unused codes with a fresh TOTP through
+`POST /api/auth/mfa/backup-codes`; consumed rows and sessions remain. Both new routes
+require exact JSON key sets and share the existing Bearer/CSRF/body-size boundaries.
 
 ```mermaid
 sequenceDiagram
@@ -334,7 +353,7 @@ sequenceDiagram
 | --- | --- | --- |
 | Startup | Spring Boot, JPA validation and Liquibase. Auth lifetimes must be at least one second; the JWT key is built once from a Base64 secret of at least 32 bytes; non-Secure cookies and the loopback CORS fallback require every active profile to be `local` or `test`; hosted CORS origins must be explicit. The MFA key `APP_AUTH_MFA_SECRET_KEY` must decode to exactly 32 bytes and every MFA setting must be present and positive. `SecurityConfiguration` loads only in a servlet web application, so the non-web first-Admin command starts without it. | `MediWishApplication`, `application.yaml`, `AuthProperties`, `JwtAccessTokenCodec`, `MfaSecretCipher`, `SecurityConfiguration` |
 | Authentication | HS256 access JWTs requiring `iss`, `aud`, `sub`, `sid`, `jti`, `iat`, `exp` and `typ=access+jwt`; opaque refresh families stored as SHA-256 digests; Bearer and cookie serialization at the edge. Staff sessions add TOTP verification recorded on the session. | `bd.mediwish.auth`, `BearerAccessTokenFilter` |
-| Authorization | `GET /api/user/me` needs any of the four roles; `GET /api/staff/me` needs `ADMIN` or `MODERATOR`; the enrollment routes need `MFA_ENROLLMENT` and `/api/auth/mfa/verify` needs `MFA_CHALLENGE`. Persisted roles become authorities only through `StaffAccessPolicy`, so a staff role applies only to an MFA-verified session. A denied staff session that still needs MFA gets `403 MFA_REQUIRED`, any other denial `403 ACCESS_DENIED`. Unknown routes are denied. | `SecurityConfiguration`, `StaffAccessPolicy`, `CurrentUserAuthentication`, `UserRole` |
+| Authorization | `GET /api/user/me` needs any of the four roles; `GET /api/staff/me` needs `ADMIN` or `MODERATOR`; the enrollment routes need `MFA_ENROLLMENT` or `MFA_REPLACEMENT`; `/api/auth/mfa/verify` and `/api/auth/mfa/recovery` need `MFA_CHALLENGE`; `/api/auth/mfa/backup-codes` needs the Moderator role (including Admin through the role hierarchy). Persisted roles become authorities only through `StaffAccessPolicy`, so a staff role applies only to an MFA-verified session. A denied staff session that still needs MFA gets `403 MFA_REQUIRED`, any other denial `403 ACCESS_DENIED`. Unknown routes are denied. | `SecurityConfiguration`, `StaffAccessPolicy`, `CurrentUserAuthentication`, `UserRole` |
 | CSRF/CORS | Cookie CSRF with `XSRF-TOKEN`/`X-XSRF-TOKEN`; explicit credentialed origins with `Authorization`, `Content-Type` and `X-XSRF-TOKEN` headers; rejected origins use the bounded envelope. | `SecurityConfiguration`, `BoundedCorsFilter` |
 | Error contract | `{ code, message, requestId }` with English messages; unmapped 4xx become `INVALID_REQUEST`, 429 `TOO_MANY_ATTEMPTS` and 5xx `INTERNAL_ERROR`. MFA adds `MFA_CODE_INVALID` (400), `MFA_REQUIRED` (403) and `MFA_ENROLLMENT_STALE` (409). Unreadable-JSON and persistence messages never reach responses or logs. | `ApiError`, `ApiErrors`, `ApiExceptionHandler`, `ApiErrorController` |
 | Correlation/privacy | One server-generated `X-Request-ID` on every response; default `no-store`, except successful attached public image GET/HEAD uses `public, max-age=60`. Logs contain status and correlation only. Security audit events take the request ID from the MDC and store no codes, seeds or usernames. | `RequestCorrelationFilter`, `SecurityAuditLog` |

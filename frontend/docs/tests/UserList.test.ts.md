@@ -9,3 +9,5 @@ Component units through real session/translation providers and the real session 
 Staff UI correction (2026-10-08): an `ACCESS_DENIED` list shows the heading and the focused denial with no form, search field or table; the recover-on-another-search case now covers the generic error only.
 
 A pager regression checks that keyboard focus moves to Previous when Next loads the last page.
+
+Ticket 09 adds `REPLACEMENT_REQUIRED → /staff/mfa/enroll` to the existing guard table. A replacement session redirects to setup without requesting user-list or user-detail data.

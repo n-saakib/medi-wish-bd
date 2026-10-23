@@ -186,6 +186,7 @@ describe('UserRoleForm permissions and failures', () => {
   });
   it.each([
     ['NOT_REQUIRED', '/account'], ['ENROLLMENT_REQUIRED', '/staff/mfa/enroll'], ['VERIFICATION_REQUIRED', '/staff/mfa'],
+    ['REPLACEMENT_REQUIRED', '/staff/mfa/enroll'],
   ] as const)('redirects a %s session to %s before loading detail', async (mfa, target) => {
     const api = apiRoutes({ '/api/auth/refresh': () => Response.json(sessionBody('restricted', mfa)) });
     const page = await renderWithSession(createElement(UserRoleForm, { userId: detail.id }), createSessionClient({ fetch: api.fetch }));

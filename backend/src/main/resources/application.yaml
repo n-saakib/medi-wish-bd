@@ -52,6 +52,10 @@ server:
   max-http-request-header-size: 16KB
 
 app:
+  notification:
+    security:
+      adapter: ${APP_NOTIFICATION_SECURITY_ADAPTER:disabled}
+      timeout: ${APP_NOTIFICATION_SECURITY_TIMEOUT:PT5S}
   storage:
     provider: ${APP_STORAGE_PROVIDER:}
     local-root: ${APP_STORAGE_LOCAL_ROOT:}

@@ -70,14 +70,16 @@ class StaffMfaServiceTest {
         admin.replaceRole(UserRole.ADMIN);
         throttle = new StaffMfaThrottle(admin.id(), NOW);
         when(users.findByIdForUpdate(admin.id())).thenReturn(Optional.of(admin));
+        when(sessions.requireActive(SESSION_ID, admin.id(), NOW)).thenReturn(new SessionService.MfaEvidence(null, null, null));
         when(throttles.findById(admin.id())).thenReturn(Optional.of(throttle));
         when(factors.findActiveId(admin.id())).thenReturn(Optional.empty());
         when(passwords.encode(anyString())).thenAnswer(call -> "verifier:" + call.getArgument(0));
         var verified = new SessionService.SessionCredential(admin.id(), VERIFIED_SESSION_ID, "refresh",
-                NOW.plus(Duration.ofDays(30)), new SessionService.MfaEvidence(UUID.randomUUID(), NOW));
+                NOW.plus(Duration.ofDays(30)), new SessionService.MfaEvidence(UUID.randomUUID(), NOW, null));
         when(sessions.upgradeToMfa(any(), any())).thenReturn(verified);
         when(authentication.issue(admin, verified)).thenReturn(issued);
-        service = new StaffMfaService(users, factors, backupCodes, throttles, sessions, authentication, audit, cipher,
+        var attempts = new StaffMfaAttempts(users, sessions, throttles, cipher, audit, TestAuthSettings.properties());
+        service = new StaffMfaService(attempts, factors, backupCodes, throttles, sessions, authentication, audit, cipher,
                 passwords, TransactionOperations.withoutTransaction(), TestAuthSettings.properties(),
                 Clock.fixed(NOW, ZoneOffset.UTC), new SecureRandom());
     }
@@ -111,6 +113,20 @@ class StaffMfaServiceTest {
     }
 
     @Test
+    void replacementEnrollmentRequiresBindingToTheCurrentlyActiveFactor() {
+        UUID active = UUID.randomUUID();
+        when(factors.findActiveId(admin.id())).thenReturn(Optional.of(active));
+        when(sessions.requireActive(SESSION_ID, admin.id(), NOW))
+                .thenReturn(new SessionService.MfaEvidence(null, null, UUID.randomUUID()));
+        assertThatThrownBy(() -> service.startEnrollment(admin.id(), SESSION_ID)).isInstanceOf(MfaEnrollmentStaleException.class);
+        when(sessions.requireActive(SESSION_ID, admin.id(), NOW))
+                .thenReturn(new SessionService.MfaEvidence(null, null, active));
+        var enrollment = service.startEnrollment(admin.id(), SESSION_ID);
+        assertThat(enrollment.enrollmentId()).isNotNull();
+        verify(factors).deletePending(admin.id());
+    }
+
+    @Test
     void aUserWhoLostTheStaffRoleCannotUseMfaRoutes() {
         var customer = new User("alice_1", "01711111111", null, VALID_VERIFIER);
         when(users.findByIdForUpdate(customer.id())).thenReturn(Optional.of(customer));
@@ -133,6 +149,24 @@ class StaffMfaServiceTest {
         assertThat(pending.lastUsedStep()).isEqualTo(NOW_STEP);
         verify(sessions).upgradeToMfa(SESSION_ID, pending.id());
         verify(audit).record(SecurityAuditEvent.Type.MFA_ENROLLMENT_ACTIVATED, admin.id(), VERIFIED_SESSION_ID);
+    }
+
+    @Test
+    void aReplacementBindingCannotVerifyAsFirstEnrollmentAfterTheActiveFactorIsRevoked() {
+        var pending = pending(NOW.plus(Duration.ofMinutes(10)));
+        when(sessions.requireActive(SESSION_ID, admin.id(), NOW))
+                .thenReturn(new SessionService.MfaEvidence(null, null, UUID.randomUUID()));
+
+        assertThatThrownBy(() -> service.verifyEnrollment(admin.id(), SESSION_ID, pending.id(), Totp.code(SEED, NOW_STEP)))
+                .isInstanceOf(MfaEnrollmentStaleException.class);
+
+        assertThat(pending.lastUsedStep()).isEqualTo(-1);
+        assertThat(throttle.failedCount()).isZero();
+        verifyNoInteractions(backupCodes);
+        verify(sessions, never()).upgradeToMfa(any(), any());
+        var order = inOrder(users, sessions);
+        order.verify(users).findByIdForUpdate(admin.id());
+        order.verify(sessions).requireActive(SESSION_ID, admin.id(), NOW);
     }
 
     @Test

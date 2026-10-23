@@ -35,6 +35,9 @@ public class UserSession {
     @Column(name = "mfa_verified_at", updatable = false)
     private Instant mfaVerifiedAt;
 
+    @Column(name = "mfa_replacing_factor_id", updatable = false)
+    private UUID mfaReplacingFactorId;
+
     protected UserSession() {}
 
     public UserSession(UUID id, User user, Instant createdAt, Instant expiresAt) {
@@ -51,6 +54,13 @@ public class UserSession {
     public String revokedReason() { return revokedReason; }
     UUID mfaFactorId() { return mfaFactorId; }
     Instant mfaVerifiedAt() { return mfaVerifiedAt; }
+
+    UUID mfaReplacingFactorId() { return mfaReplacingFactorId; }
+
+    void markReplacing(UUID factorId) {
+        if (mfaVerifiedAt != null) throw new IllegalStateException("verified session cannot replace a factor");
+        mfaReplacingFactorId = factorId;
+    }
 
     public boolean revoked() { return revokedAt != null; }
 

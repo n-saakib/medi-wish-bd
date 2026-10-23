@@ -67,6 +67,12 @@ public class StaffMfaFactor {
         lastUsedStep = step;
     }
 
+    void revoke(Instant at) {
+        if (status != Status.ACTIVE) throw new IllegalStateException("only an active factor can be revoked");
+        status = Status.REVOKED;
+        revokedAt = at;
+    }
+
     void recordUse(long step) {
         lastUsedStep = step;
     }

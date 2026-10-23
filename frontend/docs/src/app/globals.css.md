@@ -54,3 +54,7 @@ The integrated stylesheet keeps one unchanged shared empty-slot rule and its hov
 ## Ticket 05 email recovery
 
 Ticket 05 adds the 44 px auth-link target, shares profile flex spacing with profile-status-row and aligns the resend action to the start of dialog actions. Existing focus tokens and responsive cards remain in use.
+
+Ticket 09 adds `.link-btn` for the challenge recovery trigger: inherited font, brand text, no border/background, hover underline and 44 px minimum height. It reuses the global amber focus ring. The modal reuses existing profile-dialog, row-between, profile-actions, input and button rules rather than importing unused prototype styles.
+
+`.input.mono` keeps the recovery field monospaced despite the later shared input font shorthand; it reuses the existing monospace font declaration.

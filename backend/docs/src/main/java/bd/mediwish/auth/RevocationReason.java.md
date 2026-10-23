@@ -22,7 +22,8 @@ Package-private enum naming why a session family was revoked. Its `code` is the 
 
 `ROLE_CHANGED` stores `role-changed`; RoleAssignmentService revokes every active target session with it in the same transaction as role replacement, version bump and audit.
 
-
 ## Ticket 05 recovery
 
 PASSWORD_RESET stores password-reset and revokes all owner sessions. EMAIL_CHANGED stores email-changed and revokes all owner sessions except the requesting one. Verification and unchanged/refused profile saves revoke nothing.
+
+Ticket 09 adds `MFA_REPLACEMENT_STARTED` (`mfa-replacement-started`) for the restricted session consumed with a backup code and `MFA_REPLACED` (`mfa-replaced`) for all sessions present at verified factor replacement. Both fit the existing VARCHAR(64) column; regeneration revokes no session.

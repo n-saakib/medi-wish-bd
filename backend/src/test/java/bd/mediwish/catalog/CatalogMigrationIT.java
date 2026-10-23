@@ -40,16 +40,18 @@ class CatalogMigrationIT {
             seedExistingIdentity(database, userId, sessionId, username, password);
             String userBefore = database.single("SELECT (to_jsonb(u) - 'email_verified_at')::text FROM users u WHERE id = ?",
                     String.class, userId);
-            String sessionBefore = database.single("SELECT to_jsonb(s)::text FROM user_sessions s WHERE id = ?",
+            String sessionBefore = database.single("SELECT (to_jsonb(s) - 'mfa_replacing_factor_id')::text FROM user_sessions s WHERE id = ?",
                     String.class, sessionId);
 
             migrate(database, false);
             assertThat(database.single("SELECT (to_jsonb(u) - 'email_verified_at')::text FROM users u WHERE id = ?", String.class, userId))
                     .as("the existing User is unchanged by catalog migration").isEqualTo(userBefore);
             assertThat(database.single("SELECT email_verified_at IS NULL FROM users WHERE id = ?", Boolean.class, userId)).isTrue();
-            assertThat(database.single("SELECT to_jsonb(s)::text FROM user_sessions s WHERE id = ?",
+            assertThat(database.single("SELECT (to_jsonb(s) - 'mfa_replacing_factor_id')::text FROM user_sessions s WHERE id = ?",
                     String.class, sessionId))
                     .as("the existing session is unchanged by catalog migration").isEqualTo(sessionBefore);
+            assertThat(database.single("SELECT mfa_replacing_factor_id IS NULL FROM user_sessions WHERE id = ?",
+                    Boolean.class, sessionId)).as("the new recovery binding defaults to null").isTrue();
             for (String table : new String[] {"product_categories", "products", "product_changes"}) {
                 assertThat(database.single("SELECT count(*) FROM " + table, Long.class)).as(table).isZero();
             }

@@ -27,7 +27,7 @@ Shared helpers for the Ticket 11 specs, [`profileApi.spec.ts`](profileApi.spec.t
 - **`ProfileApi`** — the profile routes for one User over a Playwright `APIRequestContext`:
   - Clients are made by `register`, `forUser` (an existing password User) and `onSession(api, customer, {accessToken, mfa})` (an existing session, such as an MFA-verified staff session; `api` must be that User's own request context, because it holds the session's refresh cookie).
   - The Bearer token is renewed once half of the 10-second test access token is spent. A password User signs in again. A session client calls `GET /api/auth/csrf` and then `POST /api/auth/refresh` with `X-XSRF-TOKEN`; the backend rotates the refresh token of the same session, so the MFA verification is kept, and the client checks that the answer names the same User with an unchanged `mfa` status. Concurrent calls share one renewal, because a replayed refresh cookie revokes the session.
-  - **`MfaStatus`** is the `mfa` value of a session answer.
+  - **`MfaStatus`** is the `mfa` value of a session answer, including Ticket 09's `REPLACEMENT_REQUIRED`.
   - `get`, `put(body, contentType)` and `stage(body, contentType)` send an object as JSON and a string as the raw body. `cancel` sends a DELETE.
   - `profile()` reads the profile and checks it. `save(edit)` puts the current values with the edit at the current version, preserving the stored email unless explicitly changed and supplying the fixture password for a normalized email change unless explicitly overridden.
 - **`expectNoStore(response)`** checks for the `no-store` directive.

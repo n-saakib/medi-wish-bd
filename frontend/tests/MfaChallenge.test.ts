@@ -23,8 +23,16 @@ installFakeLocks();
 const router = vi.hoisted(() => ({ replace: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => router, usePathname: () => '/staff/mfa' }));
 
-beforeEach(() => router.replace.mockClear());
-afterEach(unmountAll);
+beforeEach(() => {
+  router.replace.mockClear();
+  Object.defineProperty(HTMLDialogElement.prototype, 'showModal', { configurable: true, value() { this.setAttribute('open', ''); } });
+  Object.defineProperty(HTMLDialogElement.prototype, 'close', { configurable: true, value() { this.removeAttribute('open'); } });
+});
+afterEach(async () => {
+  await unmountAll();
+  delete (HTMLDialogElement.prototype as { showModal?: () => void }).showModal;
+  delete (HTMLDialogElement.prototype as { close?: () => void }).close;
+});
 
 const verified: SessionResponse = { accessToken: 'access-verified', user: signedInUser, mfa: 'VERIFIED' };
 
@@ -54,7 +62,7 @@ describe('MfaChallenge', () => {
     expect(input.maxLength).toBe(7);
     expect(requiredElement(page, 'form').getAttribute('method')).toBe('post');
     expect(page.querySelector('[role="alert"]')).toBeNull();
-    expect(page.textContent).not.toContain('backup code');
+    expect([...page.querySelectorAll('button')].some((button) => button.textContent === 'Lost your phone?')).toBe(true);
   });
 
   it('verifies the digits, disables Verify while busy and lands on the staff page', async () => {
@@ -112,9 +120,54 @@ describe('MfaChallenge', () => {
 
     const alert = requiredElement(page, '[role="alert"]');
     expect(alert.textContent).toBe('Too many attempts. Try again later.');
+    expect([...page.querySelectorAll('button')].some((button) => button.textContent === 'Lost your phone?')).toBe(false);
     expect(document.activeElement).toBe(alert);
     expect(requiredElement<HTMLInputElement>(page, '#mfa-challenge-code').disabled).toBe(true);
     expect(requiredElement<HTMLButtonElement>(page, 'button[type="submit"]').disabled).toBe(true);
+  });
+
+  it('locks the challenge after the backup-code dialog reaches the shared throttle lock', async () => {
+    const source = challengeSource({ redeemBackupCode: vi.fn().mockRejectedValue(new ApiError('TOO_MANY_ATTEMPTS', 429)) });
+    const page = await renderWithSession(createElement(MfaChallenge), source);
+    const lost = [...page.querySelectorAll('button')].find((button) => button.textContent === 'Lost your phone?')!;
+    await act(async () => lost.click());
+    const dialog = requiredElement<HTMLDialogElement>(page, 'dialog');
+    setInputValue(dialog, '#backup-code', 'ABCD-2345');
+    await submitForm(dialog);
+    await settle();
+    const cancel = [...dialog.querySelectorAll('button')].find((button) => button.textContent === 'Cancel')!;
+    await act(async () => cancel.click());
+
+    expect(dialog.open).toBe(false);
+    const alert = requiredElement(page, '[role="alert"]');
+    expect(alert.textContent).toBe('Too many attempts. Try again later.');
+    expect(document.activeElement).toBe(alert);
+    expect([...page.querySelectorAll('button')].some((button) => button.textContent === 'Lost your phone?')).toBe(false);
+    expect(requiredElement<HTMLInputElement>(page, '#mfa-challenge-code').disabled).toBe(true);
+    expect(requiredElement<HTMLButtonElement>(page, 'form:not([noValidate]) button[type="submit"]').disabled).toBe(true);
+  });
+
+  it('locks the challenge when the locked backup-code dialog is closed natively', async () => {
+    const source = challengeSource({ redeemBackupCode: vi.fn().mockRejectedValue(new ApiError('TOO_MANY_ATTEMPTS', 429)) });
+    const page = await renderWithSession(createElement(MfaChallenge), source);
+    const lost = [...page.querySelectorAll('button')].find((button) => button.textContent === 'Lost your phone?')!;
+    await act(async () => lost.click());
+    const dialog = requiredElement<HTMLDialogElement>(page, 'dialog');
+    setInputValue(dialog, '#backup-code', 'ABCD-2345');
+    await submitForm(dialog);
+    await settle();
+    await act(async () => {
+      dialog.close();
+      dialog.dispatchEvent(new Event('close'));
+    });
+
+    expect(dialog.open).toBe(false);
+    const alert = requiredElement(page, '[role="alert"]');
+    expect(alert.textContent).toBe('Too many attempts. Try again later.');
+    expect(document.activeElement).toBe(alert);
+    expect([...page.querySelectorAll('button')].some((button) => button.textContent === 'Lost your phone?')).toBe(false);
+    expect(requiredElement<HTMLInputElement>(page, '#mfa-challenge-code').disabled).toBe(true);
+    expect(requiredElement<HTMLButtonElement>(page, 'form:not([noValidate]) button[type="submit"]').disabled).toBe(true);
   });
 
   it.each([
@@ -160,4 +213,23 @@ describe('MfaChallenge', () => {
 
     expect(router.replace).toHaveBeenCalledWith('/staff/mfa/enroll');
   });
+});
+
+it('opens the backup dialog and goes to replacement enrollment after a real-client exchange', async () => {
+  const api = apiRoutes({
+    '/api/auth/refresh': () => Response.json(sessionBody('restricted', 'VERIFICATION_REQUIRED')),
+    '/api/auth/mfa/recovery': () => Response.json(sessionBody('replacement', 'REPLACEMENT_REQUIRED')),
+  });
+  const page = await renderWithSession(createElement(MfaChallenge), createSessionClient({ fetch: api.fetch }));
+  const lost = [...page.querySelectorAll('button')].find((button) => button.textContent === 'Lost your phone?')!;
+  expect(lost).toBeDefined();
+  await act(async () => lost.click());
+  const dialog = requiredElement<HTMLDialogElement>(page, 'dialog');
+  expect(dialog.open).toBe(true);
+  expect(document.activeElement).toBe(requiredElement(dialog, '#backup-code'));
+  setInputValue(dialog, '#backup-code', 'abcd 2345');
+  await submitForm(dialog);
+  await settle();
+  expect(await api.requests.at(-1)!.json()).toEqual({ backupCode: 'ABCD-2345' });
+  expect(router.replace).toHaveBeenCalledWith('/staff/mfa/enroll');
 });

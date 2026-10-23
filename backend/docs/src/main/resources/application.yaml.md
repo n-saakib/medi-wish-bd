@@ -33,11 +33,11 @@ The file supports local startup, packaged startup and health checks with the sam
 
 `HealthIT` verifies health groups, database readiness, bounded responses, recovery and migration persistence. `ConfigurationIT` proves malformed datasource settings fail without printing a password. `DependencyCompatibilityIT` verifies the profile-specific overrides remain restricted. `AuthPropertiesTest` and `MfaSecretCipherTest` cover the MFA settings, and `FirstAdminProvisioningIT` the provisioning property.
 
-
 Ticket 15 configures servlet multipart at 3 MB file / 4 MB request and Tomcat swallow at 8 MB so oversized and unauthorized uploads yield readable bounded errors. Storage provider/root/namespace are mandatory runtime settings. The local adapter is confined to exclusively local/test serving profiles.
 app.addresses.change-limits.per-week and per-month configure successful address changes (5 and 10). Both values must be present integers at least one; service construction rejects invalid limits. Limits change through configuration and restart, with no schema change.
-
 
 ## Ticket 05 recovery
 
 `app.auth.recovery` supplies the accepted code, issue, address and password-check limits and requires APP_AUTH_RECOVERY_CODE_KEY. `app.mail.transport` defaults to disabled; APP_MAIL_CAPTURE_DIRECTORY configures controlled directory capture, while sender identity and configuration belong to the deferred SES adapter.
+
+`app.notification.security.adapter` reads APP_NOTIFICATION_SECURITY_ADAPTER with disabled as the default; timeout reads APP_NOTIFICATION_SECURITY_TIMEOUT with PT5S as the default. NotificationProperties rejects unknown adapters and timeouts outside one to five seconds. Capture delivery is confined to exclusively local/test profiles; this configuration supplies no real SMS provider.

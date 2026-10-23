@@ -20,3 +20,5 @@ Inlining avoids an icon font or extra requests. Add an icon here only when a pag
 Checked by `npm run typecheck` and exercised indirectly by the header and form tests; on 2026-09-26 both passed, and again on 2026-09-27 with `logout`, which the staff header test exercises.
 
 Ticket 15 adds the design's image glyph for upload controls and labelled failure placeholders.
+
+Ticket 09 adds only the design `x` path for the recovery dialog Close button. The surrounding labelled icon button supplies its accessible name; the SVG remains decorative.

@@ -1,0 +1,29 @@
+# `tests/browser/staffMfaRecoveryApi.spec.ts`
+
+Source: [`../../../tests/browser/staffMfaRecoveryApi.spec.ts`](../../../tests/browser/staffMfaRecoveryApi.spec.ts)
+
+## Purpose
+
+Ticket 09's API tests: `POST /api/auth/mfa/recovery`, replacement enrollment through `/api/auth/mfa/enrollment` and `/verify`, and `POST /api/auth/mfa/backup-codes`, called directly against the test API with [`apiSession.ts`](apiSession.ts.md) and [`staffMfaRecoverySupport.ts`](staffMfaRecoverySupport.ts.md), and checked against the database. Tag `@t09-T4` (extra tags `@security`, `@concurrency`, `@cross-08-09`, `@cross-06-09`). Written before the feature; the tests fail until T2's services and T4's routes are in the built jar.
+
+## Tests
+
+- **Replacement session (E2E-09-20, 21):** a backup code turns a password-only session into a `REPLACEMENT_REQUIRED` session with exactly the session body, a refresh cookie of at most 600 seconds and a 10-minute row bound to the still-active factor; the code records the session that used it; the restricted token is revoked; the replacement token reaches no staff, profile or other MFA route (`403 MFA_REQUIRED`); refresh never extends the expiry. The actor table: anonymous `401`, Customer and DeliveryPerson `403 ACCESS_DENIED`, restricted sessions `403 MFA_REQUIRED`, verified staff `403 ACCESS_DENIED` on `/recovery` and enrollment; no refused call spends a code or counts a failure.
+- **Input (E2E-09-22–24):** strict bodies, malformed codes, `text/plain` (`415`) and 17 KiB bodies on both new routes give `INVALID_REQUEST` and are never counted; lower case, spaces and an absent separator are accepted.
+- **Wrong codes and throttle (E2E-09-25–27):** a wrong, spent or another User's code gets one identical counted `400 MFA_CODE_INVALID`; TOTP, backup-code and regeneration failures share one throttle; the fifth failure is `429`, and a correct code under the lock is refused and not spent.
+- **Parallel submissions (E2E-09-28, 29):** one code submitted together from two sign-ins recovers exactly once (three rounds); the same session cannot use a code twice, in sequence or when submitted together (`401`). These browser requests do not guarantee transaction overlap; the planned PostgreSQL integration gate must prove the race under controlled overlap.
+- **Replacement (E2E-09-30–34):** a start creates a pending factor beside the active one and a restart replaces it; the old authenticator still signs in (P3); a stale enrollment id is `409`; a verified replacement revokes the old factor, deletes its codes, revokes every session (`mfa-replaced`), refuses earlier bearer tokens and refresh cookies, rejects a fresh unused code from the old authenticator, audits in order and issues 10 new codes with `contactNotice`; a first enrollment's body is unchanged; no verified mobile gives `NO_VERIFIED_CONTACT`; of two recovery sessions the later start wins and revokes the other. Session rows and refused refreshes prove revocation. The earlier bearer tokens may expire during code hashing and notice delivery, so their `401` checks prove refusal but cannot independently distinguish revocation from expiry. The required backend I1 integration check must prove old access and refresh sessions fail while access tokens remain valid.
+- **Abandoned and stale (E2E-09-35, 36):** an expired replacement refuses requests sent with the original replacement bearer and its refresh cookie, the old authenticator works, the used code stays used and the next start deletes the abandoned pending factor. After a Ticket 10-style factor revocation the session refreshes as `ENROLLMENT_REQUIRED`, and verifying the pending factor must be refused (`403` or `409`), never activating it.
+- **Roles (E2E-09-37–39):** a Ticket 08 role change during recovery revokes the replacement, keeps the factor and never restores the role; a change between start and verify refuses verification sent with the original replacement bearer; a role removed with SQL leaves requests using that bearer `403 ACCESS_DENIED`. These bearer checks bypass helper auto-refresh so each request tests the intended state transition. Revoked bearer `401` checks may also reflect token expiry; database session state and refused refresh provide the revocation evidence.
+- **Super Admin and regeneration (E2E-09-40, 41):** the Super Admin self-recovers and stays Super Admin (P11); regeneration with a fresh TOTP code replaces only unused codes, keeps the spent row and every session (including an existing replacement session, checked by row and refresh), and refuses a replayed step.
+- **Secrets (E2E-09-42):** no backup code, key, token, password, username or contact in the API log or audit rows; submitted TOTPs are also absent from the API log. Error responses omit the submitted malformed backup codes. The log scan covers this test's requests and matches six-digit TOTPs only as standalone values to avoid unrelated numeric substrings. The scans include the initial verified bearer, the password-only bearer, the intermediate `REPLACEMENT_REQUIRED` bearer captured immediately after redemption, and the final verified bearer.
+
+## Known plan gap
+
+E2E-09-36 encodes the plan's "never `VERIFIED`" rule. As planned, the verify of a session downgraded to `ENROLLMENT_REQUIRED` goes to Ticket 06's `verifyEnrollment`, which would activate the pending factor; the implementation needs a refusal for sessions that still carry `mfa_replacing_factor_id` (plan §9).
+
+## Running
+
+Build the backend jar, then `npm run test:browser -- --grep "@t09-T4" --project chrome`.
+
+The same-session sequential replay checks the captured bearer age before its refusal. Full replacement refreshes both existing verified sessions after redemption/setup, then checks bearer freshness and bearer/refresh refusal immediately after verify, before SQL/audit probes. This distinguishes revocation from the harness’s ten-second access-token expiry.

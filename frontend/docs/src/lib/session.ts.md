@@ -8,8 +8,8 @@ The browser session client. It keeps the short-lived access token in module memo
 
 ## Interface
 
-- `createSessionClient({ baseUrl?, fetch? })` creates a client; tests inject `fetch`. The module also exports one default client's `signIn`, `restoreSession`, `authenticatedFetch`, `startMfaEnrollment`, `verifyMfaEnrollment`, `verifyMfa` and `signOut`, and the types `MfaStatus`, `RestoredSession`, `MfaEnrollment` and `EnrolledSession`.
-- `signIn(identifier, password)` posts `{ identifier, password }` with `credentials: 'include'` and returns `{ accessToken, user, mfa }`. `mfa` must be `NOT_REQUIRED`, `ENROLLMENT_REQUIRED`, `VERIFICATION_REQUIRED` or `VERIFIED`, otherwise the response is `INVALID_RESPONSE`. Other response fields are ignored.
+- `createSessionClient({ baseUrl?, fetch? })` creates a client; tests inject `fetch`. The module also exports one default client's `signIn`, `restoreSession`, `authenticatedFetch`, `startMfaEnrollment`, `verifyMfaEnrollment`, `verifyMfa`, `redeemBackupCode`, `regenerateBackupCodes` and `signOut`, and the types `MfaStatus`, `RestoredSession`, `MfaEnrollment` and `EnrolledSession`.
+- `signIn(identifier, password)` posts `{ identifier, password }` with `credentials: 'include'` and returns `{ accessToken, user, mfa }`. `mfa` must be `NOT_REQUIRED`, `ENROLLMENT_REQUIRED`, `VERIFICATION_REQUIRED`, `REPLACEMENT_REQUIRED` or `VERIFIED`, otherwise the response is `INVALID_RESPONSE`. Other response fields are ignored.
 - `restoreSession()` fetches a CSRF token and calls refresh once. It returns `{ user, mfa }` when the cookie is accepted and `null` for a `204` (no refresh cookie). A `401` (expired or revoked cookie) and every other failure are rethrown as `ApiError`.
 - `authenticatedFetch(path, init, readResponse)` resolves `path` against the API base URL and rejects any other origin before fetching. Without an in-memory token it refreshes first. It sends the Bearer token and returns what `readResponse` returns. A `401` is refreshed and retried once. A `401` after that single refresh drops the token and rejects with `AUTHENTICATION_REQUIRED` (`401`) without calling the reader.
 - `startMfaEnrollment()` posts `{}` to `/api/auth/mfa/enrollment` through `authenticatedFetch` and requires `201`. It returns `{ enrollmentId, secret, otpauthUri, expiresIn }`: a UUID, a 32-character base32 key, an `otpauth://totp/` URI of at most 512 characters and a whole number of seconds from 1 to 86400. Anything else is `INVALID_RESPONSE`.
@@ -28,3 +28,11 @@ The CSRF token comes from `GET /api/auth/csrf` and is echoed as `X-XSRF-TOKEN`; 
 ## Verification
 
 [`tests/session.test.ts`](../../tests/session.test.ts.md) covers each operation, restore `204`/`401`/other failures, refreshing before a request without a token, the single retry, the lock and its in-tab fallback, stale-result guards around sign-out, the MFA status on sign-in and restore, enrollment start and verification (bounds, Bearer and cookie use, token replacement, error codes, the lock and a verify queued behind sign-out), the timeouts and storage privacy, without a live backend.
+
+## Backup-code recovery and regeneration (Ticket 09)
+
+- `redeemBackupCode(code)` uses the existing session-exchange operation to POST `{ backupCode: code }` to `/api/auth/mfa/recovery`. The restricted Bearer token, credentialed refresh-cookie exchange and cookie-mutation lock are preserved. Success stores the replacement token and invalidates earlier requests; the returned `REPLACEMENT_REQUIRED` status is recognized on both sign-in and restore. A refused code or lockout retains the session, while a `401` drops its token.
+- `ContactNotice` is `SENT`, `FAILED`, `NO_VERIFIED_CONTACT` or `NOT_CONFIGURED`. Enrollment results project those values into `EnrolledSession.contactNotice`; an absent field becomes `null` for first enrollment. An explicit `null`, unknown value or wrong type is `INVALID_RESPONSE`. No extra response fields are retained.
+- `regenerateBackupCodes(code)` POSTs `{ code }` with the current Bearer token to `/api/auth/mfa/backup-codes`. It requires HTTP 200 and exactly ten codes matching the existing backup-code response pattern. It returns only the codes and retains the verified session; malformed results are `INVALID_RESPONSE` and bounded API errors propagate.
+
+The client does not normalize input: the recovery dialog uses `backupCodeInput` before requesting an exchange. Codes and notice results are returned to the caller and never persisted by this module.

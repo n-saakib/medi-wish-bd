@@ -106,8 +106,10 @@ class SecurityConfigurationTest {
         assertThat(hierarchy.getReachableGrantedAuthorities(java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_ADMIN"))))
                 .extracting(org.springframework.security.core.GrantedAuthority::getAuthority)
                 .containsExactlyInAnyOrder("ROLE_ADMIN", "ROLE_MODERATOR", "ROLE_DELIVERY_PERSON", "ROLE_CUSTOMER");
-        assertThat(hierarchy.getReachableGrantedAuthorities(java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority("MFA_ENROLLMENT"))))
-                .extracting(org.springframework.security.core.GrantedAuthority::getAuthority).containsExactly("MFA_ENROLLMENT");
+        for (String authority : new String[]{"MFA_ENROLLMENT", "MFA_CHALLENGE", "MFA_REPLACEMENT"}) {
+            assertThat(hierarchy.getReachableGrantedAuthorities(java.util.List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(authority))))
+                    .extracting(org.springframework.security.core.GrantedAuthority::getAuthority).containsExactly(authority);
+        }
     }
 
     @Test
@@ -146,6 +148,16 @@ class SecurityConfigurationTest {
             assertThat(SecurityConfiguration.BEARER_COMMAND_ROUTES.matches(request)).isEqualTo(!route[0].equals("GET"));
         }
         assertThat(SecurityConfiguration.USER_ADDRESS_COMMANDS.matches(new MockHttpServletRequest("PUT", "/api/user/me/addresses/id/extra"))).isFalse();
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/api/auth/mfa/recovery", "/api/auth/mfa/backup-codes"})
+    void recoveryAndRegenerationAreExplicitBearerMfaCommands(String path) {
+        var command = new MockHttpServletRequest("POST", path);
+        assertThat(SecurityConfiguration.MFA_ROUTES.matches(command)).isTrue();
+        assertThat(SecurityConfiguration.PROTECTED_ROUTES.matches(command)).isTrue();
+        assertThat(SecurityConfiguration.MFA_ROUTES.matches(new MockHttpServletRequest("GET", path))).isFalse();
+        assertThat(SecurityConfiguration.MFA_ROUTES.matches(new MockHttpServletRequest("POST", path + "/extra"))).isFalse();
     }
 
     private static CorsConfiguration cors(SecurityConfiguration configuration, String allowedOrigins) {

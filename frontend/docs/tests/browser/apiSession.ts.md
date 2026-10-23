@@ -4,7 +4,7 @@ Source: [`../../../tests/browser/apiSession.ts`](../../../tests/browser/apiSessi
 
 ## Purpose
 
-A test-only API client for the Ticket 08 specs; this file is not a spec. It calls the test API directly, as a script or `curl` would, so the specs can check the role routes' HTTP contract and act as a second person while a browser page stays open.
+A test-only API client for the Ticket 08 and Ticket 09 specs; this file is not a spec. `MfaStatus` includes Ticket 09's `REPLACEMENT_REQUIRED`, the status of a session that used a backup code and may only set up a new authenticator. It calls the test API directly, as a script or `curl` would, so the specs can check the role routes' HTTP contract and act as a second person while a browser page stays open.
 
 ## `ApiSession`
 
@@ -13,8 +13,8 @@ One signed-in User with their own cookie jar (the `MW_REFRESH` cookie) and the l
 - `ApiSession.signIn(user)` signs in through `POST /api/auth/login` (expects `200`) and records the token and its `mfa` status.
 - `refresh()` reads `GET /api/auth/csrf` and posts `/api/auth/refresh` with `X-XSRF-TOKEN`, as the browser does. A `200` replaces the token; the response is returned for the caller to check.
 - `call(method, path, { data, headers, token })` sends one request with `Authorization: Bearer`. It refreshes first when the token is within 4 seconds of the test API's 10-second lifetime, unless `token` is given: a specific token is sent as it is, and `null` sends no `Authorization` header.
-- `enroll()` sets up an authenticator for an `ENROLLMENT_REQUIRED` session through `/api/auth/mfa/enrollment` and `/verify`; the session becomes `VERIFIED` and the returned `Authenticator` records the accepted step.
-- `verify(authenticator)` enters a [`freshCode`](support.ts.md) for a `VERIFICATION_REQUIRED` session.
+- `enroll()` sets up an authenticator for an `ENROLLMENT_REQUIRED` session through `/api/auth/mfa/enrollment` and `/verify`; it checks `Cache-Control: no-store` on both secret-bearing success responses. The session becomes `VERIFIED` and the returned `Authenticator` records the accepted step. Enrollment and verification calls refresh a near-expired token automatically.
+- `verify(authenticator)` enters a [`freshCode`](support.ts.md) for a `VERIFICATION_REQUIRED` session, refreshing a near-expired token automatically.
 - `tokenAgeMs()` and `dispose()`.
 
 ## Actors and role-API wrappers
@@ -28,7 +28,7 @@ One signed-in User with their own cookie jar (the `MW_REFRESH` cookie) and the l
 
 ## Assertions
 
-- `expectError(response, status, code)` checks the bounded envelope: exactly `code`, `message` and `requestId`; the backend's message for the code (`errorMessages`, including `STALE_UPDATE` and `ROLE_CHANGE_REFUSED`); `requestId` equal to `X-Request-ID`; and `Cache-Control: no-store`.
+- `expectError(response, status, code)` checks the bounded envelope: exactly `code`, `message` and `requestId`; the backend's message for the code (`errorMessages`, including `STALE_UPDATE`, `ROLE_CHANGE_REFUSED` and the staff-MFA codes `MFA_CODE_INVALID`, `MFA_ENROLLMENT_STALE` and `TOO_MANY_ATTEMPTS`); `requestId` equal to `X-Request-ID`; and `Cache-Control: no-store`.
 - `expectRevoked(session, rejectedRefresh?)` proves revocation, not expiry: the current token is younger than the lifetime minus one second, `/api/user/me` with it answers `401 AUTHENTICATION_REQUIRED`, and a refresh with the session's cookie answers `401`. Callers refresh the target just before the change, so the token is fresh. When a racing refresh already returned 401, the optional response must carry the exact bounded error and clear its cookie; the subsequent cookie-less refresh must return 204. A successful racing refresh still leaves its new cookie to be rejected with 401.
 - `expectActive(session)` expects `/api/user/me` to answer `200`.
 

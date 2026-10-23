@@ -38,7 +38,6 @@ Ticket 14 adds the exact messages: PRICE_REQUIRED = Add a price before activatin
 
 error.STALE_UPDATE (409) asks the caller to reload after a changed profile version. error.ACCOUNT_CLOSING (409) explains why a closing account cannot mutate its profile or pending mobile. Neither identifies a conflicting user or echoes private values.
 
-
 Ticket 15 adds externalized bounded messages for invalid images, image-count limits and unavailable storage.
 Ticket 16: error.DISCOUNT_ENDED = This discount has ended and can no longer be changed.; error.DISCOUNT_EXCEEDS_PRICE = The discount must be smaller than the product's selling price.
 Ticket 12 supplies the bounded full-book and change-limit English messages; neither includes address data or next-allowed dates.
@@ -46,3 +45,5 @@ Ticket 12 supplies the bounded full-book and change-limit English messages; neit
 Ticket 05 mail.* keys externalize verification/reset code subjects and 15-minute code bodies, plus code-free password/email-change notices. AccountMail substitutes only the transient code into {0}; delivery failures never log message values.
 
 Recovery errors use the accepted exact English messages for wrong/expired code, current-password email guard and missing saved email. Existing mail subject/body keys remain externalized.
+
+`notice.STAFF_AUTHENTICATOR_REPLACED` supplies the post-commit mobile notice with the formatted Asia/Dhaka timestamp. The message carries no username, code or link. Its apostrophe is doubled for MessageFormat so the rendered text preserves "wasn't". A ResourceBundleMessageSource unit test asserts the exact rendered notice.

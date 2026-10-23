@@ -12,9 +12,7 @@ Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` pas
 
 Ticket 08 tests password creation through the User id: shared lock before session save, current staff role chooses the restricted lifetime, and a deleted User creates no session.
 
-
 Ticket 05 supplies the required synthetic Recovery settings to direct AuthProperties construction; existing behavior and assertions stay unchanged.
-
 
 ## Ticket 05 recovery
 
@@ -23,3 +21,5 @@ The email-change regression checks that another active session is revoked with e
 ## Ticket 05 integration
 
 Password-session creation supplies the verified hash; the composed stale-proof regression lives in PasswordResetLoginRaceTest.
+
+Ticket 09 covers creation of fixed ten-minute replacement sessions, refresh preserving their absolute expiry and binding, refusal of revoked/expired presenting sessions, refusal to mark a verified family as replacing, and revoking every active family before one verified replacement is issued.

@@ -22,3 +22,5 @@ Ticket 08 pins id-only password-session delegation and issues from the locked Us
 ## Ticket 05 integration
 
 Password-session stubs now include the exact verified hash passed to the locked creation boundary.
+
+Ticket 09 adapts synthetic session evidence to `MfaEvidence(factorId, verifiedAt, replacingFactorId)` with a null replacement binding in these existing scenarios; their original behavior assertions remain unchanged.

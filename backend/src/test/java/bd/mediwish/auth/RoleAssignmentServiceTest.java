@@ -110,7 +110,7 @@ class RoleAssignmentServiceTest {
         admin.replaceRole(UserRole.CUSTOMER);
         when(users.findAllByIdForUpdate(anyCollection())).thenReturn(List.of(admin, target));
         when(sessions.requireActive(principal.sessionId(), admin.id(), NOW))
-                .thenReturn(new SessionService.MfaEvidence(FACTOR, NOW));
+                .thenReturn(new SessionService.MfaEvidence(FACTOR, NOW, null));
         assertThatThrownBy(() -> roles.changeRole(principal, target.id(), UserRole.MODERATOR, 0))
                 .isInstanceOf(AccessDeniedException.class);
         assertUnchanged();
@@ -128,7 +128,7 @@ class RoleAssignmentServiceTest {
     @Test
     void aSelfNoopUsesOneLockIdAndKeepsTheSession() {
         when(users.findAllByIdForUpdate(Set.of(admin.id()))).thenReturn(List.of(admin));
-        when(sessions.requireActive(principal.sessionId(), admin.id(), NOW)).thenReturn(new SessionService.MfaEvidence(FACTOR, NOW));
+        when(sessions.requireActive(principal.sessionId(), admin.id(), NOW)).thenReturn(new SessionService.MfaEvidence(FACTOR, NOW, null));
         when(factors.activeFactorIdOf(admin)).thenReturn(FACTOR);
         var result = roles.changeRole(principal, admin.id(), UserRole.ADMIN, 99);
         assertThat(result.self()).isTrue();
@@ -148,7 +148,7 @@ class RoleAssignmentServiceTest {
     }
     private void verifiedActor() {
         when(users.findAllByIdForUpdate(anyCollection())).thenReturn(List.of(admin, target));
-        when(sessions.requireActive(principal.sessionId(), admin.id(), NOW)).thenReturn(new SessionService.MfaEvidence(FACTOR, NOW));
+        when(sessions.requireActive(principal.sessionId(), admin.id(), NOW)).thenReturn(new SessionService.MfaEvidence(FACTOR, NOW, null));
         when(factors.activeFactorIdOf(admin)).thenReturn(FACTOR);
     }
 

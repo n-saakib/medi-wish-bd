@@ -142,6 +142,7 @@ describe('UserList states and filters', () => {
   });
   it.each([
     ['NOT_REQUIRED', '/account'], ['ENROLLMENT_REQUIRED', '/staff/mfa/enroll'], ['VERIFICATION_REQUIRED', '/staff/mfa'],
+    ['REPLACEMENT_REQUIRED', '/staff/mfa/enroll'],
   ] as const)('redirects a %s session to %s without requesting user data', async (mfa, target) => {
     const api = apiRoutes({ '/api/auth/refresh': () => Response.json(sessionBody('restricted', mfa)) });
     const page = await renderWithSession(createElement(UserList), createSessionClient({ fetch: api.fetch }));

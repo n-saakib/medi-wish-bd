@@ -25,3 +25,5 @@ Any failed step throws `AuthenticationRequiredException`. Role claims are never 
 ## Verification
 
 `CurrentUserAuthenticationTest` covers the active-session profile, roles and authorities, a staff session granted its roles only with evidence for the active factor, rejection of invalid tokens before repository access, revoked or expired sessions after the User lock/verifier validation but before factor lookup or authority evaluation, and unusable verifiers. `ConcurrentRoleChangeIT` forces Admin search/detail authentication versus promotion in both serial orders, proves actual PostgreSQL lock waiting and rejects the old token afterwards. `ProfileIT`, `RoleAuthorizationIT`, `StaffMfaIT` and `StaffMfaRegressionIT` cover it through real HTTP and PostgreSQL.
+
+Ticket 09 passes the current session replacement binding into policy evaluation on every request. A replacement principal has only `MFA_REPLACEMENT`, and a stale binding downgrades without ever granting a role authority.

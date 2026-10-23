@@ -6,6 +6,8 @@ enum RevocationReason {
     REFRESH_REPLAY("refresh-replay"),
     USER_UNAVAILABLE("user-unavailable"),
     MFA_VERIFIED("mfa-verified"),
+    MFA_REPLACEMENT_STARTED("mfa-replacement-started"),
+    MFA_REPLACED("mfa-replaced"),
     STAFF_PROVISIONED("staff-provisioned"),
     ROLE_CHANGED("role-changed"),
     PASSWORD_RESET("password-reset"),

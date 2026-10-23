@@ -12,3 +12,5 @@ Mounted jsdom coverage for [`BackupCodesPanel`](../src/auth/BackupCodesPanel.tsx
 - `Copy all` writes the codes one per line and shows `Copied`.
 - A denied clipboard, and a missing clipboard, show the copy-it-yourself alert and keep the codes visible.
 - `I’ve saved them` calls `onSaved` once and opens `/staff`. That the codes then disappear is covered in [`MfaEnrollment.test.ts`](MfaEnrollment.test.ts.md).
+
+Ticket 09 table-tests the four notice texts and success/warning tones. A regeneration presentation test confirms `steps={false}` omits enrollment progress.

@@ -13,3 +13,5 @@ Deterministic promotion versus bearer authentication is covered through real HTT
 Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` passed all 238 unit tests.
 
 Ticket 08 fixtures replace CUSTOMER with ADMIN; granted role authorities contain only ROLE_ADMIN, expanded by the shared hierarchy at route authorization. Existing assurance/revocation behavior remains covered.
+
+Ticket 09 adapts synthetic session evidence to `MfaEvidence(factorId, verifiedAt, replacingFactorId)` with a null replacement binding in these existing scenarios; their original behavior assertions remain unchanged.

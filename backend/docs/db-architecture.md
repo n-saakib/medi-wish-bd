@@ -7,7 +7,8 @@ design claim for tables that belong to later tickets.
 **Last reviewed:** 2026-10-19<br/>
 **Current scope:** Ticket 01 health baseline, Ticket 02 shared User
 registration/RBAC foundation, Ticket 03 durable password sessions and Ticket 06
-staff MFA, first-Admin bootstrap and security audit events, plus Ticket 05 verified secondary-email recovery, Ticket 08 single-role assignment and audit, Ticket 11 Customer profile and staged mobile changes, Ticket 12 saved addresses, Ticket 14 catalog, Ticket 15 image metadata and Ticket 16 Discounts.<br/>
+staff MFA, first-Admin bootstrap and security audit events, plus Ticket 05 verified secondary-email recovery, Ticket 08 single-role assignment and audit, Ticket 11 Customer profile and staged mobile changes, Ticket 12 saved addresses, Ticket 14 catalog, Ticket 15 image metadata and Ticket 16 Discounts; Ticket 09 adds replacement-session binding and backup-code consumption evidence.<br/>
+
 **Schema source of truth:** [`src/main/resources/db/changelog/db.changelog-master.yaml`](../src/main/resources/db/changelog/db.changelog-master.yaml)<br/>
 **Runtime rule:** Liquibase owns schema changes; Hibernate runs with
 `ddl-auto: validate` and must not create or alter tables. Unique
@@ -85,6 +86,7 @@ erDiagram
         VARCHAR_64 revoked_reason "RevocationReason code"
         UUID mfa_factor_id FK "nullable; set null when the factor is deleted"
         TIMESTAMPTZ mfa_verified_at "nullable; with mfa_factor_id"
+        UUID mfa_replacing_factor_id FK "nullable; requires unverified session"
     }
 
     SESSION_REFRESH_TOKENS {
@@ -116,6 +118,7 @@ erDiagram
         VARCHAR_255 code_verifier "Argon2 verifier only"
         TIMESTAMPTZ created_at
         TIMESTAMPTZ consumed_at
+        UUID consumed_session_id "present exactly when consumed; no FK"
     }
 
     STAFF_MFA_THROTTLE {
@@ -189,10 +192,10 @@ substitute.
 | `account_code_limits` | `bd.mediwish.auth.AccountCodeLimit` | Opaque key primary key; required window start/last instant; nonnegative attempts; age index; no User FK | Address UPSERT is atomic; User-locked issue/password counters are independent key domains. |
 | `user_mobile_changes` | `bd.mediwish.user.MobileChange` | UUID primary key; unique non-null `user_id` with `fk_user_mobile_changes_user` and `ON DELETE CASCADE`; non-null `new_mobile` and `requested_at` | A single staged replacement mobile per User. It does not become the active number until internal verified activation. |
 | `user_roles` | `User.roles` via `@ElementCollection` | Primary key `user_id`; cascading User FK; role-name check; deferred exactly-one-role triggers | Role assignments used by Spring Security for current authorization. |
-| `user_sessions` | `bd.mediwish.auth.UserSession` | UUID primary key; cascading `user_id` FK; non-null lifecycle timestamps; nullable revocation fields; nullable `mfa_factor_id` (`fk_user_sessions_mfa_factor`, `ON DELETE SET NULL`) and `mfa_verified_at`; user/revocation and expiry indexes | Durable refresh-session family whose revocation is checked before bearer authorization. The MFA columns are the session's assurance: staff roles apply only while they name the User's active factor. |
+| `user_sessions` | `bd.mediwish.auth.UserSession` | UUID primary key; cascading `user_id` FK; non-null lifecycle timestamps; nullable revocation fields; nullable `mfa_factor_id` (`fk_user_sessions_mfa_factor`, `ON DELETE SET NULL`) and `mfa_verified_at`; nullable `mfa_replacing_factor_id` (`ON DELETE SET NULL`) requires `mfa_verified_at IS NULL`; user/revocation and expiry indexes | Durable refresh-session family whose revocation is checked before bearer authorization. The MFA columns are the session's assurance: staff roles apply only while they name the User's active factor. |
 | `user_session_refresh_tokens` | `bd.mediwish.auth.UserSessionRefreshToken` | UUID primary key; cascading session FK; unique token digest; unique `(session_id, generation)`; session/expiry index; nullable consumed timestamp | One row per refresh generation; consumed rows remain for replay detection. |
 | `staff_mfa_factors` | `bd.mediwish.auth.StaffMfaFactor` | UUID primary key; `fk_staff_mfa_factors_user` with `ON DELETE CASCADE`; `ck_staff_mfa_factors_status` limits `status` to `PENDING`, `ACTIVE`, `REVOKED`; partial unique indexes `uq_staff_mfa_active` and `uq_staff_mfa_pending` on `user_id`; non-null ciphertext, nonce and `last_used_step` (default `-1`) | A staff User's TOTP authenticator: at most one active and one pending. The seed is stored only sealed with AES-256-GCM. |
-| `staff_mfa_backup_codes` | `bd.mediwish.auth.StaffMfaBackupCode` | UUID primary key; `fk_staff_mfa_backup_codes_factor` with `ON DELETE CASCADE`; `idx_staff_mfa_backup_codes_factor`; non-null `code_verifier`; nullable `consumed_at` | Argon2 verifiers of the ten backup codes issued at enrollment. |
+| `staff_mfa_backup_codes` | `bd.mediwish.auth.StaffMfaBackupCode` | UUID primary key; `fk_staff_mfa_backup_codes_factor` with `ON DELETE CASCADE`; `idx_staff_mfa_backup_codes_factor`; non-null `code_verifier`; nullable `consumed_at` and `consumed_session_id`, constrained to be present together; consumption session has no FK | Argon2 verifiers of the ten backup codes issued at enrollment. Atomic consumption records the presenting restricted session; replacement deletes all old codes, while regeneration deletes only unused codes. |
 | `staff_mfa_throttle` | `bd.mediwish.auth.StaffMfaThrottle` | `user_id` primary key and `fk_staff_mfa_throttle_user` with `ON DELETE CASCADE`; non-null `failed_count` and `window_started_at`; nullable `locked_until` | Failed-code count per User; five failures in 15 minutes lock verification for 15 minutes. |
 | `staff_bootstrap` | `bd.mediwish.auth.StaffBootstrap` | `SMALLINT` primary key with `ck_staff_bootstrap_singleton` (`id = 1`); nullable `super_admin_user_id` (`fk_staff_bootstrap_super_admin`, `ON DELETE SET NULL`); non-null `provisioned_at` | Permanent singleton claimed once by the first-Admin command; it names the Super Admin and is never reopened. |
 | `security_audit_events` | `bd.mediwish.auth.SecurityAuditEvent` | UUID primary key; non-null `occurred_at` and `event_type`; nullable `subject_user_id` (`fk_security_audit_events_subject`, `ON DELETE SET NULL`), `session_id` (no FK) and `request_id`; `idx_security_audit_events_subject` on `(subject_user_id, occurred_at)` | Append-only record of staff MFA and provisioning events. It has no free-text column. |
@@ -282,9 +285,9 @@ substitute.
 | `011-staff-role-changes` | Converts legacy multi-role rows to each highest role, enforces exactly one role at commit, adds roles_version and user_role_changes. | Conversion preserves sessions; an actual assignment atomically versions, audits and revokes sessions. |
 | `012-user-profile` | Adds optional name/DOB, version and constrained account state to `users`; creates `user_mobile_changes` with a unique User FK and cascading delete. | Existing accounts default to active/version zero. The pending replacement is separate from the active mobile until verified activation. |
 | `014-role-required-search-path` | Pins the `user_role_required()` trigger function's `search_path` to the schema it was migrated into, then `pg_temp`. | The one-role check reads this schema's `users` and `user_roles` whatever the writing session's search path, so operator SQL neither fails nor checks same-named tables elsewhere. Fixes 011 forward without editing it. |
-
 | `017-saved-addresses` | Owner-scoped composite address keys, one-default partial uniqueness, bounded fields and owner/time-only successful-change rows with cascading User foreign keys. | User-locked Java rules enforce the cap and configurable Dhaka allowances without schema count constraints; saved addresses have no incoming references. |
-| `019-account-email-recovery` | Adds nullable users.email_verified_at with a consistency CHECK, purpose-bound account_codes and opaque account_code_limits. Existing Users are unverified. | Forward-only additive migration; 018 remains reserved for Ticket 09. No previous checksum or historical migration is edited. |
+| `019-account-email-recovery` | Adds nullable users.email_verified_at with a consistency CHECK, purpose-bound account_codes and opaque account_code_limits. Existing Users are unverified. | Forward-only additive migration; 018 supplies Ticket 09 staff MFA recovery. No previous checksum or historical migration is edited. |
+| `018-staff-mfa-recovery` | Adds nullable replacement-factor binding to sessions and consumption-session evidence to backup codes, with a factor FK and two consistency checks. | Existing rows keep nulls; replacement authorization carries no verified assurance and consumption evidence outlives sessions. |
 
 When a later ticket changes persistence, add a new append-only changeset and
 update this page in the same change. Do not rewrite an applied changeset to

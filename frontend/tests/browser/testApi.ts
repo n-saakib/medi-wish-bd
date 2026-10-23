@@ -295,6 +295,8 @@ export default async function startTestApi(): Promise<() => Promise<void>> {
         APP_STORAGE_PROVIDER: 'local',
         APP_STORAGE_LOCAL_ROOT: storageRoot,
         APP_STORAGE_NAMESPACE: namespace,
+        // Ticket 09: replacement notices are recorded in memory, never sent; the API refuses it outside local/test.
+        APP_NOTIFICATION_SECURITY_ADAPTER: 'capture',
       },
       stdio: ['ignore', log, log],
     });

@@ -21,3 +21,5 @@ On 2026-09-27 this suite passed as part of `npm run test:unit`. It does not repl
 ## Ticket 05 email recovery
 
 Checks the separate forgot-password link, unchanged password label and focused reset success notice, alongside existing session and MFA journeys.
+
+Ticket 09 adds `REPLACEMENT_REQUIRED` to the staff sign-in routing table, targeting `/staff/mfa/enroll`.

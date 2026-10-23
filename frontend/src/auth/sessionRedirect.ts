@@ -7,7 +7,7 @@ import { useSession, type SessionState } from './SessionProvider';
 
 /**
  * `guest` pages (sign-in, register) are only for signed-out visitors; `account` needs a session; the staff guards
- * each accept one staff-MFA status: `mfa-enrollment` a session that must set up an authenticator, `mfa-challenge`
+ * each accept their staff-MFA statuses: `mfa-enrollment` a session that must set up or replace an authenticator, `mfa-challenge`
  * one that must enter a code, and `staff` an MFA-verified session.
  */
 export type SessionGuard = 'guest' | 'account' | 'mfa-enrollment' | 'mfa-challenge' | 'staff';
@@ -17,6 +17,7 @@ const mfaHome: Record<MfaStatus, string> = {
   NOT_REQUIRED: '/account',
   ENROLLMENT_REQUIRED: '/staff/mfa/enroll',
   VERIFICATION_REQUIRED: '/staff/mfa',
+  REPLACEMENT_REQUIRED: '/staff/mfa/enroll',
   VERIFIED: '/staff',
 };
 
@@ -24,7 +25,7 @@ const mfaHome: Record<MfaStatus, string> = {
 const allowedStatuses: Record<SessionGuard, readonly MfaStatus[]> = {
   guest: [],
   account: ['NOT_REQUIRED', 'VERIFIED'],
-  'mfa-enrollment': ['ENROLLMENT_REQUIRED'],
+  'mfa-enrollment': ['ENROLLMENT_REQUIRED', 'REPLACEMENT_REQUIRED'],
   'mfa-challenge': ['VERIFICATION_REQUIRED'],
   staff: ['VERIFIED'],
 };

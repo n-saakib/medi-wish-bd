@@ -38,11 +38,13 @@ class ProfileMigrationIT {
             database.update("INSERT INTO user_session_refresh_tokens(id,session_id,generation,token_hash,issued_at,expires_at) "
                     + "VALUES(?, ?, 0, encode(sha256(convert_to(?, 'UTF8')), 'hex'), now(), now() + interval '30 days')",
                     refreshId, sessionId, refreshToken);
-            String previousSession = database.single("SELECT s::text FROM user_sessions s WHERE id = ?", String.class, sessionId);
+            String previousSession = database.single("SELECT (to_jsonb(s) - 'mfa_replacing_factor_id')::text FROM user_sessions s WHERE id = ?", String.class, sessionId);
             String previousRefresh = database.single("SELECT t::text FROM user_session_refresh_tokens t WHERE id = ?", String.class, refreshId);
             migrate(database, false);
             assertThat(database.single("SELECT password_hash FROM users WHERE id = ?", String.class, id)).isEqualTo(passwordHash);
-            assertThat(database.single("SELECT s::text FROM user_sessions s WHERE id = ?", String.class, sessionId)).isEqualTo(previousSession);
+            assertThat(database.single("SELECT (to_jsonb(s) - 'mfa_replacing_factor_id')::text FROM user_sessions s WHERE id = ?", String.class, sessionId)).isEqualTo(previousSession);
+            assertThat(database.single("SELECT mfa_replacing_factor_id IS NULL FROM user_sessions WHERE id = ?",
+                    Boolean.class, sessionId)).isTrue();
             assertThat(database.single("SELECT t::text FROM user_session_refresh_tokens t WHERE id = ?", String.class, refreshId)).isEqualTo(previousRefresh);
             assertThat(database.single("SELECT username FROM users WHERE id = ?", String.class, id)).isEqualTo("legacy.profile");
             assertThat(database.single("SELECT mobile FROM users WHERE id = ?", String.class, id)).isEqualTo("+8801700001234");

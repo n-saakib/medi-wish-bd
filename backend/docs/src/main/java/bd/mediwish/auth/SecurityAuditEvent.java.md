@@ -15,7 +15,8 @@ JPA mapping for one row of `security_audit_events`: random UUID, `occurred_at`, 
 
 Rows are written only through `SecurityAuditLog`. `StaffMfaIT` asserts the column list and event order; `FirstAdminProvisioningIT` and `StaffMfaRegressionIT` count events.
 
-
 ## Ticket 05 recovery
 
 Ticket 05 adds EMAIL_VERIFICATION_REQUESTED, EMAIL_VERIFIED, EMAIL_CHANGED, PASSWORD_RESET_REQUESTED, PASSWORD_RESET_COMPLETED, ACCOUNT_CODE_FAILED, ACCOUNT_CODE_LOCKED, CURRENT_PASSWORD_FAILED and EMAIL_DELIVERY_FAILED. They reuse the existing safe typed columns without a schema enum change.
+
+Ticket 09 appends `MFA_RECOVERY_STARTED`, `MFA_RECOVERY_CODE_REJECTED`, `MFA_FACTOR_REPLACED`, `MFA_BACKUP_CODES_REGENERATED` and the four `MFA_REPLACEMENT_NOTICE_*` outcomes (`SENT`, `FAILED`, `NO_VERIFIED_CONTACT`, `NOT_CONFIGURED`). Existing audit columns and VARCHAR(64) bounds are unchanged. Events carry only User/session/request identifiers and time, never factor/code IDs, contacts or notice text.

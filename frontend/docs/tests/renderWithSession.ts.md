@@ -9,7 +9,7 @@ Shared helper for the mounted component tests. It is not a test file itself (it 
 ## Exports
 
 - `signedInResponse` — the session client's sign-in result for the shared [`fakeApi`](fakeApi.ts.md) `signedInUser`, with MFA status `NOT_REQUIRED`.
-- `createSessionSource(overrides?)` — a signed-out `SessionSource` of Vitest mocks (sign-in succeeds, restore finds no session, sign-out succeeds, protected requests and the three MFA methods reject with a `401` `ApiError`); tests override individual methods, or pass a real session client instead.
+- `createSessionSource(overrides?)` — a signed-out `SessionSource` of Vitest mocks (sign-in succeeds, restore finds no session, sign-out succeeds, protected requests and the five MFA methods reject with a `401` `ApiError`); tests override individual methods, or pass a real session client instead.
 - `renderWithSession(element, source?)` — mounts the element in a new container, waits for the provider's restore to settle and returns the container.
 - `settle()` — runs `fakeApi`'s `flushTasks` inside `act`, so pending promises and the effects they trigger finish.
 - `unmountAll()` — unmounts every mounted root and clears the document body; used in `afterEach`.
@@ -26,3 +26,5 @@ Used by the `SessionProvider`, `SiteHeader`, `SignInForm`, `RegistrationForm`, `
 ## Verification
 
 Exercised by those nine suites; on 2026-09-27 `npm run verify` passed over this file.
+
+Ticket 09 adds default unauthorized mocks for backup-code redemption and regeneration. Individual tests override them or inject the real session client against `apiRoutes`.

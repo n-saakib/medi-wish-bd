@@ -10,7 +10,7 @@ Client component for `/staff/mfa`: the authenticator code a returning Admin or M
 
 ### `MfaChallenge()`
 
-Uses `useSessionRedirect('mfa-challenge')`. For a `VERIFICATION_REQUIRED` session it renders `Verify it’s you`, `Enter the code from your authenticator app.`, an `Authenticator code` [field](AuthenticatorCodeField.tsx.md), `Verify` and a `Sign out` button. For any other session it shows a checking status while the guard redirects.
+Uses `useSessionRedirect('mfa-challenge')`. For a `VERIFICATION_REQUIRED` session it renders `Verify it’s you`, `Enter the code from your authenticator app.`, an `Authenticator code` [field](AuthenticatorCodeField.tsx.md), `Verify`, a “Lost your phone?” button and `Sign out`. For any other session it shows a checking status while the guard redirects.
 
 ## Observable behavior
 
@@ -20,8 +20,10 @@ Uses `useSessionRedirect('mfa-challenge')`. For a `VERIFICATION_REQUIRED` sessio
 
 ## Design deviation
 
-The design's `Lost your phone?` link and backup-code dialog are omitted: backup-code sign-in belongs to Ticket 09. `Sign out` takes its place, so a staff member without the phone can leave the restricted session.
+Ticket 09 delivers the design's recovery dialog. “Lost your phone?” is a link-styled button opening a native dialog rather than a placeholder anchor and static backdrop. Exhausted-code help says “Contact the store owner,” following accepted P12. Existing Sign out remains available. The native modal and existing controls retain 44 px targets and amber focus styling.
 
 ## Verification
 
 [`tests/MfaChallenge.test.ts`](../../tests/MfaChallenge.test.ts.md).
+
+The recovery trigger is hidden after an authenticator throttle lockout. Because the dialog shares that throttle, a lockout reached in the dialog locks the challenge too once the dialog closes: the focused lock alert appears and the code field, Verify and the trigger are unavailable. Opening focuses the backup-code field; closing restores focus to the trigger, or after a dialog lockout to the lock alert while the trigger stays hidden. Successful redemption adopts replacement assurance and the existing guard opens `/staff/mfa/enroll`. See [`BackupCodeDialog`](BackupCodeDialog.tsx.md) for modal behavior.

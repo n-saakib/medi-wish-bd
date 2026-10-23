@@ -43,7 +43,7 @@ class AuthenticationServiceTest {
     private static final String DUMMY_VERIFIER = "dummy-verifier";
 
     private static final Instant NOW = Instant.parse("2026-09-27T10:00:00Z");
-    private static final SessionService.MfaEvidence PASSWORD_ONLY = new SessionService.MfaEvidence(null, null);
+    private static final SessionService.MfaEvidence PASSWORD_ONLY = new SessionService.MfaEvidence(null, null, null);
 
     @Mock UserRepository users;
     @Mock PasswordEncoder passwords;

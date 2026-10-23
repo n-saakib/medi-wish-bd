@@ -1,0 +1,3 @@
+# `StaffReplacementNoticesTest.java`
+
+Focused synthetic coordinator tests cover no verified contact, SENT and NOT_CONFIGURED outcome audits, private payload and Dhaka time formatting, the real resource-bundle notice template including its apostrophe, adapter failure, failing audit containment, lookup/message failures and bounded hanging sends. The timeout case uses latches and a one-second timeout, asserts cancellation interrupts the adapter, and bounds the whole call with JUnit. An interrupted caller still gets `FAILED` audited with the interrupt cleared during the audit and restored afterwards. Mockito isolates external delivery/database effects; transaction-boundary behavior also needs the recovery integration gate.

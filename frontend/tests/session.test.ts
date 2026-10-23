@@ -658,7 +658,7 @@ it('keeps the access token out of browser storage', async () => {
 });
 
 describe('staff MFA status', () => {
-  it.each(['NOT_REQUIRED', 'ENROLLMENT_REQUIRED', 'VERIFICATION_REQUIRED', 'VERIFIED'] as const)(
+  it.each(['NOT_REQUIRED', 'ENROLLMENT_REQUIRED', 'VERIFICATION_REQUIRED', 'REPLACEMENT_REQUIRED', 'VERIFIED'] as const)(
     'keeps the %s status from sign-in and refresh',
     async (mfa) => {
       const api = apiRoutes({
@@ -747,6 +747,7 @@ describe('MFA verification', () => {
       user: signedInUser,
       mfa: 'VERIFIED',
       backupCodes: syntheticBackupCodes,
+      contactNotice: null,
     });
     const verify = api.requests.at(-1);
     expect(lockHeld).toBe(true);
@@ -855,5 +856,113 @@ describe('MFA verification', () => {
     await signOut;
     await expect(verify).rejects.toMatchObject(authenticationRequired);
     expect(api.paths()).not.toContain('/api/auth/mfa/verify');
+  });
+});
+
+describe('backup-code recovery', () => {
+  it('exchanges the restricted token under the cookie lock and invalidates older requests', async () => {
+    const pending = deferred<Response>();
+    const { api, client } = await signedInClient({
+      '/api/auth/login': () => Response.json(sessionBody('access-old', 'VERIFICATION_REQUIRED')),
+      '/api/auth/mfa/recovery': () => {
+        expect(locks.held()).toBe(true);
+        return Response.json(sessionBody('access-replacement', 'REPLACEMENT_REQUIRED'));
+      },
+      '/api/user/me': (request) => request.headers.get('Authorization') === 'Bearer access-old'
+        ? pending.promise : Response.json(signedInUser),
+    });
+    const olderRequest = loadProfile(client);
+    await flushTasks();
+    await expect(client.redeemBackupCode('ABCD-2345')).resolves.toMatchObject({ mfa: 'REPLACEMENT_REQUIRED' });
+    const request = api.requests.at(-1)!;
+    expect(request.credentials).toBe('include');
+    expect(request.headers.get('Authorization')).toBe('Bearer access-old');
+    expect(request.headers.get('Content-Type')).toBe('application/json');
+    expect(await request.json()).toEqual({ backupCode: 'ABCD-2345' });
+    pending.resolve(Response.json(signedInUser));
+    await expect(olderRequest).rejects.toMatchObject(authenticationRequired);
+    await loadProfile(client);
+    expect(profileAuthorizations(api)).toEqual(['Bearer access-old', 'Bearer access-replacement']);
+  });
+
+  it.each([[400, 'MFA_CODE_INVALID'], [429, 'TOO_MANY_ATTEMPTS']] as const)(
+    'retains the challenge after a %s refusal', async (status, code) => {
+      const { api, client } = await signedInClient({
+        '/api/auth/mfa/recovery': () => Response.json({ code, message: 'server text' }, { status }),
+        '/api/user/me': () => Response.json(signedInUser),
+      });
+      await expect(client.redeemBackupCode('ABCD-2345')).rejects.toMatchObject({ code, status, message: '' });
+      await loadProfile(client);
+      expect(profileAuthorizations(api)).toEqual(['Bearer access-old']);
+    },
+  );
+
+  it('forgets a recovery token rejected with 401', async () => {
+    const { api, client } = await signedInClient({
+      '/api/auth/mfa/recovery': unauthorized,
+      '/api/auth/refresh': noContent,
+    });
+    await expect(client.redeemBackupCode('ABCD-2345')).rejects.toMatchObject(authenticationRequired);
+    await expect(loadProfile(client)).rejects.toMatchObject(authenticationRequired);
+    expect(api.paths()).toContain('/api/auth/refresh');
+    expect(api.paths()).not.toContain('/api/user/me');
+  });
+});
+
+describe('replacement notice projection', () => {
+  it.each(['SENT', 'FAILED', 'NO_VERIFIED_CONTACT', 'NOT_CONFIGURED', undefined] as const)(
+    'projects contactNotice %s without retaining extra response fields', async (contactNotice) => {
+      const { client } = await signedInClient({
+        '/api/auth/mfa/enrollment/verify': () => Response.json({
+          ...sessionBody('access-new', 'VERIFIED'), backupCodes: syntheticBackupCodes, contactNotice, extra: 'ignored',
+        }),
+      });
+      await expect(client.verifyMfaEnrollment('11111111-1111-4111-8111-111111111111', '123456'))
+        .resolves.toEqual({ accessToken: 'access-new', user: signedInUser, mfa: 'VERIFIED',
+          backupCodes: syntheticBackupCodes, contactNotice: contactNotice ?? null });
+    },
+  );
+  it.each(['MAYBE', null, 1, {}])('rejects invalid contactNotice %j', async (contactNotice) => {
+    const { client } = await signedInClient({
+      '/api/auth/mfa/enrollment/verify': () => Response.json({
+        ...sessionBody('access-new', 'VERIFIED'), backupCodes: syntheticBackupCodes, contactNotice,
+      }),
+    });
+    await expect(client.verifyMfaEnrollment('11111111-1111-4111-8111-111111111111', '123456'))
+      .rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 200 });
+  });
+});
+
+describe('backup-code regeneration', () => {
+  it('posts the TOTP with the current Bearer token and retains that session', async () => {
+    const { api, client } = await signedInClient({
+      '/api/auth/mfa/backup-codes': () => Response.json({ backupCodes: syntheticBackupCodes, extra: 'ignored' }),
+      '/api/user/me': () => Response.json(signedInUser),
+    });
+    await expect(client.regenerateBackupCodes('123456')).resolves.toEqual(syntheticBackupCodes);
+    const request = api.requests.at(-1)!;
+    expect(request.method).toBe('POST');
+    expect(request.headers.get('Authorization')).toBe('Bearer access-old');
+    expect(request.headers.get('Content-Type')).toBe('application/json');
+    expect(await request.json()).toEqual({ code: '123456' });
+    await loadProfile(client);
+    expect(profileAuthorizations(api)).toEqual(['Bearer access-old']);
+  });
+  it.each([
+    ['nine codes', syntheticBackupCodes.slice(1)],
+    ['eleven codes', [...syntheticBackupCodes, 'ABCD-2345']],
+    ['a malformed code', [...syntheticBackupCodes.slice(1), 'malformed']],
+    ['null codes', null],
+  ])('rejects %s', async (_, backupCodes) => {
+    const { client } = await signedInClient({
+      '/api/auth/mfa/backup-codes': () => Response.json({ backupCodes }),
+    });
+    await expect(client.regenerateBackupCodes('123456')).rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 200 });
+  });
+  it('rejects a non-200 success status', async () => {
+    const { client } = await signedInClient({
+      '/api/auth/mfa/backup-codes': () => Response.json({ backupCodes: syntheticBackupCodes }, { status: 201 }),
+    });
+    await expect(client.regenerateBackupCodes('123456')).rejects.toMatchObject({ code: 'INVALID_RESPONSE', status: 201 });
   });
 });

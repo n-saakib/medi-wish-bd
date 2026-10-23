@@ -31,3 +31,5 @@ Package-private application service for password sign-in, refresh and logout, an
 ## Ticket 05 integration
 
 Sign-in captures the exact verifier before PasswordEncoder.matches and passes that proof to the locked SessionService.create boundary. The latter rejects a verifier changed by a concurrent password reset; reading the hash again after matches would allow a stale proof.
+
+Ticket 09 session issuance passes `replacingFactorId` into the current-factor policy. The returned `expiresIn` remains capped by absolute session expiry, and refresh preserves the replacement binding without extending its lifetime.
