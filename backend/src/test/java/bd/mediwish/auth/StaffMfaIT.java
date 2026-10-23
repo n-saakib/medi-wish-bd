@@ -119,7 +119,11 @@ class StaffMfaIT {
     void anEnrolledAdminVerifiesEachSignInAndACodeIsAcceptedOnlyOnce() throws Exception {
         User admin = staff("ADMIN");
         var enrolled = api.enroll(admin);
-        String usedCode = AuthApi.totp(enrolled.secret(), 0);
+        // Enrollment hashes ten backup codes before returning and can cross a 30-second boundary.
+        // Replay the accepted step, rather than generating a possibly unused current-step code.
+        long acceptedStep = api.database().single("SELECT last_used_step FROM staff_mfa_factors "
+                + "WHERE user_id = ? AND status = 'ACTIVE'", Long.class, api.userId(admin));
+        String usedCode = Totp.code(Base32.decode(enrolled.secret()), acceptedStep);
 
         String challenge = api.session(api.login(admin.username(), admin.password()), "VERIFICATION_REQUIRED")
                 .accessToken();
