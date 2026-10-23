@@ -181,10 +181,17 @@ describe('storefront navigation and states', () => {
     expect(withoutCategory.querySelector('.catnav a[aria-current], .catnav a.is-active')).toBeNull();
   });
 
-  it('marks no category when a store 404 renders on a listed category URL', async () => {
-    navigation.pathname = `/categories/${category(1).id}`;
+  it('clears the category mark when the store 404 view replaces a marked page in the same tree', async () => {
+    let showNotFound: () => void = () => {};
+    function Pages() {
+      const [notFound, setNotFound] = useState(false);
+      showNotFound = () => setNotFound(true);
+      return notFound ? createElement(NotFoundView) : createElement(CurrentCategoryMark, { href: `/categories/${category(1).id}` });
+    }
     const view = await render(createElement(CurrentCategoryProvider, null,
-      createElement(CategoryNavLinks, { categories: [category(1), category(2)] }), createElement(NotFoundView)));
+      createElement(CategoryNavLinks, { categories: [category(1), category(2)] }), createElement(Pages)));
+    expect(view.querySelectorAll('nav a.is-active')).toHaveLength(1);
+    await act(async () => showNotFound());
     expect(view.querySelectorAll('nav a')).toHaveLength(3);
     expect(view.querySelector('nav a[aria-current], nav a.is-active')).toBeNull();
   });

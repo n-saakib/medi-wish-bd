@@ -6,7 +6,7 @@ import type { PublicCategory } from '../lib/storefront';
 export function Breadcrumb({ category, current }: { category: PublicCategory | null; current?: 'page' | 'true' }) {
   const t = useTranslations('storefront');
   return (
-    <nav className="breadcrumb" aria-label={t('breadcrumb')}>
+    <nav className="breadcrumb storefront-breadcrumb" aria-label={t('breadcrumb')}>
       <Link href="/">{t('home')}</Link>
       {category && <><span aria-hidden="true">/</span>
         <Link href={`/categories/${category.id}`} aria-current={current}>{category.name}</Link></>}

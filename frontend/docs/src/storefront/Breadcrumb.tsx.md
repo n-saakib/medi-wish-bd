@@ -4,7 +4,7 @@ Source: [`src/storefront/Breadcrumb.tsx`](../../../src/storefront/Breadcrumb.tsx
 
 ## Purpose
 
-Renders the localized breadcrumb shared by the category and Product details pages.
+Renders the localized breadcrumb shared by the category and Product details pages. The nav carries `breadcrumb storefront-breadcrumb`; the second class scopes the 44 px flex layout in `globals.css` to the storefront so staff breadcrumbs are unaffected.
 
 ## Behavior
 

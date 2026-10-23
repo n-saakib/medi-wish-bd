@@ -56,7 +56,16 @@ function focused(page: Page): Promise<Focused> {
       && style.outlineColor === 'rgb(227, 155, 46)';
     const label = (element.getAttribute('aria-label') ?? element.textContent ?? '').trim();
     const bar = element.closest('nav[aria-label="Categories"]');
-    if (bar) return { zone: 'bar', index: Array.from(bar.querySelectorAll('a')).indexOf(element as HTMLAnchorElement), label, visibleFocus };
+    if (bar) {
+      // The bar scrolls horizontally, so its padding box clips the ring unless the ring stays inside it vertically.
+      const ring = Math.max(0, Number.parseFloat(style.outlineWidth) + Number.parseFloat(style.outlineOffset));
+      const link = element.getBoundingClientRect();
+      const scroller = element.closest('.catnav-links') ?? bar;
+      const clipTop = scroller.getBoundingClientRect().top + scroller.clientTop;
+      const ringInside = link.top - ring >= clipTop && link.bottom + ring <= clipTop + scroller.clientHeight;
+      return { zone: 'bar', index: Array.from(bar.querySelectorAll('a')).indexOf(element as HTMLAnchorElement), label,
+        visibleFocus: visibleFocus && ringInside };
+    }
     const pager = element.closest('nav[aria-label="Pagination"]');
     if (pager) return { zone: 'pager', index: Array.from(pager.querySelectorAll('a')).indexOf(element as HTMLAnchorElement), label, visibleFocus };
     const card = element.closest('main article');

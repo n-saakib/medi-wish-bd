@@ -23,7 +23,7 @@ const t6 = { tag: regression };
 const cross14 = { tag: [...regression, '@cross-14-17'] };
 const cross16 = { tag: [...regression, '@cross-16-17'] };
 
-/** Every unique catalog text this spec seeds, for the final API-log privacy check (E2E-17-16). */
+/** Every unique catalog text this worker seeds, for the API-log privacy check (E2E-17-16), which also seeds its own. */
 const seededText: string[] = [];
 function remember<T extends string>(text: T): T {
   seededText.push(text);
@@ -389,8 +389,27 @@ test.describe('E2E-17-17 scheduled Discount', () => {
   });
 });
 
-test('E2E-17-16 the API log holds none of this spec\'s seeded catalog text', t6, async () => {
-  expect(seededText.length, 'this worker seeded catalog text').toBeGreaterThan(0);
-  const log = apiLog();
+test('E2E-17-16 the API log holds none of the catalog text this worker seeded, its own fixture included', t6, async ({
+  browser, actors, api,
+}) => {
+  // Seeds and reads its own text so the check holds when run alone; text seeded earlier by this worker is checked too.
+  const admin = await actors('admin');
+  const { category, products: [product] } = await seedCategory(admin, 1, { name: remember(`Logged ${token()}`) });
+  remember(product.name);
+  for (const path of [`/products/${product.id}`, `/categories/${category.id}`]) {
+    expect((await serverHtml(browser, path)).status, `public page ${path}`).toBe(200);
+  }
+  // The direct read comes last; its correlated status line marks that the log holds this test's requests.
+  const read = await publicApi(api).product(product.id);
+  await expectPublicJson(read);
+  const requestId = read.headers()['x-request-id'];
+  let log = '';
+  await expect.poll(() => {
+    log = apiLog();
+    return log.split(/\r?\n/).filter((line) => line.startsWith('{')).some((line) => {
+      const record = JSON.parse(line) as { requestId?: string; message?: string };
+      return record.requestId === requestId && record.message === 'HTTP response status=200';
+    });
+  }, { message: 'the last public read has its correlated status log', timeout: 10_000 }).toBe(true);
   for (const text of seededText) expect(log.includes(text), 'seeded catalog text in the API log').toBe(false);
 });
