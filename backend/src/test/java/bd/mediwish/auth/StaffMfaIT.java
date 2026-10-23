@@ -1,6 +1,7 @@
 package bd.mediwish.auth;
 
 import bd.mediwish.auth.AuthApi.User;
+import org.bouncycastle.util.encoders.Base32;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
