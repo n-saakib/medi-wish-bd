@@ -139,10 +139,13 @@ export function comparableHeaders(response: APIResponse): Record<string, string>
 // `to`, `subject`, `body` and `kind`. These helpers never log a body, code or address.
 // ---------------------------------------------------------------------------------------------------------------
 
-export type MailKind = 'EMAIL_VERIFICATION_CODE' | 'PASSWORD_RESET_CODE' | 'PASSWORD_CHANGED' | 'EMAIL_CHANGED';
+export type MailKind = 'EMAIL_VERIFICATION_CODE' | 'PASSWORD_RESET_CODE' | 'PASSWORD_CHANGED' | 'EMAIL_CHANGED'
+  | 'STAFF_AUTHENTICATOR_REPLACED';
 export type CapturedMail = { to: string; subject: string; body: string; kind: MailKind; file: string };
 
-const mailKinds: readonly MailKind[] = ['EMAIL_VERIFICATION_CODE', 'PASSWORD_RESET_CODE', 'PASSWORD_CHANGED', 'EMAIL_CHANGED'];
+const mailKinds: readonly MailKind[] = [
+  'EMAIL_VERIFICATION_CODE', 'PASSWORD_RESET_CODE', 'PASSWORD_CHANGED', 'EMAIL_CHANGED', 'STAFF_AUTHENTICATOR_REPLACED',
+];
 const mailFileName = /^\d+-[0-9a-f-]{36}\.json$/;
 
 /** The run's mail capture directory, set by the test API setup; it must be an absolute path to an existing directory. */

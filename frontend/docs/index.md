@@ -88,7 +88,7 @@ The session client keeps the access token in memory, refuses off-origin Bearer r
 | [`tests/user.test.ts`](../tests/user.test.ts) | [`tests/user.test.ts.md`](tests/user.test.ts.md) |
 | [`tests/SessionProvider.test.ts`](../tests/SessionProvider.test.ts) | [`tests/SessionProvider.test.ts.md`](tests/SessionProvider.test.ts.md) |
 | [`tests/testApi.test.ts`](../tests/testApi.test.ts) | [`tests/testApi.test.ts.md`](tests/testApi.test.ts.md) — browser-test API setup, cleanup and inherited PostgreSQL routing regressions |
-| [`tests/recoverySupport.test.ts`](../tests/recoverySupport.test.ts) | [`tests/recoverySupport.test.ts.md`](tests/recoverySupport.test.ts.md) — recovery mail parsing, polling, privacy and guarded SQL checks |
+| [`tests/recoverySupport.test.ts`](../tests/recoverySupport.test.ts) | [`tests/recoverySupport.test.ts.md`](tests/recoverySupport.test.ts.md) — recovery mail parsing, polling, privacy, shared Ticket 05/09 replacement-notice captures and guarded SQL checks |
 | [`tests/totp.test.ts`](../tests/totp.test.ts) | [`tests/totp.test.ts.md`](tests/totp.test.ts.md) — RFC 6238 vectors for the test authenticator |
 | [`tests/session.integration.test.ts`](../tests/session.integration.test.ts) | [`tests/session.integration.test.ts.md`](tests/session.integration.test.ts.md) |
 | [`tests/SiteHeader.test.ts`](../tests/SiteHeader.test.ts) | [`tests/SiteHeader.test.ts.md`](tests/SiteHeader.test.ts.md) |
@@ -116,7 +116,7 @@ The session client keeps the access token in memory, refuses off-origin Bearer r
 | [`tests/browser/profile.spec.ts`](../tests/browser/profile.spec.ts) | [`tests/browser/profile.spec.ts.md`](tests/browser/profile.spec.ts.md) — Ticket 11 browser acceptance tests (`@t11-T5`), including native successful-stage focus, modal focus confinement and filled-field privacy |
 | [`tests/browser/recoveryApi.spec.ts`](../tests/browser/recoveryApi.spec.ts) | [`tests/browser/recoveryApi.spec.ts.md`](tests/browser/recoveryApi.spec.ts.md) — Ticket 05 API acceptance tests E2E-05-01 to 36, written test-first (`@t05-T4` plus area tags) |
 | [`tests/browser/recovery.spec.ts`](../tests/browser/recovery.spec.ts) | [`tests/browser/recovery.spec.ts.md`](tests/browser/recovery.spec.ts.md) — Ticket 05 browser acceptance tests E2E-05-40 to 59, written test-first (`@t05-T5` plus area tags) |
-| [`tests/browser/recoverySupport.ts`](../tests/browser/recoverySupport.ts) | [`tests/browser/recoverySupport.ts.md`](tests/browser/recoverySupport.ts.md) — Ticket 05 contract strings, captured-mail readers with documented timestamp ties, guarded recovery SQL, page helpers and 44 px target checks, not a spec |
+| [`tests/browser/recoverySupport.ts`](../tests/browser/recoverySupport.ts) | [`tests/browser/recoverySupport.ts.md`](tests/browser/recoverySupport.ts.md) — Ticket 05 contract strings, captured-mail readers accepting Ticket 09 replacement notices with documented timestamp ties, guarded recovery SQL, page helpers and 44 px target checks, not a spec |
 | [`tests/browser/profileSupport.ts`](../tests/browser/profileSupport.ts) | [`tests/browser/profileSupport.ts.md`](tests/browser/profileSupport.ts.md) — Ticket 11 spec helpers and contract strings, not a spec |
 | [`tests/browser/matrix.spec.ts`](../tests/browser/matrix.spec.ts) | [`tests/browser/matrix.spec.ts.md`](tests/browser/matrix.spec.ts.md) |
 | [`tests/browser/staffMfa.spec.ts`](../tests/browser/staffMfa.spec.ts) | [`tests/browser/staffMfa.spec.ts.md`](tests/browser/staffMfa.spec.ts.md) |

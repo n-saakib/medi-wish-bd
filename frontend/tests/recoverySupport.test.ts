@@ -81,11 +81,26 @@ describe('captured recovery mail', () => {
     expect(capturedMail({ to: 'other@example.test' })).toHaveLength(0);
   });
 
+  it('reads recovery codes beside replacement notices and filters either kind without exposing content', async () => {
+    const replacementFile = mailFile(1, {
+      kind: 'STAFF_AUTHENTICATOR_REPLACED',
+      body: 'Your staff authenticator was replaced on 23 Oct 2026, 2:00 PM.',
+    });
+    const resetFile = mailFile(2);
+    expect(capturedMail().map(({ kind }) => kind)).toEqual(['STAFF_AUTHENTICATOR_REPLACED', 'PASSWORD_RESET_CODE']);
+    expect(capturedMail({ to: recipient.toUpperCase(), kind: 'STAFF_AUTHENTICATOR_REPLACED' })
+      .map(({ file }) => file)).toEqual([replacementFile]);
+    expect((await readCapturedMail(recipient, 'PASSWORD_RESET_CODE')).file).toBe(resetFile);
+    expect((await readCapturedMail(recipient, 'STAFF_AUTHENTICATOR_REPLACED')).file).toBe(replacementFile);
+    expect(capturedMail({ kind: 'EMAIL_VERIFICATION_CODE' })).toHaveLength(0);
+  });
+
   it.each([
     ['extra key', { extra: 'private-marker' }],
     ['missing key', { subject: undefined }],
     ['non-string value', { body: 123456 }],
     ['unknown kind', { kind: 'UNKNOWN' }],
+    ['extra replacement-notice key', { kind: 'STAFF_AUTHENTICATOR_REPLACED', extra: 'private-marker' }],
   ])('rejects %s without echoing captured content', (_name, values) => {
     const file = mailFile(1, values);
     let error: unknown;

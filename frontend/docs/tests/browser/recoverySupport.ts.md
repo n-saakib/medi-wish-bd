@@ -27,7 +27,7 @@ Shared helpers and contract strings for the Ticket 05 recovery specs, [`recovery
 
 ## Captured mail
 
-The test API writes each message as `<epochMillis>-<uuid>.json` with exactly `to`, `subject`, `body` and `kind`. `MailKind` is `EMAIL_VERIFICATION_CODE`, `PASSWORD_RESET_CODE`, `PASSWORD_CHANGED` or `EMAIL_CHANGED`.
+The test API writes each message as `<epochMillis>-<uuid>.json` with exactly `to`, `subject`, `body` and `kind`. `MailKind` is `EMAIL_VERIFICATION_CODE`, `PASSWORD_RESET_CODE`, `PASSWORD_CHANGED`, `EMAIL_CHANGED` or `STAFF_AUTHENTICATOR_REPLACED`. The last kind joins Ticket 09 verified-email replacement notices to the shared capture directory, so reading Ticket 05 recovery codes continues to validate and filter every captured message correctly.
 
 - **`mailDirectory()`:** the directory from `MEDI_WISH_TEST_MAIL_DIR`, set by [`testApi.ts`](testApi.ts.md). It must be absolute and exist.
 - **`capturedMail({ to, kind })`:** every message in filename order (epoch milliseconds then UUID), optionally filtered by address (any case) and kind. Mail captured in the same millisecond has no guaranteed relative send order; the authored nth-mail scenarios for one address and kind use the required 60-second issue gap. It ignores `.tmp` and foreign file names, and throws `Malformed captured mail <file>` for a file with other keys or a non-string value.
