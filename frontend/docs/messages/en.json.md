@@ -42,3 +42,7 @@ Ticket 16 externalizes the discounts namespace for tab counts, table/dialog labe
 Unknown-create guidance requires retrying the original command before another change. Retry pending discount reopens the retained frozen command after Cancel; a list refresh alone does not establish its outcome.
 
 Ticket 12 adds addresses for page/dialog labels, full/empty/recovery/default-promotion copy and a changeNotice interpolating configured calendar limits and remaining allowance. account.addresses names the navigation link. errors.addressBookFull and errors.addressChangeLimit supply bounded refusal copy.
+
+## Ticket 05 email recovery
+
+Ticket 05 adds forgotPassword form copy, sign-in link/reset notice, profile email verification/current-password copy and three bounded errors. All recovery-facing strings are localized here; help is plain support text until a support route is delivered.

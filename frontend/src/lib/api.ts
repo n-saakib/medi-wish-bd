@@ -30,11 +30,14 @@ export type ErrorMessageKey = 'authenticationFailed' | 'duplicateUser' | 'mfaReq
   | 'mfaEnrollmentStale' | 'tooManyAttempts' | 'invalidResponse' | 'genericError'
   | 'staleUpdate' | 'roleChangeRefused' | 'accessDenied' | 'notFound' | 'accountClosing' | 'checkDetails'
   | 'priceRequired' | 'categoryNameTaken' | 'imageInvalid' | 'imageLimitReached' | 'storageUnavailable'
-  | 'discountEnded' | 'discountExceedsPrice' | 'addressBookFull' | 'addressChangeLimit';
+  | 'discountEnded' | 'discountExceedsPrice' | 'addressBookFull' | 'addressChangeLimit' | 'codeInvalid' | 'currentPasswordInvalid' | 'emailRequired';
 
 /** The `errors` message key for a failure. Codes the UI does not tell apart share the generic message. */
 export function errorMessageKey(reason: unknown): ErrorMessageKey {
   switch (reason instanceof ApiError ? reason.code : undefined) {
+    case 'CODE_INVALID': return 'codeInvalid';
+    case 'CURRENT_PASSWORD_INVALID': return 'currentPasswordInvalid';
+    case 'EMAIL_REQUIRED': return 'emailRequired';
     case 'IMAGE_INVALID':
       return 'imageInvalid';
     case 'IMAGE_LIMIT_REACHED':

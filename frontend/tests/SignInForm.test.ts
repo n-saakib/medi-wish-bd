@@ -41,6 +41,7 @@ describe('SignInForm', () => {
     expect(requiredElement(form, 'label[for="sign-in-password"]').textContent).toBe('Password');
     expect(form.querySelector('[role="alert"], [role="status"]')).toBeNull();
     expect(requiredElement(form, 'a[href="/register"]').textContent).toBe('Create an account');
+    expect(requiredElement(form, 'a[href="/forgot-password"]').textContent).toBe('Forgot password?');
   });
 
   it('signs in, disables the button while busy, clears the password and opens the account page', async () => {
@@ -142,6 +143,18 @@ describe('SignInForm', () => {
     const notice = requiredElement(form, '[role="status"]');
 
     expect(notice.textContent).toBe('Your account was created. Please sign in.');
+    expect(document.activeElement).toBe(notice);
+  });
+
+  it('announces the completed reset without signing in', async () => {
+    function ResetNotice() {
+      const { showNotice } = useSession();
+      useEffect(() => showNotice('passwordReset'), [showNotice]);
+      return null;
+    }
+    const form = await renderWithSession(createElement(Fragment, null, createElement(ResetNotice), createElement(SignInForm)));
+    const notice = requiredElement(form, '[role="status"]');
+    expect(notice.textContent).toBe('Your password was changed. Please sign in.');
     expect(document.activeElement).toBe(notice);
   });
 

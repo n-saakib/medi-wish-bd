@@ -11,3 +11,8 @@ Public synthetic auth settings for unit tests that build `AuthProperties`: `MFA_
 Used by the auth and web unit tests and, through `TestDatabase`, by every integration test.
 
 Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` passed all 238 unit tests.
+
+
+## Ticket 05 recovery
+
+`RECOVERY_CODE_KEY` is a process-local random 32-byte synthetic key. `recovery()` supplies the accepted Ticket 05 limits; `properties()` includes this required block.

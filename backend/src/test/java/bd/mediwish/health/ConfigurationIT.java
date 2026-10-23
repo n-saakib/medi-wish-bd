@@ -44,19 +44,24 @@ class ConfigurationIT {
     @ParameterizedTest(name = "{2}")
     @CsvSource({
             "app.auth.cookie.secure, false, hosted auth cookies must be Secure",
-            "app.auth.jwt-secret, bmV2ZXItbG9nLXRoaXMtc2hvcnQta2V5, auth JWT secret must be Base64 of at least 32 bytes"})
+            "app.auth.jwt-secret, bmV2ZXItbG9nLXRoaXMtc2hvcnQta2V5, auth JWT secret must be Base64 of at least 32 bytes",
+            "app.auth.recovery.code-key, '', auth recovery code key must be Base64 of exactly 32 bytes",
+            "app.auth.recovery.code-key, not-base64!, auth recovery code key must be Base64 of exactly 32 bytes",
+            "app.auth.recovery.code-key, bmV2ZXItbG9nLXRoaXMtc2hvcnQta2V5, auth recovery code key must be Base64 of exactly 32 bytes"})
     void anInvalidAuthSettingFailsStartupWithAValidDatasource(String property, String value, String rule,
                                                                CapturedOutput output) throws Exception {
         try (var database = TestDatabase.create()) {
             Map<String, Object> properties = new HashMap<>(database.applicationProperties());
+            String recoveryKey = String.valueOf(properties.get("app.auth.recovery.code-key"));
             properties.put("app.cors.allowed-origins", "https://shop.example.test");
             properties.put("app.auth.cookie.secure", "true");
             properties.put(property, value);
 
             assertThatThrownBy(() -> run(properties)).hasRootCauseMessage(rule);
-            assertThat(output.getAll()).contains("Application run failed").doesNotContain(
+            // Binder failures print the failure analysis instead of the generic run-failed line.
+            assertThat(output.getAll()).containsAnyOf("Application run failed", "APPLICATION FAILED TO START").doesNotContain(
                     String.valueOf(properties.get("app.auth.jwt-secret")),
-                    String.valueOf(properties.get("spring.datasource.password")));
+                    String.valueOf(properties.get("spring.datasource.password")), recoveryKey);
         }
     }
 
@@ -75,7 +80,8 @@ class ConfigurationIT {
             properties.put(property, value);
             assertThatThrownBy(() -> run(properties, "test")).isInstanceOf(IllegalStateException.class).hasMessage(rule);
             assertThat(output.getAll()).doesNotContain(String.valueOf(properties.get("spring.datasource.password")),
-                    String.valueOf(properties.get("app.auth.jwt-secret")));
+                    String.valueOf(properties.get("app.auth.jwt-secret")),
+                    String.valueOf(properties.get("app.auth.recovery.code-key")));
         }
     }
 
@@ -90,6 +96,20 @@ class ConfigurationIT {
             assertThat(output.getAll()).doesNotContain(String.valueOf(properties.get("spring.datasource.password")));
         }
     }
+
+    @Test void mailCaptureRefusesStartupWithoutALocalOrTestProfile(CapturedOutput output) throws Exception {
+        try (var database = TestDatabase.create()) {
+            var properties = new HashMap<>(database.applicationProperties());
+            properties.put("app.auth.cookie.secure", "true");
+            properties.put("app.cors.allowed-origins", "https://shop.example.test");
+            properties.put("app.mail.transport", "memory");
+            assertThatThrownBy(() -> run(properties))
+                    .hasRootCauseInstanceOf(IllegalStateException.class)
+                    .hasRootCauseMessage(bd.mediwish.mail.MailConfiguration.LOCAL_PROFILE_RULE);
+            assertThat(output.getAll()).doesNotContain(String.valueOf(properties.get("spring.datasource.password")));
+        }
+    }
+
     private static void run(Map<String, Object> properties, String... profiles) {
         var application = new SpringApplication(MediWishApplication.class);
         application.setAdditionalProfiles(profiles);

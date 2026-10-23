@@ -24,4 +24,9 @@ class SecurityAuditLog {
         // RequestCorrelationFilter's server-generated UUID; the provisioning command runs outside a request and has none.
         events.save(new SecurityAuditEvent(clock.instant(), type, subjectUserId, sessionId, MDC.get("requestId")));
     }
+    /** An asynchronous mail failure must commit independently of the already committed change. */
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    void recordInNewTransaction(SecurityAuditEvent.Type type, UUID userId) {
+        events.save(new SecurityAuditEvent(clock.instant(), type, userId, null, MDC.get("requestId")));
+    }
 }

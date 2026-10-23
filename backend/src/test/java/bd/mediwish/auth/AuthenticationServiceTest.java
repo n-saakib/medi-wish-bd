@@ -70,7 +70,7 @@ class AuthenticationServiceTest {
                 PASSWORD_ONLY);
         lookups(" Alice@Example.COM ", null, null, user);
         when(passwords.matches("correct-password", VALID_VERIFIER)).thenReturn(true);
-        when(sessions.create(user.id())).thenReturn(new SessionService.PasswordSession(user, session));
+        when(sessions.create(user.id(), VALID_VERIFIER)).thenReturn(new SessionService.PasswordSession(user, session));
         when(accessTokens.issue(user.id(), session.sessionId())).thenReturn(new AccessTokenCodec.IssuedAccessToken("access", 900));
 
         var result = service.signIn(" Alice@Example.COM ", "correct-password");
@@ -87,7 +87,7 @@ class AuthenticationServiceTest {
                 NOW.plus(Duration.ofMinutes(10)), PASSWORD_ONLY);
         lookups("owner_1", user, null, null);
         when(passwords.matches("correct-password", VALID_VERIFIER)).thenReturn(true);
-        when(sessions.create(user.id())).thenReturn(new SessionService.PasswordSession(user, session));
+        when(sessions.create(user.id(), VALID_VERIFIER)).thenReturn(new SessionService.PasswordSession(user, session));
         when(accessTokens.issue(user.id(), session.sessionId())).thenReturn(new AccessTokenCodec.IssuedAccessToken("access", 900));
 
         var result = service.signIn("owner_1", "correct-password");
@@ -106,7 +106,7 @@ class AuthenticationServiceTest {
         when(passwords.matches("correct-password", VALID_VERIFIER)).thenReturn(true);
         var credential = new SessionService.SessionCredential(unlocked.id(), UUID.randomUUID(), "refresh",
                 NOW.plus(Duration.ofMinutes(10)), PASSWORD_ONLY);
-        when(sessions.create(unlocked.id())).thenReturn(new SessionService.PasswordSession(locked, credential));
+        when(sessions.create(unlocked.id(), VALID_VERIFIER)).thenReturn(new SessionService.PasswordSession(locked, credential));
         when(accessTokens.issue(unlocked.id(), credential.sessionId()))
                 .thenReturn(new AccessTokenCodec.IssuedAccessToken("access", 900));
         assertThat(service.signIn("changed_role", "correct-password").mfa()).isEqualTo(MfaStatus.ENROLLMENT_REQUIRED);

@@ -26,7 +26,10 @@ enum ApiError {
     IMAGE_INVALID(400),
     IMAGE_LIMIT_REACHED(409),
     STORAGE_UNAVAILABLE(503),
-    INTERNAL_ERROR(500);
+    INTERNAL_ERROR(500),
+    CODE_INVALID(400),
+    CURRENT_PASSWORD_INVALID(400),
+    EMAIL_REQUIRED(409);
 
     final int status;
     final String messageKey;

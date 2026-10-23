@@ -57,13 +57,15 @@ public final class TestApplication implements AutoCloseable {
         all[0] = MediWishApplication.class;
         System.arraycopy(testConfigurations, 0, all, 1, testConfigurations.length);
         var launcher = new SpringApplication(all);
+        var effectiveProperties = new java.util.HashMap<String, Object>(properties);
+        effectiveProperties.putIfAbsent("app.mail.transport", "memory");
         launcher.setAdditionalProfiles("test");
         // The type is chosen before initializers run, so the operator command's non-web mode is set here.
         if ("none".equals(properties.get("spring.main.web-application-type"))) {
             launcher.setWebApplicationType(WebApplicationType.NONE);
         }
         launcher.addInitializers(initialized -> initialized.getEnvironment().getPropertySources()
-                .addFirst(new MapPropertySource("integration-test", properties)));
+                .addFirst(new MapPropertySource("integration-test", effectiveProperties)));
         return launcher.run();
     }
 

@@ -15,3 +15,5 @@ HTTP futures assert 200/409 outcomes, version and returned profile state. A uniq
 Both closure orderings are covered. A closure committed before the blocked PUT yields ACCOUNT_CLOSING. For the reverse order, a run-schema deferred trigger pauses the real PUT at commit on a held advisory lock; the closure must wait behind the PUT in the same causal chain. Releasing the gate permits the saved edit to commit first and the closure to apply afterwards, preserving both the edit and CLOSURE_REQUESTED.
 
 Tests remove the temporary trigger/function and close connections, workers, application and their own schema. Observation deadlines stay below the application socket timeout.
+
+The email-collision PUT supplies current-password reauthentication so it still reaches the uncommitted unique-index collision and proves full profile rollback under Ticket 05.

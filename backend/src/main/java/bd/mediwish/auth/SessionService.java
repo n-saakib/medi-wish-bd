@@ -35,10 +35,11 @@ class SessionService {
         this.random = random;
     }
 
-    /** Password sessions lock the User first and select the lifetime from that current role. */
+    /** Lock the current User and reject a password proof invalidated by a concurrent reset before opening a session. */
     @Transactional
-    PasswordSession create(UUID userId) {
+    PasswordSession create(UUID userId, String verifiedPasswordHash) {
         User user = users.findByIdForShare(userId).orElseThrow(AuthenticationRequiredException::new);
+        if (!verifiedPasswordHash.equals(user.passwordHash())) throw new AuthenticationFailedException();
         Duration lifetime = user.hasStaffRole() ? properties.mfa().restrictedSessionLifetime()
                 : properties.refreshTokenLifetime();
         Instant now = clock.instant();
@@ -115,6 +116,13 @@ class SessionService {
     @Transactional
     void revokeAllForUser(UUID userId, RevocationReason reason) {
         revokeAll(sessions.findActiveByUserIdForUpdate(userId), reason);
+    }
+
+    /** The User is already locked by the profile change; keep the requesting session active. */
+    @Transactional
+    void revokeOthersForUser(UUID userId, UUID keepSessionId, RevocationReason reason) {
+        revokeAll(sessions.findActiveByUserIdForUpdate(userId).stream()
+                .filter(session -> !session.id().equals(keepSessionId)).toList(), reason);
     }
 
     /** The session's MFA evidence, when it belongs to the User and is neither revoked nor expired. */

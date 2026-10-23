@@ -58,7 +58,7 @@ class MfaSecretCipherTest {
         var settings = new AuthProperties.Mfa(mfa.issuer(), key, mfa.restrictedSessionLifetime(),
                 mfa.enrollmentLifetime(), mfa.maxFailedAttempts(), mfa.attemptWindow(), mfa.lockout());
         var properties = new AuthProperties(Duration.ofMinutes(15), Duration.ofDays(30), "medi-wish", "medi-wish-api",
-                "unused", new AuthProperties.Cookie(true), settings);
+                "unused", new AuthProperties.Cookie(true), settings, TestAuthSettings.recovery());
 
         assertThatThrownBy(() -> new MfaSecretCipher(properties, new SecureRandom()))
                 .isInstanceOf(IllegalStateException.class)

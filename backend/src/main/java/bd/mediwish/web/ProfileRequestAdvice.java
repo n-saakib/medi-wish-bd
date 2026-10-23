@@ -1,6 +1,8 @@
 package bd.mediwish.web;
 
 import bd.mediwish.user.ProfileController;
+import bd.mediwish.auth.PasswordResetController;
+import bd.mediwish.auth.EmailVerificationController;
 import bd.mediwish.address.AddressBookController;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.core.Ordered;
@@ -12,10 +14,10 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 /**
  * Profile non-JSON bodies are 400; older controllers retain their 415 contract. Ordered first so it wins over
- * {@link ApiExceptionHandler}'s general media-type handler for the profile controller.
+ * {@link ApiExceptionHandler}'s general media-type handler for the profile, address, password-reset and email-verification controllers.
  */
 @Order(Ordered.HIGHEST_PRECEDENCE)
-@RestControllerAdvice(assignableTypes = {ProfileController.class, AddressBookController.class})
+@RestControllerAdvice(assignableTypes = {ProfileController.class, AddressBookController.class, PasswordResetController.class, EmailVerificationController.class})
 class ProfileRequestAdvice {
     private final ApiErrors errors;
     ProfileRequestAdvice(ApiErrors errors) { this.errors = errors; }

@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { closeSync, mkdirSync, openSync, readFileSync, rmSync } from 'node:fs';
 import { once } from 'node:events';
 import { connect } from 'node:net';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 /** The locked test environment: the API origin the frontend is built against, and the frontend origin. */
@@ -16,6 +17,11 @@ export const apiLogPath = path.join(import.meta.dirname, '../../test-api.log');
 export const testSchemaVariable = 'MEDI_WISH_TEST_SCHEMA';
 /** The run-owned namespace directory exposed only to Playwright workers, never to the API. */
 export const testStorageVariable = 'MEDI_WISH_TEST_STORAGE_DIR';
+/**
+ * The run-owned mail capture directory, exposed only to Playwright workers, never to the API. The API writes each
+ * message it would send there (Ticket 05 plan O4), so the recovery specs can read verification and reset codes.
+ */
+export const testMailVariable = 'MEDI_WISH_TEST_MAIL_DIR';
 
 const database = 'medi_wish_test';
 const jarPath = path.join(import.meta.dirname, '../../../backend/target/medi-wish.jar');
@@ -39,13 +45,19 @@ function psqlArguments(): string[] {
   ];
 }
 
+/** Keep libpq from replacing the guarded command-line host with an inherited hostaddr or service entry. */
+function psqlEnvironment(): NodeJS.ProcessEnv {
+  return Object.fromEntries(Object.entries(process.env)
+    .filter(([name]) => !/^(PGHOSTADDR|PGSERVICE)$/i.test(name))) as NodeJS.ProcessEnv;
+}
+
 /**
  * Runs SQL as the test cluster's administrator; `PSQL`, `TEST_DB_ADMIN` and libpq's `PGPASSWORD` override defaults.
  * Exported for the SQL helpers in a ticket's own support file; those call `checkedTarget` before building any SQL.
  */
 export function psql(sql: string): string {
   return execFileSync(process.env.PSQL ?? 'psql', psqlArguments(),
-    { input: sql, encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'] }).trim();
+    { input: sql, encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'], env: psqlEnvironment() }).trim();
 }
 
 /** A staff role an operator can give a User (replacing their role) or take back with SQL in the browser tests. */
@@ -164,6 +176,7 @@ export function rolledBackSql(sql: string): SqlOutcome {
       input: `BEGIN;\nSET LOCAL search_path TO ${schema};\n${sql}\nROLLBACK;\n`,
       encoding: 'utf8',
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: psqlEnvironment(),
     });
     return { output: output.trim(), error: '' };
   } catch (reason) {
@@ -219,7 +232,8 @@ async function waitUntilReady(exited: () => boolean, started: () => boolean): Pr
 
 /**
  * Playwright global setup. Starts the built API jar on a run-owned PostgreSQL 18 role and schema of `medi_wish_test`,
- * with random JWT and MFA secrets and a 10-second access lifetime, and returns the teardown that stops it and drops both.
+ * with random JWT, MFA and recovery-code secrets, a run-owned mail capture directory and a 10-second access lifetime,
+ * and returns the teardown that stops it, drops both and removes the run's directories.
  */
 export default async function startTestApi(): Promise<() => Promise<void>> {
   const { host, port } = testDatabaseTarget();
@@ -240,10 +254,21 @@ export default async function startTestApi(): Promise<() => Promise<void>> {
   const storageRoot = path.resolve(import.meta.dirname, '../../../backend/target/test-object-storage');
   const namespace = `test-browser-${role.slice('mw_browser_'.length)}`;
   const storageDirectory = path.join(storageRoot, namespace);
+  // Captured mail holds live codes, so it lives under the system temp directory and never outlives the run.
+  const mailDirectory = path.join(tmpdir(), `medi-wish-mail-${role.slice('mw_browser_'.length)}`);
+  // Each directory is removed even when removing the other throws.
+  const removeDirectories = () => {
+    try {
+      rmSync(storageDirectory, { recursive: true, force: true });
+    } finally {
+      rmSync(mailDirectory, { recursive: true, force: true });
+    }
+  };
   let log: number | undefined;
   let api: ReturnType<typeof spawn>;
   try {
     mkdirSync(storageDirectory, { recursive: true });
+    mkdirSync(mailDirectory, { recursive: true });
     log = openSync(apiLogPath, 'w');
     api = spawn('java', ['-jar', jarPath], {
       env: {
@@ -259,6 +284,11 @@ export default async function startTestApi(): Promise<() => Promise<void>> {
         APP_AUTH_JWT_SECRET: randomBytes(32).toString('base64'),
         // The API refuses to start without a Base64 key of exactly 32 bytes for authenticator seeds.
         APP_AUTH_MFA_SECRET_KEY: randomBytes(32).toString('base64'),
+        // A separate 32-byte key for email-code HMACs (Ticket 05 plan O3); never the JWT or MFA key.
+        APP_AUTH_RECOVERY_CODE_KEY: randomBytes(32).toString('base64'),
+        // The test profile's capture transport (plan O4): each message becomes a JSON file in the run-owned directory.
+        APP_MAIL_TRANSPORT: 'directory',
+        APP_MAIL_CAPTURE_DIRECTORY: mailDirectory,
         APP_AUTH_COOKIE_SECURE: 'false',
         APP_AUTH_ACCESS_TOKEN_LIFETIME: `PT${accessTokenLifetimeMs / 1000}S`,
         APP_CORS_ALLOWED_ORIGINS: frontendUrl,
@@ -273,13 +303,14 @@ export default async function startTestApi(): Promise<() => Promise<void>> {
       if (log !== undefined) closeSync(log);
       dropDatabaseObjects();
     } finally {
-      rmSync(storageDirectory, { recursive: true, force: true });
+      removeDirectories();
     }
     throw reason;
   }
   // Set after the spawn so the API never sees it; Playwright workers inherit it.
   process.env[testSchemaVariable] = role;
   process.env[testStorageVariable] = storageDirectory;
+  process.env[testMailVariable] = mailDirectory;
   let exited = false;
   // A failed spawn (for example, no jar) emits `error` instead of `exit`; both mean the API is not running.
   const exit = once(api, 'exit').catch(() => undefined).then(() => { exited = true; });
@@ -293,11 +324,12 @@ export default async function startTestApi(): Promise<() => Promise<void>> {
     } finally {
       delete process.env[testSchemaVariable];
       delete process.env[testStorageVariable];
+      delete process.env[testMailVariable];
       try {
         if (log !== undefined) closeSync(log);
         dropDatabaseObjects();
       } finally {
-        rmSync(storageDirectory, { recursive: true, force: true });
+        removeDirectories();
       }
     }
   };

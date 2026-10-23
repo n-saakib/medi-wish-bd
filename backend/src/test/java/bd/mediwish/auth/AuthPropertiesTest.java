@@ -27,7 +27,7 @@ class AuthPropertiesTest {
         Duration second = Duration.ofSeconds(1);
         Duration tooShort = Duration.ofMillis(999);
         assertThatThrownBy(() -> new AuthProperties(Duration.ofMinutes(15), Duration.ofDays(30), "medi-wish",
-                "medi-wish-api", "unused", new AuthProperties.Cookie(true), null))
+                "medi-wish-api", "unused", new AuthProperties.Cookie(true), null, TestAuthSettings.recovery()))
                 .hasMessage("auth MFA settings are required");
         assertThatThrownBy(() -> new AuthProperties.Mfa(" ", "key", second, second, 1, second, second))
                 .hasMessage("auth MFA issuer is required");
@@ -45,8 +45,64 @@ class AuthPropertiesTest {
                 .isOne();
     }
 
+    @Test
+    void recoveryKeysMustBeExactlyThirtyTwoBytesAndDistinctFromOtherSecrets() {
+        for (String invalid : new String[]{null, "", "not base64!",
+                java.util.Base64.getEncoder().encodeToString(new byte[31]),
+                java.util.Base64.getEncoder().encodeToString(new byte[33])}) {
+            assertThatThrownBy(() -> recovery(invalid))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("auth recovery code key must be Base64 of exactly 32 bytes");
+        }
+        assertThatThrownBy(() -> new AuthProperties(Duration.ofMinutes(15), Duration.ofDays(30), "medi-wish",
+                "medi-wish-api", "unused", new AuthProperties.Cookie(true), TestAuthSettings.mfa(),
+                recovery(TestAuthSettings.MFA_SECRET_KEY)))
+                .hasMessage("auth recovery code key must differ from JWT and MFA keys");
+    }
+
+    @Test
+    void codeAttemptLimitCannotExceedThePersistedFiveAttemptBound() {
+        assertThatThrownBy(() -> new AuthProperties.Recovery(TestAuthSettings.RECOVERY_CODE_KEY,
+                Duration.ofMinutes(15), 6, 5, Duration.ofHours(1), Duration.ofSeconds(60),
+                10, Duration.ofHours(1), 5, Duration.ofHours(1)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void codeLifetimeIsFixedAtTheFifteenMinutesStatedInMailAndPageCopy() {
+        for (Duration invalid : new Duration[]{null, Duration.ofSeconds(1), Duration.ofMinutes(14),
+                Duration.ofMinutes(16)}) {
+            assertThatThrownBy(() -> new AuthProperties.Recovery(TestAuthSettings.RECOVERY_CODE_KEY, invalid, 5, 5,
+                    Duration.ofHours(1), Duration.ofSeconds(60), 10, Duration.ofHours(1), 5, Duration.ofHours(1)))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessage("auth recovery code-lifetime must be PT15M");
+        }
+        assertThat(recovery(TestAuthSettings.RECOVERY_CODE_KEY).codeLifetime()).isEqualTo(Duration.ofMinutes(15));
+    }
+
+    @Test
+    void counterRetentionIsTwoHoursOrTheLongestConfiguredWindow() {
+        assertThat(recovery(TestAuthSettings.RECOVERY_CODE_KEY).limitRetention()).isEqualTo(Duration.ofHours(2));
+        assertThat(retention(Duration.ofHours(3), Duration.ofMinutes(1), Duration.ofHours(1), Duration.ofHours(1)))
+                .isEqualTo(Duration.ofHours(3).plusMinutes(1));
+        assertThat(retention(Duration.ofHours(1), Duration.ofMinutes(1), Duration.ofHours(4), Duration.ofHours(1)))
+                .isEqualTo(Duration.ofHours(4));
+        assertThat(retention(Duration.ofHours(1), Duration.ofMinutes(1), Duration.ofHours(1), Duration.ofHours(5)))
+                .isEqualTo(Duration.ofHours(5));
+    }
+
+    private static Duration retention(Duration issue, Duration gap, Duration address, Duration password) {
+        return new AuthProperties.Recovery(TestAuthSettings.RECOVERY_CODE_KEY, Duration.ofMinutes(15), 5, 5, issue,
+                gap, 10, address, 5, password).limitRetention();
+    }
+
+    private static AuthProperties.Recovery recovery(String key) {
+        return new AuthProperties.Recovery(key, Duration.ofMinutes(15), 5, 5, Duration.ofHours(1),
+                Duration.ofSeconds(60), 10, Duration.ofHours(1), 5, Duration.ofHours(1));
+    }
+
     private static AuthProperties properties(Duration access, Duration refresh) {
         return new AuthProperties(access, refresh, "medi-wish", "medi-wish-api", "unused", new AuthProperties.Cookie(true),
-                TestAuthSettings.mfa());
+                TestAuthSettings.mfa(), TestAuthSettings.recovery());
     }
 }

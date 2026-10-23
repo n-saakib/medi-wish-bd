@@ -17,3 +17,7 @@ Mounted jsdom coverage for [`SignInForm`](../src/auth/SignInForm.tsx.md) through
 - With the real session client, a `204` restore and a controlled fetch boundary, a successful sign-in leaves the window URL unchanged and the synthetic access token appears in no `history.pushState`/`replaceState` call or router call.
 
 On 2026-09-27 this suite passed as part of `npm run test:unit`. It does not replace the browser journey against the running API.
+
+## Ticket 05 email recovery
+
+Checks the separate forgot-password link, unchanged password label and focused reset success notice, alongside existing session and MFA journeys.

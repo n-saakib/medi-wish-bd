@@ -31,3 +31,7 @@ The provider is the only React owner of session state; setup secrets and backup 
 ## Verification
 
 [`tests/SessionProvider.test.ts`](../../tests/SessionProvider.test.ts.md) covers restore outcomes (including a real client whose refresh answers `401`), sign-in and sign-out actions, a protected request that expires or fails otherwise, a request that finishes after sign-out or a newer sign-in, reducer stale-result guards, notice lifetime, the redirect rules, the MFA status from restore and sign-in, the MFA actions' state changes and expiry, and a verify queued behind a sign-out.
+
+## Ticket 05 email recovery
+
+The passwordReset notice survives navigation to /sign-in and is discarded on any other route. Reset does not establish a session or change the shared authentication boundary.

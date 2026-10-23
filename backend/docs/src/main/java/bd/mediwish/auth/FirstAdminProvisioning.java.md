@@ -18,7 +18,7 @@ Package-private `ApplicationRunner` that is the operator command for provisionin
 ## Runbook: provision the first Admin
 
 1. The owner registers a normal account through the storefront. Provisioning only promotes an existing registered User whose stored password verifier is usable; it never creates an account, and the database has no default account.
-2. Build the jar (`./mvnw.cmd -o package` produces `target/medi-wish.jar`) and set the same environment the serving application uses for that database: the `DB_*` connection values and the `APP_AUTH_*` settings, including `APP_AUTH_JWT_SECRET` and `APP_AUTH_MFA_SECRET_KEY`. The command starts the full non-web context, so these settings are validated and Liquibase migrations run as at a normal startup.
+2. Build the jar (`./mvnw.cmd -o package` produces `target/medi-wish.jar`) and set the same environment the serving application uses for that database: the `DB_*` connection values and the `APP_AUTH_*` settings, including `APP_AUTH_JWT_SECRET`, `APP_AUTH_MFA_SECRET_KEY` and the independent `APP_AUTH_RECOVERY_CODE_KEY`. The command starts the full non-web context, so these settings are validated and Liquibase migrations run as at a normal startup.
 3. Run the command once, as a separate process, never on a serving instance:
 
    ```powershell

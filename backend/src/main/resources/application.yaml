@@ -78,6 +78,20 @@ app:
       max-failed-attempts: 5
       attempt-window: PT15M
       lockout: PT15M
+    recovery:
+      code-key: ${APP_AUTH_RECOVERY_CODE_KEY:}
+      code-lifetime: PT15M
+      max-wrong-tries: 5
+      issues-per-window: 5
+      issue-window: PT1H
+      issue-gap: PT60S
+      address-requests-per-window: 10
+      address-window: PT1H
+      password-attempts-per-window: 5
+      password-window: PT1H
+  mail:
+    transport: ${APP_MAIL_TRANSPORT:disabled}
+    capture-directory: ${APP_MAIL_CAPTURE_DIRECTORY:}
   provisioning:
     # Set only on the one-off operator command (web-application-type=none); never on a serving process.
     first-admin-username:

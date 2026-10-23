@@ -25,3 +25,15 @@ profileOf, putProfile, stageMobile and cancelMobile call the owner-only profile 
 
 start(properties, configurations) merges explicit operator overrides into the guarded database application properties. Address/newAddress tracks synthetic delivery fields; addressBody/addressEdit serialize exact create/update contracts with nullable labels. addresses/postAddress/putAddress/deleteAddress call owner routes through the normal HTTP client. changeRows and changeTimes read committed change counts and microsecond timestamps in the owned schema. These helpers add no public test route and do not change authentication time.
 userId resolves by immutable username in test SQL, so cross-story assertions can still locate the same owner after mobile activation changes the fixture mobile. HTTP routes remain owner-only and carry no username.
+
+
+## Ticket 05 recovery
+
+The raw static four-field profileEdit builder still deliberately omits currentPassword. The owner-aware overload preserves the stored email by default, queries the current email and supplies the fixture password only when that normalized address changes; the explicit password overload supports wrong/null-password contract cases.
+
+
+T5 adds markEmailVerified (fixture SQL), capturedMail/awaitMail, static codeFrom, requestReset/confirmReset, requestVerification/confirmVerification and putProfileWithPassword. Public reset helpers send strict JSON with no Bearer/cookie/CSRF credentials; verification uses only the caller's Bearer. The raw profile builders remain available for invalid/missing-password contract fixtures.
+
+accountCodes returns safe-diagnostic AccountCodeRow values and tracks every HMAC; limitRows returns typed counter snapshots. expireCode maintains the creation-before-expiry invariant while forcing expiry; ageLimits adjusts both window and last-issue timestamps without sleeping. drainMail queues a barrier behind the one-worker mail executor after completed HTTP requests, making negative mail assertions deterministic.
+
+Six-digit values have separate whole-digit-token privacy tracking; the existing minimum-eight-character general secret tracker is unchanged. Captured code messages and submitted recovery codes/passwords join the checks. Privacy-scoped tests explicitly track the actual AuthProperties recovery key; it is not a hard-coded fixture assumption.

@@ -42,3 +42,7 @@ error.STALE_UPDATE (409) asks the caller to reload after a changed profile versi
 Ticket 15 adds externalized bounded messages for invalid images, image-count limits and unavailable storage.
 Ticket 16: error.DISCOUNT_ENDED = This discount has ended and can no longer be changed.; error.DISCOUNT_EXCEEDS_PRICE = The discount must be smaller than the product's selling price.
 Ticket 12 supplies the bounded full-book and change-limit English messages; neither includes address data or next-allowed dates.
+
+Ticket 05 mail.* keys externalize verification/reset code subjects and 15-minute code bodies, plus code-free password/email-change notices. AccountMail substitutes only the transient code into {0}; delivery failures never log message values.
+
+Recovery errors use the accepted exact English messages for wrong/expired code, current-password email guard and missing saved email. Existing mail subject/body keys remain externalized.

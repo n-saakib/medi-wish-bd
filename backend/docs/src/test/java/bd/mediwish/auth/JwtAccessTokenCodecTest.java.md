@@ -9,3 +9,6 @@ Checks the issued identity/session claims, rejection of signed tokens missing an
 ## Verification
 
 Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` passed all 238 unit tests.
+
+
+Ticket 05 supplies the required synthetic Recovery settings to direct AuthProperties construction; existing behavior and assertions stay unchanged.

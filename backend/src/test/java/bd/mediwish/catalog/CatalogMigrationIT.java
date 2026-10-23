@@ -38,14 +38,15 @@ class CatalogMigrationIT {
             String username = "cat_mig_" + UUID.randomUUID().toString().substring(0, 8);
             String password = "Synthetic-Migration-Password-1";
             seedExistingIdentity(database, userId, sessionId, username, password);
-            String userBefore = database.single("SELECT to_jsonb(u)::text FROM users u WHERE id = ?",
+            String userBefore = database.single("SELECT (to_jsonb(u) - 'email_verified_at')::text FROM users u WHERE id = ?",
                     String.class, userId);
             String sessionBefore = database.single("SELECT to_jsonb(s)::text FROM user_sessions s WHERE id = ?",
                     String.class, sessionId);
 
             migrate(database, false);
-            assertThat(database.single("SELECT to_jsonb(u)::text FROM users u WHERE id = ?", String.class, userId))
+            assertThat(database.single("SELECT (to_jsonb(u) - 'email_verified_at')::text FROM users u WHERE id = ?", String.class, userId))
                     .as("the existing User is unchanged by catalog migration").isEqualTo(userBefore);
+            assertThat(database.single("SELECT email_verified_at IS NULL FROM users WHERE id = ?", Boolean.class, userId)).isTrue();
             assertThat(database.single("SELECT to_jsonb(s)::text FROM user_sessions s WHERE id = ?",
                     String.class, sessionId))
                     .as("the existing session is unchanged by catalog migration").isEqualTo(sessionBefore);

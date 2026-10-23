@@ -4,15 +4,14 @@ This is the living code map for the current Spring Boot backend. Source files
 remain authoritative; this page records package ownership, dependency
 direction and the observable request boundaries.
 
-**Last reviewed:** 2026-10-15
+**Last reviewed:** 2026-10-19
 **Current scope:** health baseline, shared User profile/roles, Ticket 03
 password sessions with Bearer, CSRF, CORS and refresh-cookie adapters, and
 Ticket 06 first-Admin provisioning, staff TOTP MFA, security audit events and
-the staff route, Ticket 11 profile editing with staged mobile changes, Ticket 12 saved addresses, Ticket 14 staff catalog, Ticket 15 Product images and Ticket 16 Discounts.
-**Later boundaries:** OTP, password recovery, staff management beyond the
-recovery/reset workflows, and deployment.
+the staff route, Ticket 11 profile editing with staged mobile changes, Ticket 12 saved addresses, Ticket 05 verified secondary-email recovery, Ticket 14 staff catalog, Ticket 15 Product images and Ticket 16 Discounts.
+**Later boundaries:** mobile OTP, staff management beyond the current role/MFA workflows, and deployment.
 
-Ticket08 adds `bd.mediwish.admin.AdminUserController`: strict JSON commands and UUID reads. It calls `auth.RoleAssignmentService`, which owns the role policy, bounded projections, audit persistence and atomic revocation because it shares the package-private SessionService. The User aggregate exposes one role and rolesVersion over the retained private role collection; PostgreSQL enforces exactly-one at commit. The Spring role hierarchy expands the single authority only at authorization; restricted MFA sessions hold no role authority. Password session creation locks the User FOR SHARE before reading the role, then writes sessions; bearer authentication holds the same User share lock while reading current session evidence, role and factor in one transaction, releasing it before route handling; role commands lock actor/target in UUID order before sessions.
+Ticket08 adds `bd.mediwish.admin.AdminUserController`: strict JSON commands and UUID reads. It calls `auth.RoleAssignmentService`, which owns the role policy, bounded projections, audit persistence and atomic revocation because it shares the package-private SessionService. The User aggregate exposes one role and rolesVersion over the retained private role collection; PostgreSQL enforces exactly-one at commit. The Spring role hierarchy expands the single authority only at authorization; restricted MFA sessions hold no role authority. Password session creation locks the User FOR SHARE, rejects a password hash changed since verification, reads the current role, then writes sessions; bearer authentication holds the same User share lock while reading current session evidence, role and factor in one transaction, releasing it before route handling; role commands lock actor/target in UUID order before sessions.
 
 ## Package and dependency diagram
 
@@ -49,7 +48,42 @@ flowchart LR
         FAP[FirstAdminProvisioning<br/>operator command runner]
         FAS[FirstAdminProvisioningService<br/>+ StaffBootstrap singleton]
         AUD[SecurityAuditLog<br/>SecurityAuditEvent]
+        REC[PasswordResetService + PasswordResetTransaction<br/>public recovery, exact-password hashing outside transaction]
+        EV[EmailVerificationService<br/>authenticated verification]
+        ISS[AccountCodeIssuer + AccountCodeRules<br/>shared gap, expiry and attempts]
+        HASH[AccountCodeHasher<br/>purpose-bound HMAC-SHA256]
+        EMAIL[AccountEmailSecurity<br/>profile password proof + other-session revocation]
+        AM[AccountMail<br/>externalized composition + failure audit]
+        CODE[AccountCode + AccountCodeLimit repositories]
     end
+
+    subgraph MAIL[bd.mediwish.mail — outbound mail boundary]
+        AFTER[AfterCommitMailer<br/>bounded executor, no retry or durable queue]
+        TRANSPORT[EmailTransport<br/>disabled / memory / directory]
+    end
+    REC --> UR
+    REC --> ISS
+    REC --> HASH
+    REC --> CODE
+    REC --> SS
+    REC --> AUD
+    REC --> AM
+    EV --> UR
+    EV --> ISS
+    EV --> HASH
+    EV --> CODE
+    EV --> AM
+    EMAIL --> CODE
+    EMAIL --> SS
+    EMAIL --> AM
+    EMAIL --> AUD
+    ISS --> CODE
+    ISS --> HASH
+    CODE --> DB
+    AM --> MSG
+    AM --> AFTER
+    AFTER --> TRANSPORT
+    AFTER -->|failure callback| AUD
 
     ADMINHTTP[AdminUserController<br/>POST search, GET UUID detail, PUT role]
     ROLECOMMAND[RoleAssignmentService<br/>policy, version, audit, revocation]
@@ -76,13 +110,14 @@ flowchart LR
         CORR[RequestCorrelationFilter<br/>X-Request-ID + no-store]
     end
 
-    CONFIG[application.yaml<br/>Datasource, auth, CORS]
+    CONFIG[application.yaml<br/>Datasource, auth, mail, CORS]
     LIQ[Liquibase<br/>versioned schema migrations]
     DB[(PostgreSQL 18)]
     MSG[messages.properties<br/>English backend messages]
 
     BOOT --> USER
     BOOT --> AUTH
+    BOOT --> MAIL
     BOOT --> WEB
     AC -->|register| US
     AC -->|login / refresh / logout| AS
@@ -307,7 +342,7 @@ sequenceDiagram
 
 Update this page when a backend package, route, adapter, persistence boundary,
 authentication transport or authorization rule changes. Do not diagram planned
-OTP, recovery or order behavior as implemented.
+mobile OTP or order behavior as implemented.
 
 ## Ticket 11 profile boundary
 
@@ -330,3 +365,17 @@ The catalog feature owns Discount entities, command rules/audit repositories, Dh
 ## Ticket 12 saved-address boundary
 
 bd.mediwish.address owns strict owner-only JSON routes, pure normalization/default/calendar rules, the composite-key entity, native repository and User-locked transactional service. Every mutation takes the User lock before addresses or change rows; reads remain available while closing. Shared web security authorizes all four roles, bounds command bodies and errors, and keeps personal values out of logs. Configured Dhaka week/month counts and address writes share the transaction. Ticket 25's optional save must call create in a separate request after the Order commits.
+
+## Ticket 05 verified secondary email and password recovery
+
+`auth` owns account codes, HMACs, recovery, verification and the profile email-security facade. `user` owns the verified timestamp and safe profile projection. Verification and reset codes have separate purpose-bound HMACs and separate rows; both share the same per-User issue window and sixty-second gap. A distinct required Base64 32-byte recovery key protects low-entropy codes and opaque address-rate keys. Existing Users remain unverified until successful verification. Staff roles do not change recovery eligibility, and password recovery does not alter MFA factors, backup codes, roles, profile version or pending mobile changes.
+
+Reset requests first atomically count the normalized address key, then silently refuse unavailable or limited accounts. They lock the User, refresh an already managed lookup, and recheck the exact typed address ignoring case and current eligibility before issuing. Code creation, expiry and the shared issuance gap use a fresh Clock instant after lock acquisition, rather than a delayed request arrival time. All User-dependent work precedes opportunistic cleanup; the native age cleanup skips locked limit rows to avoid waiting on concurrent counter updates. Confirmation hashes every accepted typed replacement password outside the database transaction, including unknown accounts. The separate transaction returns INVALID so wrong attempts/deletion commit before the public generic error. Five wrong attempts consume the purpose row; success flushes the password mutation before bulk-clearing all code rows, revokes all families, audits and registers a notice.
+
+Profile email changes require the current password after no-op/version checks and before uniqueness probes. The User lock serializes the bounded wrong-password counter; only CurrentPasswordInvalidException is excluded from rollback. The profile mutation clears verification and is flushed before code deletion clears JPA state. A real change revokes other sessions while retaining the current session, and notifies a previously verified old address. Name-only and no-op saves require no password. Session creation also compares the verifier captured before password verification with the fresh locked User hash, preventing a stale concurrent sign-in from surviving password reset.
+
+`AccountMail` composes four English messages through MessageSource, then registers an after-commit callback. `mail` sends on one worker with a queue of 200; this preserves enqueue order, not global transaction-commit order. There is no durable copy, retry or network mail provider. Rollback sends nothing. Queue rejection or transport failure runs one sanitized callback that records EMAIL_DELIVERY_FAILED in REQUIRES_NEW without logging content or reverting committed domain state. Disabled transport is allowed everywhere; memory and directory capture require local/test profiles. Capture is a controlled development/test adapter, not a public read endpoint. Production acceptance in this ticket does not claim deliverability while mail is disabled.
+
+Tests separate pure rules/HMAC/password boundaries, service decisions through repository seams, after-commit/executor behavior, and PostgreSQL persistence/concurrency. Controller, authorization, CSRF, bounded-error and browser contracts remain separate verification gates. Matching source mirrors and the index describe each class and test.
+
+Ticket 05 HTTP wiring: the two public password-reset POST commands share credential CSRF exemptions and 16 KiB limits, ignore bearer headers and issue no session. The two owner email-verification POST commands share bearer/MFA authorization and limits with profile commands. Strict controller JSON validation precedes service transactions, while bounded recovery exceptions reuse the common correlated no-store error envelope.

@@ -11,3 +11,6 @@ Unit test of `MfaSecretCipher` over `TestAuthSettings`: a sealed seed does not a
 8 tests.
 
 Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` passed all 238 unit tests.
+
+
+Ticket 05 supplies the required synthetic Recovery settings to direct AuthProperties construction; existing behavior and assertions stay unchanged.

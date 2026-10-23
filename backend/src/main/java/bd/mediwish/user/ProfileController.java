@@ -1,6 +1,7 @@
 package bd.mediwish.user;
 
 import bd.mediwish.auth.InvalidRequestException;
+import bd.mediwish.auth.CurrentUserAuthentication.CurrentUser;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -28,14 +29,18 @@ public class ProfileController {
     }
 
     @PutMapping("/profile")
-    ProfileView update(@AuthenticationPrincipal(expression = "userId") UUID userId, @RequestBody JsonNode body) {
-        requireKeys(body, Set.of("fullName", "email", "dateOfBirth", "version"));
+    ProfileView update(@AuthenticationPrincipal CurrentUser current, @RequestBody JsonNode body) {
+        requireKeys(body, body != null && body.has("currentPassword")
+                ? Set.of("fullName", "email", "dateOfBirth", "version", "currentPassword")
+                : Set.of("fullName", "email", "dateOfBirth", "version"));
+        String currentPassword = body.has("currentPassword") ? text(body.get("currentPassword")) : null;
+        if (currentPassword != null && currentPassword.length() > 128) throw new InvalidRequestException();
         var version = body.get("version");
         if (!version.isIntegralNumber() || !version.canConvertToLong() || version.longValue() < 0) {
             throw new InvalidRequestException();
         }
-        return profiles.update(userId, new ProfileEdit(text(body.get("fullName")), text(body.get("email")),
-                date(body.get("dateOfBirth")), version.longValue()));
+        return profiles.update(current.userId(), current.sessionId(), new ProfileEdit(text(body.get("fullName")), text(body.get("email")),
+                date(body.get("dateOfBirth")), version.longValue(), currentPassword));
     }
 
     @PostMapping("/mobile-change")

@@ -4,6 +4,9 @@ import bd.mediwish.address.*;
 import bd.mediwish.auth.AuthenticationFailedException;
 import bd.mediwish.auth.AuthenticationRequiredException;
 import bd.mediwish.auth.InvalidRequestException;
+import bd.mediwish.auth.CodeInvalidException;
+import bd.mediwish.auth.CurrentPasswordInvalidException;
+import bd.mediwish.user.EmailRequiredException;
 import bd.mediwish.auth.MfaCodeInvalidException;
 import bd.mediwish.auth.MfaEnrollmentStaleException;
 import bd.mediwish.auth.TooManyAttemptsException;
@@ -65,6 +68,9 @@ class ApiExceptionHandlerTest {
             Map.entry("mfa-enrollment-stale", MfaEnrollmentStaleException::new),
             Map.entry("too-many-attempts", TooManyAttemptsException::new),
             Map.entry("invalid-request", InvalidRequestException::new),
+            Map.entry("code-invalid", CodeInvalidException::new),
+            Map.entry("current-password-invalid", CurrentPasswordInvalidException::new),
+            Map.entry("email-required", EmailRequiredException::new),
             Map.entry("role-refused", RoleChangeRefusedException::new),
             Map.entry("user-not-found", UserNotFoundException::new),
             Map.entry("invalid-registration", UserService.InvalidRegistrationException::new),
@@ -82,7 +88,8 @@ class ApiExceptionHandlerTest {
             .build();
 
     @ParameterizedTest
-    @CsvSource({"invalid-request,400,INVALID_REQUEST", "invalid-registration,400,INVALID_REQUEST",
+    @CsvSource({"code-invalid,400,CODE_INVALID", "current-password-invalid,400,CURRENT_PASSWORD_INVALID",
+            "email-required,409,EMAIL_REQUIRED", "invalid-request,400,INVALID_REQUEST", "invalid-registration,400,INVALID_REQUEST",
             "duplicate-user,409,DUPLICATE_USER", "invalid-profile,400,INVALID_REQUEST",
             "account-closing,409,ACCOUNT_CLOSING", "authentication-failed,401,AUTHENTICATION_FAILED",
             "authentication-required,401,AUTHENTICATION_REQUIRED", "data-access,500,INTERNAL_ERROR",

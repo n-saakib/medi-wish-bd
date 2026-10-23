@@ -45,7 +45,7 @@ class SessionServiceTest {
     @BeforeEach
     void setUp() {
         var properties = new AuthProperties(Duration.ofMinutes(15), Duration.ofSeconds(1000), "medi-wish",
-                "medi-wish-api", "unused", new AuthProperties.Cookie(true), TestAuthSettings.mfa());
+                "medi-wish-api", "unused", new AuthProperties.Cookie(true), TestAuthSettings.mfa(), TestAuthSettings.recovery());
         var random = new SecureRandom() {
             @Override
             public void nextBytes(byte[] bytes) {
@@ -55,10 +55,20 @@ class SessionServiceTest {
         service = new SessionService(users, sessions, refreshTokens, properties, Clock.fixed(NOW, ZoneOffset.UTC), random);
     }
 
+    @Test void anEmailChangeRevokesOtherSessionsAndKeepsTheRequestingSessionActive() {
+        var kept = session(NOW.plusSeconds(500));
+        var other = session(NOW.plusSeconds(500));
+        when(sessions.findActiveByUserIdForUpdate(user.id())).thenReturn(List.of(kept, other));
+        service.revokeOthersForUser(user.id(), kept.id(), RevocationReason.EMAIL_CHANGED);
+        assertThat(kept.revoked()).isFalse();
+        assertThat(other.revokedReason()).isEqualTo("email-changed");
+        verifyNoInteractions(refreshTokens);
+    }
+
     @Test
     void createsGenerationZeroStoringOnlyTheHashOfA32ByteRefreshValue() {
         when(users.findByIdForShare(user.id())).thenReturn(Optional.of(user));
-        var result = service.create(user.id()).credential();
+        var result = service.create(user.id(), user.passwordHash()).credential();
 
         assertThat(result.userId()).isEqualTo(user.id());
         assertThat(result.expiresAt()).isEqualTo(NOW.plusSeconds(1000));
@@ -72,7 +82,7 @@ class SessionServiceTest {
     void passwordSessionLocksTheCurrentRoleBeforeSavingAndUsesItsRestrictedLifetime() {
         user.replaceRole(UserRole.MODERATOR);
         when(users.findByIdForShare(user.id())).thenReturn(Optional.of(user));
-        var created = service.create(user.id());
+        var created = service.create(user.id(), user.passwordHash());
         var result = created.credential();
         assertThat(created.user()).isSameAs(user);
         var ordered = org.mockito.Mockito.inOrder(users, sessions);
@@ -86,7 +96,7 @@ class SessionServiceTest {
     @Test
     void aDeletedUserCannotOpenAPasswordSession() {
         when(users.findByIdForShare(user.id())).thenReturn(Optional.empty());
-        assertThatThrownBy(() -> service.create(user.id())).isInstanceOf(AuthenticationRequiredException.class);
+        assertThatThrownBy(() -> service.create(user.id(), user.passwordHash())).isInstanceOf(AuthenticationRequiredException.class);
         verifyNoInteractions(sessions, refreshTokens);
     }
     @Test

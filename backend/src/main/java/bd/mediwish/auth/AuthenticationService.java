@@ -45,9 +45,10 @@ class AuthenticationService {
     AuthenticatedSession signIn(String identifier, String password) {
         User user = resolve(identifier).filter(candidate -> PasswordVerifierPolicy.isUsable(candidate.passwordHash()))
                 .orElse(null);
-        boolean matches = passwords.matches(password, user == null ? dummyVerifier : user.passwordHash());
+        String verifiedPasswordHash = user == null ? dummyVerifier : user.passwordHash();
+        boolean matches = passwords.matches(password, verifiedPasswordHash);
         if (user == null || !matches) throw new AuthenticationFailedException();
-        var created = sessions.create(user.id());
+        var created = sessions.create(user.id(), verifiedPasswordHash);
         return issue(created.user(), created.credential());
     }
 

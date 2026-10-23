@@ -20,3 +20,9 @@ The client-validation cases include a 102-unit trimmed name that would collapse 
 Focus regressions (2026-10-08) were 9 RED before the fix and pass after it. Each invalid-field case asserts the field is focused. One case checks that the first of two invalid fields (email before date of birth) is focused only after `aria-describedby` is set, and that Full name has `maxLength` 100. The stale save focuses its alert, and Reload focuses the `h1`. A failed Cancel change focuses its alert, and a successful one focuses the `Mobile change cancelled.` status. A held, refused stage, submitted from the focused button, returns focus to the re-enabled New mobile field, which is described by the error.
 
 Closing-pass regressions (2026-10-08): an ACCOUNT_CLOSING refusal focuses the closing warning, a loaded closing account does not, and the pending-mobile note is a status paragraph present (empty) before staging that never contains Cancel change. A `close` event delivered after Change reopened the dialog leaves it open with focus in New mobile; this failed before the dialog fix. They failed before the fix.
+
+## Ticket 05 email recovery
+
+Adds current-password visibility/validation and rejection cleanup; email/mobile groups; serialized verification with editable drafts; issue errors/closing state; successful verification preserving draft/version and post-modal focus; invalid code and changed-email responses. Existing normalized saves now supply the current password when changing email.
+
+Current-password cases additionally cover clear/revert and whitespace-only input, successful change, stale, duplicate and hourly-limit refusal cleanup. Successful saves are re-edited to observe that the hidden password state is empty. Existing session-generation tests cover discarded parent save responses; the keyed editor destroys the password state with that session.

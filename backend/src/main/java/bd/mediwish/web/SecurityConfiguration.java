@@ -44,6 +44,9 @@ class SecurityConfiguration {
             route(HttpMethod.PUT, "/api/user/me/profile"),
             route(HttpMethod.POST, "/api/user/me/mobile-change"),
             route(HttpMethod.DELETE, "/api/user/me/mobile-change"));
+    static final RequestMatcher USER_EMAIL_VERIFICATION_COMMANDS = new OrRequestMatcher(
+            route(HttpMethod.POST, "/api/user/me/email-verification"),
+            route(HttpMethod.POST, "/api/user/me/email-verification/confirm"));
     static final RequestMatcher USER_ADDRESSES_READ = route(HttpMethod.GET, "/api/user/me/addresses");
     static final RequestMatcher USER_ADDRESS_COMMANDS = new OrRequestMatcher(
             route(HttpMethod.POST, "/api/user/me/addresses"),
@@ -87,15 +90,17 @@ class SecurityConfiguration {
     static final RequestMatcher ADMIN_ROLE_CHANGE = route(HttpMethod.PUT, "/api/admin/users/*/roles");
     /** Bearer-only commands need no CSRF cookie; their JSON bodies stay bounded. */
     static final RequestMatcher BEARER_COMMAND_ROUTES = new OrRequestMatcher(ADMIN_USER_SEARCH, ADMIN_ROLE_CHANGE,
-            USER_PROFILE_COMMANDS, USER_ADDRESS_COMMANDS, STAFF_CATALOG_COMMANDS, STAFF_PRICING, STAFF_PRODUCT_IMAGE_COMMANDS, STAFF_DISCOUNT_COMMANDS);
+            USER_PROFILE_COMMANDS, USER_EMAIL_VERIFICATION_COMMANDS, USER_ADDRESS_COMMANDS, STAFF_CATALOG_COMMANDS, STAFF_PRICING, STAFF_PRODUCT_IMAGE_COMMANDS, STAFF_DISCOUNT_COMMANDS);
     /** Every route that needs a Bearer access token; the filter and the authorization rules share it. */
     static final RequestMatcher PROTECTED_ROUTES = new OrRequestMatcher(USER_PROFILE, USER_PROFILE_READ,
-            USER_PROFILE_COMMANDS, USER_ADDRESSES_READ, USER_ADDRESS_COMMANDS, STAFF_PROFILE, MFA_ROUTES, ADMIN_USER_SEARCH, ADMIN_USER_DETAIL, ADMIN_ROLE_CHANGE,
+            USER_PROFILE_COMMANDS, USER_EMAIL_VERIFICATION_COMMANDS, USER_ADDRESSES_READ, USER_ADDRESS_COMMANDS, STAFF_PROFILE, MFA_ROUTES, ADMIN_USER_SEARCH, ADMIN_USER_DETAIL, ADMIN_ROLE_CHANGE,
             STAFF_CATALOG_READS, STAFF_CATALOG_COMMANDS, STAFF_PRICING, STAFF_PRODUCT_IMAGE_READS, STAFF_PRODUCT_IMAGE_COMMANDS, STAFF_DISCOUNT_READS, STAFF_DISCOUNT_COMMANDS);
-    /** Registration and sign-in: public, exempt from CSRF (no session exists yet) and body-limited. */
+    /** Registration, sign-in and password-reset routes: public, exempt from CSRF (no session exists yet) and body-limited. */
     static final RequestMatcher CREDENTIAL_ROUTES = new OrRequestMatcher(
             route(HttpMethod.POST, "/api/auth/register"),
-            route(HttpMethod.POST, "/api/auth/login"));
+            route(HttpMethod.POST, "/api/auth/login"),
+            route(HttpMethod.POST, "/api/auth/password-reset/request"),
+            route(HttpMethod.POST, "/api/auth/password-reset/confirm"));
 
     private final boolean localProfile;
     private final boolean secureCookies;
@@ -145,7 +150,7 @@ class SecurityConfiguration {
                 .addFilterBefore(new BoundedCorsFilter(corsSource, errors), SecurityContextHolderFilter.class)
                 // Catalog commands are bounded after authorization below, not here.
                 .addFilterAfter(new AuthRequestBodyLimitFilter(new OrRequestMatcher(CREDENTIAL_ROUTES, MFA_ROUTES,
-                        ADMIN_USER_SEARCH, ADMIN_ROLE_CHANGE, USER_PROFILE_COMMANDS, USER_ADDRESS_COMMANDS), errors), BoundedCorsFilter.class)
+                        ADMIN_USER_SEARCH, ADMIN_ROLE_CHANGE, USER_PROFILE_COMMANDS, USER_EMAIL_VERIFICATION_COMMANDS, USER_ADDRESS_COMMANDS), errors), BoundedCorsFilter.class)
                 .addFilterAfter(new BearerAccessTokenFilter(PROTECTED_ROUTES, currentUsers, errors), LogoutFilter.class)
                 // Catalog authorization precedes body reading: denied pricing stays 403 for every JSON body.
                 .addFilterAfter(new AuthRequestBodyLimitFilter(
@@ -166,7 +171,7 @@ class SecurityConfiguration {
                         .requestMatchers(MFA_CHALLENGE_ROUTE).hasAuthority(StaffAccessPolicy.MFA_CHALLENGE)
                         .requestMatchers(STAFF_PROFILE).hasRole("MODERATOR")
                         .requestMatchers(USER_PROFILE).hasRole("CUSTOMER")
-                        .requestMatchers(USER_PROFILE_READ, USER_PROFILE_COMMANDS).hasAnyRole("CUSTOMER", "ADMIN", "MODERATOR", "DELIVERY_PERSON")
+                        .requestMatchers(USER_PROFILE_READ, USER_PROFILE_COMMANDS, USER_EMAIL_VERIFICATION_COMMANDS).hasAnyRole("CUSTOMER", "ADMIN", "MODERATOR", "DELIVERY_PERSON")
                         .requestMatchers(USER_ADDRESSES_READ, USER_ADDRESS_COMMANDS).hasAnyRole("CUSTOMER", "ADMIN", "MODERATOR", "DELIVERY_PERSON")
                         .requestMatchers(ADMIN_USER_SEARCH, ADMIN_USER_DETAIL, ADMIN_ROLE_CHANGE).hasRole("ADMIN")
                         .requestMatchers(STAFF_PRICING, STAFF_DISCOUNT_READS, STAFF_DISCOUNT_COMMANDS).hasRole("ADMIN")

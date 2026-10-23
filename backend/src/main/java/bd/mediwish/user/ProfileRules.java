@@ -17,6 +17,9 @@ public final class ProfileRules {
 
     public ProfileEdit validate(ProfileEdit edit, LocalDate today) {
         if (edit == null || edit.version() == null || edit.version() < 0) throw new InvalidProfileException("version");
+        if (edit.currentPassword() != null && edit.currentPassword().length() > 128) {
+            throw new InvalidProfileException("currentPassword");
+        }
         String name = edit.fullName();
         if (name != null) {
             if (CONTROL.matcher(name).find()) throw new InvalidProfileException("fullName");
@@ -30,7 +33,7 @@ public final class ProfileRules {
         if (dob != null && (dob.isBefore(EARLIEST_DATE_OF_BIRTH) || dob.isAfter(today))) {
             throw new InvalidProfileException("dateOfBirth");
         }
-        return new ProfileEdit(name, email, dob, edit.version());
+        return new ProfileEdit(name, email, dob, edit.version(), edit.currentPassword());
     }
 
     public String stageMobile(String currentMobile, String requested) {

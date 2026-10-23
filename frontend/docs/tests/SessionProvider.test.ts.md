@@ -17,3 +17,7 @@ Unit coverage for [`SessionProvider`](../src/auth/SessionProvider.tsx.md), its r
 - **Staff MFA provider:** the MFA status is shared from the restore and from sign-in; enrollment verification marks the session verified and returns the backup codes without storing them; a challenge code marks it verified; a rejected code keeps the restricted session; an unauthorized enrollment start, enrollment verification or challenge verification ends the session; sign-out clears the status.
 
 On 2026-09-27 this suite passed as part of `npm run test:unit`.
+
+## Ticket 05 email recovery
+
+The public session reducer contract now covers passwordReset notice lifetime on /sign-in and removal on /forgot-password or /.

@@ -894,3 +894,32 @@ databaseChangeLog:
               CREATE UNIQUE INDEX uq_saved_addresses_default ON saved_addresses (user_id) WHERE is_default;
               ALTER TABLE saved_address_changes ADD CONSTRAINT fk_saved_address_changes_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
               CREATE INDEX ix_saved_address_changes_user ON saved_address_changes (user_id, changed_at);
+
+  - changeSet:
+      id: 019-account-email-recovery
+      author: medi-wish
+      changes:
+        - sql:
+            splitStatements: true
+            sql: |-
+              ALTER TABLE users ADD COLUMN email_verified_at TIMESTAMP WITH TIME ZONE;
+              ALTER TABLE users ADD CONSTRAINT ck_users_email_verified_needs_email CHECK (email_verified_at IS NULL OR email IS NOT NULL);
+              CREATE TABLE account_codes (
+                id UUID PRIMARY KEY,
+                user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+                purpose VARCHAR(32) NOT NULL CONSTRAINT ck_account_codes_purpose CHECK (purpose IN ('EMAIL_VERIFICATION', 'PASSWORD_RESET')),
+                code_hash CHAR(64) NOT NULL,
+                sent_to VARCHAR(320) NOT NULL,
+                created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                failed_attempts SMALLINT NOT NULL DEFAULT 0 CONSTRAINT ck_account_codes_attempts CHECK (failed_attempts BETWEEN 0 AND 5),
+                CONSTRAINT uq_account_codes_user_purpose UNIQUE (user_id, purpose),
+                CONSTRAINT ck_account_codes_expiry CHECK (expires_at > created_at)
+              );
+              CREATE TABLE account_code_limits (
+                limit_key VARCHAR(96) PRIMARY KEY,
+                window_started_at TIMESTAMP WITH TIME ZONE NOT NULL,
+                attempts INTEGER NOT NULL CONSTRAINT ck_account_code_limits_attempts CHECK (attempts >= 0),
+                last_at TIMESTAMP WITH TIME ZONE NOT NULL
+              );
+              CREATE INDEX ix_account_code_limits_window ON account_code_limits (window_started_at);

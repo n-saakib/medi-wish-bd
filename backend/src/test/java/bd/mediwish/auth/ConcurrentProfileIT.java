@@ -80,7 +80,7 @@ class ConcurrentProfileIT {
             try (var statement = claimant.prepareStatement("UPDATE users SET email = ? WHERE id = ?")) {
                 statement.setString(1, email); statement.setObject(2, api.userId(other)); statement.executeUpdate();
             }
-            var save = workers.submit(() -> api.putProfile(token, AuthApi.profileEdit(0, "Must Roll Back", email, null)));
+            var save = workers.submit(() -> api.putProfile(token, api.profileEdit(first, 0, "Must Roll Back", email, null)));
             awaitBlocked(claimant, 1);
             claimant.commit();
             assertError(save.get(10, TimeUnit.SECONDS), 409, "DUPLICATE_USER");
