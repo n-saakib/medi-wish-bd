@@ -37,7 +37,7 @@ class IntegratedRecoveryIT {
         var fixture = replacement();
         var user = fixture.user();
         api.markEmailVerified(user);
-        String password = api.track("integrated-reset-" + UUID.randomUUID());
+        String password = api.track("integrated-reset-" + UUID.randomUUID().toString().substring(0, 12));
         assertThat(api.requestReset(user.email()).statusCode()).isEqualTo(202);
         String code = AuthApi.codeFrom(api.awaitMail(EmailKind.PASSWORD_RESET_CODE, user.email()));
 

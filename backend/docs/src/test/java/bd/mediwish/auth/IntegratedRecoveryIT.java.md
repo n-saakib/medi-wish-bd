@@ -1,5 +1,7 @@
 # IntegratedRecoveryIT
 
+Reset fixtures use a synthetic password within the shared 6–30 character contract.
+
 Source: [IntegratedRecoveryIT.java](../../../../../../../src/test/java/bd/mediwish/auth/IntegratedRecoveryIT.java)
 
 Real HTTP/PostgreSQL regression coverage for the combined Tickets 05, 09 and 17 contracts. A verified-email password reset revokes both an MFA-verified session and a replacement session, including their bearer and refresh credentials; the new password still requires the existing authenticator. A password-confirmed email change revokes another replacement family while preserving the saving verified session and notifying the old verified address.
