@@ -326,8 +326,8 @@ describe('MfaEnrollment', () => {
 
 
 it.each([
-  ['SENT', 'We sent a notice to your verified mobile.'],
-  ['FAILED', 'We couldn’t send a notice to your verified mobile. Your new authenticator is active.'],
+  ['SENT', 'We sent a notice to your verified contacts.'],
+  ['FAILED', 'We couldn’t send a notice to your verified contacts. Your new authenticator is active.'],
   ['NO_VERIFIED_CONTACT', 'No verified contact to notify.'],
   ['NOT_CONFIGURED', 'Security notices aren’t set up, so none was sent.'],
 ] satisfies [ContactNotice, string][])('replaces an authenticator and holds the %s notice with its once-only codes', async (contactNotice, text) => {
@@ -355,7 +355,7 @@ it('keeps a first enrollment free of a replacement notice', async () => {
   }));
   await enterCode(page, '287082');
   expect(page.textContent).toContain(syntheticBackupCodes[0]);
-  expect(page.textContent).not.toContain('We sent a notice to your verified mobile.');
+  expect(page.textContent).not.toContain('We sent a notice to your verified contacts.');
   expect(page.querySelector('.secret .alert')).toBeNull();
 });
 

@@ -30,3 +30,5 @@ Ten codes are shown instead of the mock's eight (accepted decision D4). The desi
 ## Ticket 09
 
 An optional `notice` renders above the codes inside the secret panel: `SENT` uses a success status; `FAILED`, `NO_VERIFIED_CONTACT` and `NOT_CONFIGURED` use warning statuses. All copy comes from `staffMfa.contactNotice`. An absent or null notice renders none. `steps` defaults to true; regeneration passes false to omit enrollment progress. The caller still owns code lifetime and session visibility.
+
+The integrated replacement notice contract uses verified-contacts wording for `SENT` and `FAILED`, covering mobile and email without disclosing recipients; the other two outcome messages remain unchanged.

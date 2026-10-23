@@ -40,3 +40,5 @@ Each checks the run's schema and the synthetic username with `checkedTarget` fir
 - Write: `expireReplacementSessions` moves a User's active replacement sessions past their expiry, and `revokeActiveFactorLikeTicket10` revokes the active factor as a Ticket 10 reset would.
 
 Codes, keys and tokens are held in memory only; nothing is logged.
+
+The integrated replacement notice contract uses verified-contacts wording for `SENT` and `FAILED`, covering mobile and email without disclosing recipients; the other two outcome messages remain unchanged.

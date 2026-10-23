@@ -14,3 +14,5 @@ Mounted jsdom coverage for [`BackupCodesPanel`](../src/auth/BackupCodesPanel.tsx
 - `I’ve saved them` calls `onSaved` once and opens `/staff`. That the codes then disappear is covered in [`MfaEnrollment.test.ts`](MfaEnrollment.test.ts.md).
 
 Ticket 09 table-tests the four notice texts and success/warning tones. A regeneration presentation test confirms `steps={false}` omits enrollment progress.
+
+The integrated replacement notice contract uses verified-contacts wording for `SENT` and `FAILED`, covering mobile and email without disclosing recipients; the other two outcome messages remain unchanged.

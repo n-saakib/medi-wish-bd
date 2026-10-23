@@ -46,8 +46,8 @@ export const copy = {
 /** `contactNotice` of a verified replacement (frozen contract), with the panel line each one shows (plan §4.6). */
 export type ContactNotice = 'SENT' | 'FAILED' | 'NO_VERIFIED_CONTACT' | 'NOT_CONFIGURED';
 export const noticeText: Record<ContactNotice, string> = {
-  SENT: 'We sent a notice to your verified mobile.',
-  FAILED: 'We couldn’t send a notice to your verified mobile. Your new authenticator is active.',
+  SENT: 'We sent a notice to your verified contacts.',
+  FAILED: 'We couldn’t send a notice to your verified contacts. Your new authenticator is active.',
   NO_VERIFIED_CONTACT: 'No verified contact to notify.',
   NOT_CONFIGURED: 'Security notices aren’t set up, so none was sent.',
 };

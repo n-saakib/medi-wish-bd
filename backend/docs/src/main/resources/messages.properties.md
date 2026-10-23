@@ -47,3 +47,5 @@ Ticket 05 mail.* keys externalize verification/reset code subjects and 15-minute
 Recovery errors use the accepted exact English messages for wrong/expired code, current-password email guard and missing saved email. Existing mail subject/body keys remain externalized.
 
 `notice.STAFF_AUTHENTICATOR_REPLACED` supplies the post-commit mobile notice with the formatted Asia/Dhaka timestamp. The message carries no username, code or link. Its apostrophe is doubled for MessageFormat so the rendered text preserves "wasn't". A ResourceBundleMessageSource unit test asserts the exact rendered notice.
+
+`mail.staffAuthenticatorReplaced.subject` and `mail.staffAuthenticatorReplaced.body` supply the code-free verified-email replacement notice. The body shares the Asia/Dhaka timestamp and escaped apostrophe convention with the mobile notice; no contact, credential, code or link is interpolated.

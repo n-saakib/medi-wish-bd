@@ -1,0 +1,3 @@
+# `StaffReplacementNoticesIT.java`
+
+Real HTTP/PostgreSQL regression matrix composes Ticket 05 verified email and Ticket 09 authenticator replacement with controlled in-memory email and mobile adapters. Cases cover both contacts, email only, mobile only, either channel failing while the other sends, both failing and neither contact verified. Only verified successful channels capture a private notice. Each completed replacement returns ten codes and leaves one active factor, a committed replacement audit and exactly one matching notice-outcome audit. A cleanup block restores capture failure controls after each case; captured-output checks reject private logs. Disabled and bounded timeout behavior use the focused coordinator tests.

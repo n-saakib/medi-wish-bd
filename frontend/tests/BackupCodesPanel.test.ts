@@ -84,8 +84,8 @@ describe('BackupCodesPanel', () => {
 
 
 it.each([
-  ['SENT', 'success', 'We sent a notice to your verified mobile.'],
-  ['FAILED', 'warn', 'We couldn’t send a notice to your verified mobile. Your new authenticator is active.'],
+  ['SENT', 'success', 'We sent a notice to your verified contacts.'],
+  ['FAILED', 'warn', 'We couldn’t send a notice to your verified contacts. Your new authenticator is active.'],
   ['NO_VERIFIED_CONTACT', 'warn', 'No verified contact to notify.'],
   ['NOT_CONFIGURED', 'warn', 'Security notices aren’t set up, so none was sent.'],
 ] as const)('shows %s as a %s notice', async (notice, tone, text) => {

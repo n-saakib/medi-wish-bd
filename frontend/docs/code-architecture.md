@@ -207,8 +207,7 @@ flowchart TD
 ```
 
 `layout.tsx`, the route-group layouts, the page files, `request.ts` and message
-loading run on the server side of the Next.js boundary, and every route is
-statically generated. `AuthHeader` and `Logo` have no client directive and
+loading run on the server side of the Next.js boundary, with store routes rendered at request time through `connection()`; auth and staff entry shells are statically generated, and UUID detail routes remain dynamic. `AuthHeader` and `Logo` have no client directive and
 render on the server inside the auth layout. `SessionProvider`, the forms,
 `SignOutNotice`, `AccountSummary`, `SiteHeader`, `MfaEnrollment`,
 `MfaChallenge`, `StaffHome`, `StaffHeader`, `ProductList`, `ProductEditor`, `CategoryManager` and `Alert` are client components

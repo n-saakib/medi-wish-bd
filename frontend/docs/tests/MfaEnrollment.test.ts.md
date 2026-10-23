@@ -28,3 +28,5 @@ Ticket 09 compatibility: the typed first-enrollment session fixture includes `co
 A table covers every contact-notice value: replacement setup starts, the replacement heading/intro render, verification holds the notice and once-only codes without redirecting, and pagehide clears codes before the staff redirect. First enrollment renders no replacement notice even when the verification answer carries a non-null `contactNotice` (`SENT`), so the replacement-only notice guard is exercised. A regression test reproduces and protects removal of displayed codes when the header signs out.
 
 The late-verification regression holds replacement verification pending, dispatches pagehide and then resolves success. It asserts no codes reappear and the now-verified session continues to `/staff`. Existing successful-enrollment and replacement tables retain coverage of visible once-only panels.
+
+The integrated replacement notice contract uses verified-contacts wording for `SENT` and `FAILED`, covering mobile and email without disclosing recipients; the other two outcome messages remain unchanged.
