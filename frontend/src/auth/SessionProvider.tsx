@@ -21,12 +21,13 @@ export type SessionSource = Pick<SessionClient, 'signIn' | 'restoreSession' | 's
   | 'startMfaEnrollment' | 'verifyMfaEnrollment' | 'verifyMfa'>;
 
 /** Feedback that outlives the page that caused it, until the visitor leaves the page that shows it. */
-export type SessionNotice = 'sessionExpired' | 'restoreError' | 'accountCreated' | 'signedOut' | 'signOutError';
+export type SessionNotice = 'sessionExpired' | 'restoreError' | 'accountCreated' | 'signedOut' | 'signOutError' | 'passwordReset';
 
 const noticePages: Record<SessionNotice, string> = {
   sessionExpired: '/sign-in',
   restoreError: '/sign-in',
   accountCreated: '/sign-in',
+  passwordReset: '/sign-in',
   signedOut: '/',
   signOutError: '/',
 };

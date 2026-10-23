@@ -105,7 +105,7 @@ class JwtAccessTokenCodecTest {
 
     private static JwtAccessTokenCodec codecAt(Instant now, String secret) {
         var properties = new AuthProperties(Duration.ofMinutes(15), Duration.ofDays(30), "medi-wish", "medi-wish-api",
-                secret, new AuthProperties.Cookie(true), TestAuthSettings.mfa());
+                secret, new AuthProperties.Cookie(true), TestAuthSettings.mfa(), TestAuthSettings.recovery());
         return new JwtAccessTokenCodec(properties, Clock.fixed(now, ZoneOffset.UTC));
     }
 

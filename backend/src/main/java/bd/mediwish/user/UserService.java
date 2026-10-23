@@ -22,14 +22,18 @@ public class UserService {
         this.identifiers = identifiers;
     }
 
+    public static boolean isAcceptablePassword(String password) {
+        return password != null && !password.isBlank()
+                && password.length() >= MIN_PASSWORD_LENGTH && password.length() <= MAX_PASSWORD_LENGTH;
+    }
+
     @Transactional
     public User register(String username, String mobile, String email, String password) {
         String normalizedUsername = identifiers.username(username);
         String normalizedMobile = identifiers.mobile(mobile);
         String normalizedEmail = identifiers.email(email);
         if (!IdentifierFormats.isUsername(normalizedUsername) || !IdentifierFormats.isMobile(normalizedMobile)
-                || password == null || password.isBlank() || password.length() < MIN_PASSWORD_LENGTH
-                || password.length() > MAX_PASSWORD_LENGTH
+                || !isAcceptablePassword(password)
                 || (normalizedEmail != null && !IdentifierFormats.isEmail(normalizedEmail))) {
             throw new InvalidRegistrationException();
         }

@@ -51,7 +51,7 @@ class AuthControllerTest {
     @BeforeEach
     void setUp() {
         var properties = new AuthProperties(Duration.ofMinutes(15), Duration.ofDays(30), "medi-wish",
-                "medi-wish-api", "unused", new AuthProperties.Cookie(true), TestAuthSettings.mfa());
+                "medi-wish-api", "unused", new AuthProperties.Cookie(true), TestAuthSettings.mfa(), TestAuthSettings.recovery());
         controller = new AuthController(users, authentication,
                 new RefreshCookieAdapter(properties, Clock.fixed(NOW, ZoneOffset.UTC)));
         mvc = MockMvcBuilders.standaloneSetup(controller).build();

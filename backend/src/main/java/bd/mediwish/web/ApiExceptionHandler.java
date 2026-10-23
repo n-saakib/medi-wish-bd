@@ -4,6 +4,9 @@ import bd.mediwish.address.*;
 import bd.mediwish.auth.AuthenticationFailedException;
 import bd.mediwish.auth.AuthenticationRequiredException;
 import bd.mediwish.auth.InvalidRequestException;
+import bd.mediwish.auth.CodeInvalidException;
+import bd.mediwish.auth.CurrentPasswordInvalidException;
+import bd.mediwish.user.EmailRequiredException;
 import bd.mediwish.auth.MfaCodeInvalidException;
 import bd.mediwish.auth.MfaEnrollmentStaleException;
 import bd.mediwish.auth.TooManyAttemptsException;
@@ -54,6 +57,21 @@ class ApiExceptionHandler {
             InvalidMoneyException.class})
     ResponseEntity<ApiErrors.Body> invalidRequest(HttpServletRequest request) {
         return error(ApiError.INVALID_REQUEST, request);
+    }
+
+    @ExceptionHandler(CodeInvalidException.class)
+    ResponseEntity<ApiErrors.Body> codeInvalid(HttpServletRequest request) {
+        return error(ApiError.CODE_INVALID, request);
+    }
+
+    @ExceptionHandler(CurrentPasswordInvalidException.class)
+    ResponseEntity<ApiErrors.Body> currentPasswordInvalid(HttpServletRequest request) {
+        return error(ApiError.CURRENT_PASSWORD_INVALID, request);
+    }
+
+    @ExceptionHandler(EmailRequiredException.class)
+    ResponseEntity<ApiErrors.Body> emailRequired(HttpServletRequest request) {
+        return error(ApiError.EMAIL_REQUIRED, request);
     }
 
     @ExceptionHandler(AccountClosingException.class)

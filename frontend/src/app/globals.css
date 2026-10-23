@@ -123,7 +123,7 @@ p { margin: 0 0 .75rem; }
 /* Account profile */
 .profile-card { width: min(100%, 700px); }
 .profile-label { font-weight: 600; font-size: .9rem; }
-.profile-mobile-row, .profile-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.profile-mobile-row, .profile-status-row, .profile-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
 .profile-pending { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; padding: 10px 12px; background: var(--brand-50); border-radius: var(--radius-s); }
 .profile-pending-note { margin: 0; overflow-wrap: anywhere; }
 .profile-field-error { color: #7f1a12; font-size: .875rem; }
@@ -254,3 +254,6 @@ button.thumb.image-main { border: 2px solid var(--brand-600); }
 #address-change-notice { overflow-wrap: anywhere; }
 @media (max-width: 960px) { .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 640px) { .grid-3 { grid-template-columns: minmax(0, 1fr); } }
+
+.auth-link { display: inline-flex; align-items: center; min-height: 44px; min-width: 44px; }
+.profile-actions .profile-actions-start { margin-right: auto; }

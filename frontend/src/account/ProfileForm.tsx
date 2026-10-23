@@ -6,18 +6,19 @@ import { useSession } from '../auth/SessionProvider';
 import { useSessionRedirect } from '../auth/sessionRedirect';
 import { ApiError, errorMessageKey, type ErrorMessageKey } from '../lib/api';
 import { isProfileEmail } from '../lib/identifiers';
-import { cancelMobileChange, loadProfile, saveProfile, stageMobileChange, type Profile } from '../lib/profile';
+import { cancelMobileChange, confirmEmailVerification, requestEmailVerification, loadProfile, saveProfile, stageMobileChange, type Profile } from '../lib/profile';
 import { Alert } from '../shell/Alert';
+import { EmailVerificationDialog } from './EmailVerificationDialog';
 import { MobileChangeDialog } from './MobileChangeDialog';
 
 type Draft = { fullName: string; email: string; dateOfBirth: string };
-type Field = keyof Draft;
-type Busy = 'load' | 'save' | 'stage' | 'cancel' | null;
-type Notice = 'saved' | 'mobileChangeCancelled';
+type Field = keyof Draft | 'currentPassword';
+type Busy = 'load' | 'save' | 'stage' | 'cancel' | 'verify' | 'confirm' | null;
+type Notice = 'saved' | 'mobileChangeCancelled' | 'emailVerified';
 
 const fullNameMaxLength = 100;
 const fieldIds: Record<Field, string> = {
-  fullName: 'profile-full-name', email: 'profile-email', dateOfBirth: 'profile-date-of-birth',
+  currentPassword: 'profile-current-password', fullName: 'profile-full-name', email: 'profile-email', dateOfBirth: 'profile-date-of-birth',
 };
 
 function draftOf(profile: Profile): Draft {
@@ -52,10 +53,14 @@ function ProfileEditor() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loadedGeneration, setLoadedGeneration] = useState<number | null>(null);
   const [draft, setDraft] = useState<Draft>({ fullName: '', email: '', dateOfBirth: '' });
+  const [currentPassword, setCurrentPassword] = useState('');
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<ErrorMessageKey | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<Field, string>>>({});
+  const [emailDialogOpen, setEmailDialogOpen] = useState(false);
+  const verifyButton = useRef<HTMLButtonElement>(null);
+  const justVerified = useRef(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   // A command refused because the account is closing focuses the warning; a closing account's page load does not.
   const [closingRefused, setClosingRefused] = useState(false);
@@ -103,6 +108,7 @@ function ProfileEditor() {
         if (reason instanceof ApiError && reason.code === 'ACCOUNT_CLOSING') {
           setProfile((current) => current && { ...current, accountState: 'CLOSURE_REQUESTED' });
           setDialogOpen(false);
+          setEmailDialogOpen(false);
           setClosingRefused(true);
         }
         if (onError) onError(reason);
@@ -157,6 +163,7 @@ function ProfileEditor() {
     if (dob && (!/^\d{4}-\d{2}-\d{2}$/.test(dob) || dob < '1900-01-01' || dob > todayInDhaka())) {
       next.dateOfBirth = t('dateOfBirthInvalid');
     }
+    if (emailChanged && !currentPassword.trim()) next.currentPassword = tErrors('currentPasswordInvalid');
     setFieldErrors(next);
     focusField.current = (Object.keys(next) as Field[])[0] ?? null;
     return focusField.current === null;
@@ -174,12 +181,19 @@ function ProfileEditor() {
         email: draft.email.trim() || null,
         dateOfBirth: draft.dateOfBirth || null,
         version: profile.version,
+        currentPassword: emailChanged ? currentPassword : undefined,
       }), (updated) => {
         setProfile(updated);
         setDraft(draftOf(updated));
         setNotice('saved');
+      }, (reason) => {
+        if (reason instanceof ApiError && reason.code === 'CURRENT_PASSWORD_INVALID') {
+          setFieldErrors({ currentPassword: tErrors('currentPasswordInvalid') });
+          focusField.current = 'currentPassword';
+        } else setError(errorMessageKey(reason));
       });
     } catch { /* run displays a bounded error. */ }
+    finally { setCurrentPassword(''); }
   }
 
   async function stage(mobile: string) {
@@ -190,6 +204,28 @@ function ProfileEditor() {
       }));
       setNotice(null);
     }, (reason) => { throw reason; });
+  }
+
+  async function verify() {
+    setError(null); setNotice(null);
+    try {
+      await run('verify', () => requestEmailVerification({ authenticatedFetch }), () => setEmailDialogOpen(true));
+    } catch { /* run displays the bounded error. */ }
+  }
+
+  async function confirmEmail(code: string) {
+    return run('confirm', () => confirmEmailVerification({ authenticatedFetch }, code), (updated) => {
+      if (updated.email !== profile?.email) {
+        setEmailDialogOpen(false); setError('staleUpdate'); return;
+      }
+      setProfile((current) => current && { ...current, emailVerified: updated.emailVerified });
+      justVerified.current = true;
+      setEmailDialogOpen(false);
+    }, (reason) => { throw reason; });
+  }
+
+  async function resendEmail() {
+    return run('verify', () => requestEmailVerification({ authenticatedFetch }), () => {}, (reason) => { throw reason; });
   }
 
   async function cancel() {
@@ -207,6 +243,7 @@ function ProfileEditor() {
   const shownProfile = loadedGeneration === session.generation ? profile : null;
   const dirty = shownProfile !== null && (draft.fullName !== (shownProfile.fullName ?? '')
     || draft.email !== (shownProfile.email ?? '') || draft.dateOfBirth !== (shownProfile.dateOfBirth ?? ''));
+  const emailChanged = shownProfile !== null && draft.email.trim().toLowerCase() !== (shownProfile.email ?? '');
   const closing = shownProfile?.accountState === 'CLOSURE_REQUESTED';
   if (!session.profile || (session.mfa !== 'NOT_REQUIRED' && session.mfa !== 'VERIFIED')) {
     return session.restoring ? <p role="status" className="muted">{t('loading')}</p> : null;
@@ -223,7 +260,7 @@ function ProfileEditor() {
       {notice && <Alert tone="success" focusOnShow>{t(notice)}</Alert>}
       {closing && <Alert tone="warn" focusOnShow={closingRefused}>{tErrors('accountClosing')}</Alert>}
       {error && !closing && <Alert tone="danger" focusOnShow>{tErrors(error)}</Alert>}
-      {(error === 'staleUpdate' || (!shownProfile && error)) &&
+      {(error === 'staleUpdate' || error === 'emailRequired' || (!shownProfile && error)) &&
         <button className="btn btn-secondary" type="button" disabled={busy !== null}
           onClick={() => { title.current?.focus(); void refresh(); }}>{t('reload')}</button>}
       {shownProfile && <>
@@ -240,8 +277,8 @@ function ProfileEditor() {
               onChange={(event) => update('fullName', event.target.value)} />
             {fieldErrors.fullName && <span id="profile-full-name-error" className="profile-field-error">{fieldErrors.fullName}</span>}
           </div>
-          <div className="field">
-            <span className="profile-label">{t('mobile')}</span>
+          <div className="field" role="group" aria-labelledby="profile-mobile-label">
+            <span className="profile-label" id="profile-mobile-label">{t('mobile')}</span>
             <div className="profile-mobile-row"><span>{shownProfile.mobile}</span>
               <span className={`chip ${shownProfile.mobileVerified ? 'chip-success' : 'chip-muted'}`}>
                 {shownProfile.mobileVerified ? t('verified') : t('notVerified')}
@@ -257,14 +294,27 @@ function ProfileEditor() {
                 disabled={closing || busy !== null}>{t('cancelChange')}</button>}
             </div>
           </div>
-          <div className="field">
-            <label htmlFor="profile-email">{t('email')} <span className="muted">{t('optional')}</span></label>
+          <div className="field" role="group" aria-labelledby="profile-email-label">
+            <label id="profile-email-label" htmlFor="profile-email">{t('email')} <span className="muted">{t('optional')}</span></label>
             <input className="input" id="profile-email" type="email" autoComplete="email" value={draft.email}
               disabled={closing || busy === 'save'} aria-invalid={fieldErrors.email ? true : undefined}
               aria-describedby={fieldErrors.email ? 'profile-email-error' : undefined}
               onChange={(event) => update('email', event.target.value)} />
             {fieldErrors.email && <span id="profile-email-error" className="profile-field-error">{fieldErrors.email}</span>}
+            {shownProfile.email !== null && !emailChanged && <div className="profile-status-row">
+              <span className={`chip ${shownProfile.emailVerified ? 'chip-success' : 'chip-muted'}`}>
+                {t(shownProfile.emailVerified ? 'verified' : 'notVerified')}</span>
+              {!shownProfile.emailVerified && <button ref={verifyButton} className="btn btn-ghost" type="button" onClick={() => void verify()} disabled={closing || busy !== null}>{t('verifyEmail')}</button>}
+            </div>}
           </div>
+          {emailChanged && <div className="field">
+            <label htmlFor="profile-current-password">{t('currentPassword')}</label>
+            <input className="input" id="profile-current-password" type="password" autoComplete="current-password" maxLength={128}
+              value={currentPassword} disabled={closing || busy === 'save'} aria-invalid={fieldErrors.currentPassword ? true : undefined}
+              aria-describedby={fieldErrors.currentPassword ? 'profile-current-password-error' : undefined}
+              onChange={(event) => { setCurrentPassword(event.target.value); setFieldErrors((current) => ({ ...current, currentPassword: undefined })); }} />
+            {fieldErrors.currentPassword && <span id="profile-current-password-error" className="profile-field-error">{fieldErrors.currentPassword}</span>}
+          </div>}
           <div className="field">
             <label htmlFor="profile-date-of-birth">{t('dateOfBirth')} <span className="muted">{t('optional')}</span></label>
             <input className="input" id="profile-date-of-birth" type="date" value={draft.dateOfBirth}
@@ -281,6 +331,13 @@ function ProfileEditor() {
             if (changeButton.current && !changeButton.current.disabled) changeButton.current.focus();
             else title.current?.focus();
           }} onClose={() => setDialogOpen(false)} onSubmit={stage} />
+        <EmailVerificationDialog open={emailDialogOpen} email={shownProfile.email ?? ''} disabled={closing || busy !== null}
+          onClose={() => setEmailDialogOpen(false)} onConfirm={confirmEmail} onResend={resendEmail}
+          returnFocus={() => {
+            if (justVerified.current) { justVerified.current = false; setNotice('emailVerified'); }
+            else if (verifyButton.current && !verifyButton.current.disabled) verifyButton.current.focus();
+            else title.current?.focus();
+          }} />
       </>}
     </section>
   );

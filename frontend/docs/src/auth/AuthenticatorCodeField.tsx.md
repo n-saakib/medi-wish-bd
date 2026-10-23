@@ -18,3 +18,7 @@ The designs show six one-digit boxes. One field is used instead: it works with p
 ## Verification
 
 Exercised by [`tests/MfaEnrollment.test.ts`](../../tests/MfaEnrollment.test.ts.md) and [`tests/MfaChallenge.test.ts`](../../tests/MfaChallenge.test.ts.md): the attributes, a code typed with spaces, and a malformed code refused without an API call.
+
+## Ticket 05 email recovery
+
+Optional invalid and describedBy props link field errors through aria-invalid and aria-describedby. Recovery reuses the existing one-time-code input and six-digit normalization; staff MFA behavior is unchanged.

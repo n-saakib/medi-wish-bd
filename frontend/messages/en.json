@@ -27,7 +27,9 @@
     "createAccount": "Create an account",
     "sessionExpired": "Your session has expired. Please sign in again.",
     "restoreError": "Your session could not be restored. Please sign in again.",
-    "accountCreated": "Your account was created. Please sign in."
+    "accountCreated": "Your account was created. Please sign in.",
+    "forgotPassword": "Forgot password?",
+    "passwordReset": "Your password was changed. Please sign in."
   },
   "register": {
     "title": "Create an account",
@@ -131,7 +133,17 @@
     "mobileHint": "Enter an 11-digit mobile number.",
     "mobileExplanation": "Your current number stays active until the new one is verified. Verification by text message is coming soon.",
     "cancel": "Cancel",
-    "saveForVerification": "Save for verification"
+    "saveForVerification": "Save for verification",
+    "verifyEmail": "Verify",
+    "currentPassword": "Current password",
+    "emailVerified": "Email verified.",
+    "verifyEmailTitle": "Verify email",
+    "verifyEmailIntro": "We sent a 6-digit code to {email}. It expires in 15 minutes.",
+    "code": "Code",
+    "codeFormat": "Enter the 6-digit code from your email.",
+    "confirm": "Confirm",
+    "sendNewCode": "Send a new code",
+    "newCodeSent": "A new code is on its way."
   },
   "errors": {
     "imageInvalid": "The file is not a valid JPG or PNG image within the size limits.",
@@ -156,7 +168,10 @@
     "accessDenied": "You don’t have permission to do that.",
     "notFound": "This could not be found.",
     "discountEnded": "This discount has ended and can no longer be changed.",
-    "discountExceedsPrice": "The discount must be smaller than the product's selling price."
+    "discountExceedsPrice": "The discount must be smaller than the product's selling price.",
+    "codeInvalid": "That code is wrong or has expired. Ask for a new code.",
+    "currentPasswordInvalid": "Enter your current password to change your email.",
+    "emailRequired": "Add an email address to your profile first."
   },
   "catalog": {
     "currency": "৳",
@@ -370,5 +385,23 @@
     "savedEarlier": "Your earlier save went through. Check the address below.",
     "fieldInvalid": "Check this field.",
     "changeNotice": "Adding or editing uses one change: {perWeek} per week (Mon–Sun) and {perMonth} per calendar month, Dhaka time. Removing is free. Left: {remainingThisWeek} this week, {remainingThisMonth} this month."
+  },
+  "forgotPassword": {
+    "title": "Reset password",
+    "intro": "We’ll send a code to your verified email.",
+    "email": "Email",
+    "emailInvalid": "Enter a valid email address.",
+    "sendCode": "Send code",
+    "sending": "Sending…",
+    "codeSent": "If the details match an account, a code is on its way.",
+    "code": "Code",
+    "codeFormat": "Enter the 6-digit code from your email.",
+    "newPassword": "New password",
+    "passwordHint": "6–30 characters",
+    "passwordInvalid": "Enter a password of 6–30 characters.",
+    "submit": "Reset password",
+    "submitting": "Resetting…",
+    "sendNewCode": "Send a new code",
+    "help": "Need help? Contact Medi Wish support."
   }
 }

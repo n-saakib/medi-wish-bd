@@ -18,3 +18,7 @@ Invalid input throws `InvalidRegistrationException` before any lookup or hashing
 ## Verification
 
 `UserServiceTest` covers the current identifier boundaries, whitespace-preserving passwords, duplicate checks and the uniqueness race. `RegistrationIT` covers rejected P12 inputs, duplicate registration and concurrent username/mobile races against PostgreSQL.
+
+## Ticket 05 integration
+
+The public static isAcceptablePassword helper is shared by registration and recovery HTTP validation. It preserves the accepted nonblank six-through-thirty exact-character rule without trimming.

@@ -21,8 +21,12 @@ Renders the `Sign in` heading, at most one alert, a form with a `Mobile, email o
 
 ## Design deviations
 
-The design's `Forgot?` password-recovery link is omitted because recovery is not implemented in this slice. Its note about the staff MFA step is also omitted: staff reach the MFA pages directly after sign-in, so the note is not needed.
+The design's `Forgot?` link is delivered as `Forgot password?` for the accepted email recovery flow. Its note about the staff MFA step is also omitted: staff reach the MFA pages directly after sign-in, so the note is not needed.
 
 ## Verification
 
 [`tests/SignInForm.test.ts`](../../tests/SignInForm.test.ts.md) covers labels and POST default, busy state, success redirect (including the staff landing pages), the failure alert and focus, the sign-in failure copy while the API sends a different message, notice rendering (the expiry notice through a real client whose refresh answers `401`), and an access-token privacy check with the real session client. Browser verification is recorded in the Ticket 03.01 evidence.
+
+## Ticket 05 email recovery
+
+The password label retains its exact accessible name. A separate Forgot password? link leads to /forgot-password with a 44 px target. The passwordReset notice uses a focused success status: Your password was changed. Please sign in.

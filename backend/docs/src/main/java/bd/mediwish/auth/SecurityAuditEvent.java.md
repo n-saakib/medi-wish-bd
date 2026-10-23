@@ -14,3 +14,8 @@ JPA mapping for one row of `security_audit_events`: random UUID, `occurred_at`, 
 | `MFA_ATTEMPTS_LOCKED` | The failure that locks verification. |
 
 Rows are written only through `SecurityAuditLog`. `StaffMfaIT` asserts the column list and event order; `FirstAdminProvisioningIT` and `StaffMfaRegressionIT` count events.
+
+
+## Ticket 05 recovery
+
+Ticket 05 adds EMAIL_VERIFICATION_REQUESTED, EMAIL_VERIFIED, EMAIL_CHANGED, PASSWORD_RESET_REQUESTED, PASSWORD_RESET_COMPLETED, ACCOUNT_CODE_FAILED, ACCOUNT_CODE_LOCKED, CURRENT_PASSWORD_FAILED and EMAIL_DELIVERY_FAILED. They reuse the existing safe typed columns without a schema enum change.

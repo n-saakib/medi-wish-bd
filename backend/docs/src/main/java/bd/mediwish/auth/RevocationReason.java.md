@@ -21,3 +21,8 @@ Package-private enum naming why a session family was revoked. Its `code` is the 
 `SessionServiceTest`, `AuthenticationServiceTest`, `FirstAdminProvisioningTest`, `SessionIT`, `ConcurrentSessionIT`, `StaffMfaIT`, `ConcurrentMfaIT` and `FirstAdminProvisioningIT` assert the stored codes.
 
 `ROLE_CHANGED` stores `role-changed`; RoleAssignmentService revokes every active target session with it in the same transaction as role replacement, version bump and audit.
+
+
+## Ticket 05 recovery
+
+PASSWORD_RESET stores password-reset and revokes all owner sessions. EMAIL_CHANGED stores email-changed and revokes all owner sessions except the requesting one. Verification and unchanged/refused profile saves revoke nothing.

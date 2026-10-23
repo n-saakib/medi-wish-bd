@@ -1,0 +1,7 @@
+# `src/main/java/bd/mediwish/auth/EmailVerificationService.java`
+
+Owns verification of the authenticated caller's saved email. Both public operations lock the User first, refuse a missing User, a non-active account or a missing email, and never accept an address from the client. request is transactional: an already verified email is a no-op; otherwise the shared issuer enforces the account's issuance window and gap, and an accepted issue records EMAIL_VERIFICATION_REQUESTED and registers AccountMail delivery after commit.
+
+confirm reads only the EMAIL_VERIFICATION purpose. Missing or unusable codes are refused; expired, locked and old-address rows are deleted. A failed HMAC comparison increments the persisted failure count, with the fifth failure deleting the row and auditing ACCOUNT_CODE_LOCKED; earlier failures audit ACCOUNT_CODE_FAILED. CodeInvalidException is excluded from transaction rollback so attempts and stale cleanup commit. Messages and errors expose no code, hash or address.
+
+A valid code marks the email verified before the repository's bulk delete flushes and clears managed entities. It then records EMAIL_VERIFIED and returns the scalar ProfileView plus pending mobile. Verification never increments profileVersion, replaces profile fields, revokes sessions or sends another notice. An already verified email returns its current profile without consuming or issuing a code. User locking serializes changes with issuance, confirmation and profile edits; database and concurrent API guarantees are verified in later integration gates.

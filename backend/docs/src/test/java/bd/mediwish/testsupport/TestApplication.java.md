@@ -13,3 +13,8 @@ One running application on a random port and its HTTP client. `launch(properties
 Used by every auth integration test through `AuthApi`.
 
 Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` passed all 238 unit tests. The integration tests that use it passed in the targeted run.
+
+
+## Ticket 05 recovery
+
+Profiled test startup defaults `app.mail.transport` to `memory` without overriding an explicit adapter choice. The capture adapter is scoped to the application context and used by recovery journeys.

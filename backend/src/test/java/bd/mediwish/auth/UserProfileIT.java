@@ -57,14 +57,15 @@ class UserProfileIT {
 
         var empty = json(api.profileOf(token));
         assertThat(empty).containsOnlyKeys("username", "fullName", "mobile", "mobileVerified", "pendingMobile",
-                "email", "dateOfBirth", "accountState", "version");
+                "email", "emailVerified", "dateOfBirth", "accountState", "version");
         assertThat(empty).containsEntry("username", user.username()).containsEntry("fullName", null)
-                .containsEntry("dateOfBirth", null).containsEntry("pendingMobile", null)
+                .containsEntry("dateOfBirth", null).containsEntry("pendingMobile", null).containsEntry("emailVerified", false)
                 .containsEntry("accountState", "ACTIVE").containsEntry("version", 0);
 
-        var saved = api.putProfile(token, AuthApi.profileEdit(0, "  Restart   Profile Tester ", email.toUpperCase(), dob));
+        var saved = api.putProfile(token, api.profileEdit(user, 0, "  Restart   Profile Tester ", email.toUpperCase(), dob));
         assertThat(saved.statusCode()).isEqualTo(200);
         assertThat(json(saved)).containsEntry("fullName", name).containsEntry("email", email)
+                .containsEntry("emailVerified", false)
                 .containsEntry("dateOfBirth", dob).containsEntry("version", 1);
         assertThat(json(api.profile(token))).containsOnlyKeys("username", "mobile", "email", "mobileVerified")
                 .containsEntry("email", email);
@@ -80,6 +81,7 @@ class UserProfileIT {
         var durable = api.profileOf(token);
         assertThat(durable.statusCode()).isEqualTo(200);
         assertThat(json(durable)).containsEntry("fullName", name).containsEntry("email", email)
+                .containsEntry("emailVerified", false)
                 .containsEntry("dateOfBirth", dob).containsEntry("pendingMobile", pending).containsEntry("version", 1);
         assertThat(api.cancelMobile(token).statusCode()).isEqualTo(204);
         var repeatedCancel = api.cancelMobile(token);
@@ -159,6 +161,7 @@ class UserProfileIT {
                 .collect(Collectors.toSet());
         assertThat(profileMappings).containsExactlyInAnyOrder("GET /api/user/me", "GET /api/user/me/profile",
                 "PUT /api/user/me/profile", "POST /api/user/me/mobile-change", "DELETE /api/user/me/mobile-change",
+                "POST /api/user/me/email-verification", "POST /api/user/me/email-verification/confirm",
                 "GET /api/user/me/addresses", "POST /api/user/me/addresses",
                 "PUT /api/user/me/addresses/{id}", "DELETE /api/user/me/addresses/{id}");
         assertThat(mappings.stream().flatMap(mapping -> mapping.getPatternValues().stream())
@@ -179,8 +182,8 @@ class UserProfileIT {
             long readQueries = statistics.getPrepareStatementCount();
             assertThat(readQueries).as("profile service query count").isBetween(1L, 2L);
             statistics.clear();
-            api.app().bean(ProfileService.class).update(api.userId(user),
-                    new bd.mediwish.user.ProfileEdit("Query Count Profile", user.email(), null, 0L));
+            api.app().bean(ProfileService.class).update(api.userId(user), api.sessionId(user),
+                    new bd.mediwish.user.ProfileEdit("Query Count Profile", user.email(), null, 0L, null));
             long saveQueries = statistics.getPrepareStatementCount();
             assertThat(saveQueries).as("save lock, roles, pending, email check and update").isBetween(2L, 6L);
             System.out.println("Ticket 11 service query counts: GET=" + readQueries + ", PUT=" + saveQueries);

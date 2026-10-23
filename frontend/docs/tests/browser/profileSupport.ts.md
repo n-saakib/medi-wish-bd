@@ -29,7 +29,7 @@ Shared helpers for the Ticket 11 specs, [`profileApi.spec.ts`](profileApi.spec.t
   - The Bearer token is renewed once half of the 10-second test access token is spent. A password User signs in again. A session client calls `GET /api/auth/csrf` and then `POST /api/auth/refresh` with `X-XSRF-TOKEN`; the backend rotates the refresh token of the same session, so the MFA verification is kept, and the client checks that the answer names the same User with an unchanged `mfa` status. Concurrent calls share one renewal, because a replayed refresh cookie revokes the session.
   - **`MfaStatus`** is the `mfa` value of a session answer.
   - `get`, `put(body, contentType)` and `stage(body, contentType)` send an object as JSON and a string as the raw body. `cancel` sends a DELETE.
-  - `profile()` reads the profile and checks it. `save(edit)` puts the current values with the edit at the current version.
+  - `profile()` reads the profile and checks it. `save(edit)` puts the current values with the edit at the current version, preserving the stored email unless explicitly changed and supplying the fixture password for a normalized email change unless explicitly overridden.
 - **`expectNoStore(response)`** checks for the `no-store` directive.
 - **`expectProfile(response, 200 | 202)`** checks the status, `no-store` and the exact profile keys.
 - **`expectError(response, status, code, message?)`** checks the bounded envelope: exactly `code`, `message` and `requestId`, with `no-store`, and a non-empty `requestId` equal to the `X-Request-ID` header.
@@ -44,3 +44,5 @@ These read or change the columns and table Ticket 11 adds, so they live here rat
 
 - **`setAccountState(username, 'ACTIVE' | 'CLOSURE_REQUESTED')`** sets `users.account_state`. The closure tickets (46/47) will own this change; Ticket 11 has no route for it.
 - **`storedProfile(username)`** returns the User's id, username, profile columns, mobile, `mobile_verified`, `profile_version`, `account_state`, and every `user_mobile_changes` row (`id`, `newMobile`), read straight from the database.
+
+Ticket 05 adds emailVerified to Profile and its exact key list. The valid save helper preserves the currently saved email and supplies the fixture current password only for a normalized email change; explicit password overrides are preserved. Raw put remains unmodified for negative tests. Recovery counters/codes and security audit are included in profile writable-table exclusions.

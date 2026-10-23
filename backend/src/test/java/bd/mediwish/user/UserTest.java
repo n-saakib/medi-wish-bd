@@ -7,6 +7,25 @@ import java.time.LocalDate;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class UserTest {
+    @Test void onlyEmailChangesClearVerificationAndPasswordReplacementPreservesProfileAndRole() {
+        User user = new User("email_owner", "01700000001", "owner@example.test", "old-verifier");
+        assertThat(user.emailVerified()).isFalse();
+        user.markEmailVerified(java.time.Instant.parse("2026-10-19T00:00:00Z"));
+        user.updateProfile("Owner", "owner@example.test", null);
+        assertThat(user.emailVerified()).isTrue();
+        user.changePasswordHash("new-verifier");
+        assertThat(user.passwordHash()).isEqualTo("new-verifier");
+        assertThat(user.emailVerified()).isTrue();
+        assertThat(user.fullName()).isEqualTo("Owner");
+        assertThat(user.role()).isEqualTo(UserRole.CUSTOMER);
+        assertThat(user.profileVersion()).isZero();
+        user.updateProfile("Owner", "another@example.test", null);
+        assertThat(user.emailVerified()).isFalse();
+        user.markEmailVerified(java.time.Instant.parse("2026-10-19T00:00:01Z"));
+        user.updateProfile("Owner", null, null);
+        assertThat(user.emailVerified()).isFalse();
+    }
+
     @Test
     void aProfileChangeAndMobileActivationKeepTheUsernameAndAdvanceOnlyTheProfileSaveVersion() {
         User user = new User("alice_1", "01700000000", "alice@example.test", "encoded");

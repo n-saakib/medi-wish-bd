@@ -395,3 +395,9 @@ describe('SessionProvider staff MFA', () => {
     expect(session.current()).toMatchObject({ profile: null, mfa: null });
   });
 });
+
+it('keeps the reset notice only on sign-in', () => {
+  const reset = sessionReducer(initialSessionState, { type: 'show-notice', notice: 'passwordReset' });
+  expect(sessionReducer(reset, { type: 'page-change', pathname: '/sign-in' }).notice).toBe('passwordReset');
+  for (const pathname of ['/', '/forgot-password']) expect(sessionReducer(reset, { type: 'page-change', pathname }).notice).toBeNull();
+});

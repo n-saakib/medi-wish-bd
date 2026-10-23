@@ -5,17 +5,18 @@ remains authoritative; this page documents the route structure, the
 server/client boundary, the shared session state and the small API client
 seams.
 
-**Last reviewed:** 2026-10-15<br/>
+**Last reviewed:** 2026-10-19<br/>
 **Current scope:** application shell, English localization, health probe
 boundary, and the Ticket 03.01 designed storefront routes: home, sign-in,
 registration (Ticket 02), account with sign-out (Ticket 03 browser session),
 the staff authenticator setup, code and verified staff landing (Ticket 06),
 the editable customer profile with pending mobile changes (Ticket 11),
+verified-email verification and password recovery (Ticket 05),
 the saved-address book (Ticket 12), the
 Admin Users and roles pages (Ticket 08) and the staff Product and Category
 catalog pages (Ticket 14), including the existing Product image editor (Ticket 15)
 and Admin Discounts with current effective prices and derived history (Ticket 16). Storefront search, cart, orders, the staff
-dashboard, OTP, backup-code sign-in, recovery and OAuth screens are not
+dashboard, mobile OTP, backup-code sign-in and OAuth screens are not
 implemented in this slice.
 
 Ticket08 adds `/admin/users` and `/admin/users/[userId]` in the staff route group. UserList and UserRoleForm use the shared session guard and `authenticatedFetch` through the bounded `lib/adminUsers` client; private username filters travel only in POST bodies and route IDs are UUIDs. The forms render one role, explicit disabled reasons, busy/error/retry states and the latest20 history entries. The session guard resolves in the browser; dynamic detail IDs are validated before any API call. Admin document responses carry no-store.
@@ -393,3 +394,20 @@ implementation and contract are actually introduced.
 `/staff/discounts` is a server metadata/route wrapper over `DiscountManager`. The verified Admin view owns list status/page/counts and refresh; `DiscountDialog` owns one create/edit/end interaction and target-picker state. `discounts.ts` projects bounded API responses and passes exact commands through the session seam. Unknown create outcomes retain the original command and UUID until identical retry or cancel/refresh. Catalog Product/history projections and displays consume the backend's effective price and applied discount; browsers never perform customer-price arithmetic. Focused unit tests protect error recovery, stale reads, field focus, request bodies and current-price/history copy. Real HTTP and browser acceptance remain separate verification gates.
 
 Ticket 12: /account/addresses uses AddressBook and AddressDialog in src/account plus the strict src/lib/addresses.ts HTTP projection. The page uses the account guard, remounts per session generation and serializes commands. The server owns cap, default successor and calendar allowance; the client displays returned numbers and reconciles ambiguous or stale results without persisting personal data.
+
+## Ticket 05 verified-email recovery
+
+The auth route group now includes `/forgot-password`: its server page localizes metadata and renders the client ForgotPasswordForm. `lib/passwordReset.ts` uses the public API boundary without session credentials. Both steps and their secrets stay in React state; success sets a route-scoped session notice and sends the visitor to sign-in.
+
+ProfileForm uses `lib/profile.ts` for authenticated email-verification commands. The ten-field profile adds emailVerified; saves retain their four required fields plus optional currentPassword only when the normalized email changes. EmailVerificationDialog owns code/resend feedback and native modal focus. Confirmation updates only verification status and preserves unsaved profile fields/version; session generations and request markers reject old answers.
+
+```mermaid
+flowchart LR
+  ForgotPage["(auth)/forgot-password/page.tsx"] --> ForgotForm[ForgotPasswordForm]
+  ForgotForm --> ResetClient[lib/passwordReset.ts]
+  ResetClient --> API[api.ts]
+  ForgotForm --> Session[SessionProvider notice and guest guard]
+  ProfileForm --> EmailDialog[EmailVerificationDialog]
+  ProfileForm --> ProfileClient[lib/profile.ts]
+  ProfileClient --> AuthFetch[session authenticatedFetch]
+```

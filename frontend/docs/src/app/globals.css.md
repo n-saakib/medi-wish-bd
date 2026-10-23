@@ -50,3 +50,7 @@ Ticket 16 reuses catalog controls and adds pill status tabs with 44 px minimum c
 Ticket 12 ports the three-column responsive address grid, outlined default card and dashed Add tile from the design. Adds danger-ghost Remove, spacing, 44px small buttons, and anywhere wrapping for accepted maximum-length text. The existing native profile dialog, checkbox and alert styles are reused.
 
 The integrated stylesheet keeps one unchanged shared empty-slot rule and its hover rule. Address grid breakpoints at 960px and 640px and the image grid breakpoint at 700px remain independent; image-upload-slot alone supplies the square override.
+
+## Ticket 05 email recovery
+
+Ticket 05 adds the 44 px auth-link target, shares profile flex spacing with profile-status-row and aligns the resend action to the start of dialog actions. Existing focus tokens and responsive cards remain in use.

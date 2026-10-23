@@ -24,13 +24,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /** Strict profile wire types and owner identity through the actual MVC adapter. */
 class ProfileControllerTest {
     private final UUID owner = UUID.randomUUID();
+    private final UUID session = UUID.randomUUID();
     private final ProfileService profiles = mock(ProfileService.class);
     private final MobileChangeService changes = mock(MobileChangeService.class);
     private MockMvc mvc;
 
     @BeforeEach
     void start() {
-        var principal = new CurrentUser(owner, UUID.randomUUID(),
+        var principal = new CurrentUser(owner, session,
                 new UserProfile("demo.user", "01700000000", null, false),
                 Set.of(UserRole.CUSTOMER), MfaStatus.NOT_REQUIRED, Set.of("ROLE_CUSTOMER"));
         SecurityContextHolder.getContext().setAuthentication(
@@ -49,13 +50,13 @@ class ProfileControllerTest {
     }
 
     @Test
-    void acceptsOnlyTheFourTypedEditFieldsAndUsesTheCaller() throws Exception {
+    void acceptsTheFourRequiredTypedEditFieldsAndUsesTheCaller() throws Exception {
         mvc.perform(put("/api/user/me/profile").contentType(MediaType.APPLICATION_JSON).content(
                 "{\"fullName\":\"Demo Name\",\"email\":null,\"dateOfBirth\":\"1990-05-01\",\"version\":0}"))
                 .andExpect(status().isOk()).andExpect(header().string("Cache-Control", "no-store"));
         var edit = ArgumentCaptor.forClass(ProfileEdit.class);
-        verify(profiles).update(eq(owner), edit.capture());
-        assertThat(edit.getValue()).isEqualTo(new ProfileEdit("Demo Name", null, LocalDate.of(1990, 5, 1), 0L));
+        verify(profiles).update(eq(owner), eq(session), edit.capture());
+        assertThat(edit.getValue()).isEqualTo(new ProfileEdit("Demo Name", null, LocalDate.of(1990, 5, 1), 0L, null));
     }
 
     @Test
@@ -106,5 +107,31 @@ class ProfileControllerTest {
                     .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
         }
         verifyNoInteractions(profiles, changes);
+    }
+
+    @Test
+    void acceptsAnOptionalCurrentPasswordWithoutChangingTheFourRequiredFields() throws Exception {
+        String required = "{\"fullName\":null,\"email\":null,\"dateOfBirth\":null,\"version\":0";
+        mvc.perform(put("/api/user/me/profile").contentType(MediaType.APPLICATION_JSON)
+                        .content(required + ",\"currentPassword\":\" typed secret \"}"))
+                .andExpect(status().isOk());
+        mvc.perform(put("/api/user/me/profile").contentType(MediaType.APPLICATION_JSON)
+                        .content(required + ",\"currentPassword\":null}"))
+                .andExpect(status().isOk());
+        var edits = ArgumentCaptor.forClass(ProfileEdit.class);
+        verify(profiles, times(2)).update(eq(owner), eq(session), edits.capture());
+        assertThat(edits.getAllValues().getFirst().currentPassword().equals(" typed secret ")).isTrue();
+        assertThat(edits.getAllValues().getLast().currentPassword()).isNull();
+    }
+
+    @Test
+    void rejectsCoercedOrOversizedCurrentPasswordsBeforeAnyTransaction() throws Exception {
+        for (String password : new String[]{"1", "true", "{}", "[]", "\"" + "p".repeat(129) + "\""}) {
+            String body = "{\"fullName\":null,\"email\":null,\"dateOfBirth\":null,\"version\":0,\"currentPassword\":"
+                    + password + "}";
+            mvc.perform(put("/api/user/me/profile").contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        }
+        verifyNoInteractions(profiles);
     }
 }

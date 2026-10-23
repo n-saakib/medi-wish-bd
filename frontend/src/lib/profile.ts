@@ -8,12 +8,13 @@ export type Profile = {
   mobileVerified: boolean;
   pendingMobile: string | null;
   email: string | null;
+  emailVerified: boolean;
   dateOfBirth: string | null;
   accountState: 'ACTIVE' | 'CLOSURE_REQUESTED';
   version: number;
 };
 
-export type ProfileEdit = Pick<Profile, 'fullName' | 'email' | 'dateOfBirth' | 'version'>;
+export type ProfileEdit = Pick<Profile, 'fullName' | 'email' | 'dateOfBirth' | 'version'> & { currentPassword?: string };
 type AuthenticatedSession = Pick<SessionClient, 'authenticatedFetch'>;
 const datePattern = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 
@@ -37,13 +38,15 @@ export function projectProfile(body: unknown): Profile | undefined {
     || typeof body.mobileVerified !== 'boolean'
     || !optionalText(body.pendingMobile, 30)
     || !optionalText(body.email, 320)
+    || typeof body.emailVerified !== 'boolean'
+    || (body.emailVerified && body.email === null)
     || !(body.dateOfBirth === null || isCalendarDate(body.dateOfBirth))
     || (body.accountState !== 'ACTIVE' && body.accountState !== 'CLOSURE_REQUESTED')
     || typeof body.version !== 'number' || !Number.isSafeInteger(body.version) || body.version < 0) return undefined;
   return {
     username: body.username, fullName: body.fullName, mobile: body.mobile,
     mobileVerified: body.mobileVerified, pendingMobile: body.pendingMobile,
-    email: body.email, dateOfBirth: body.dateOfBirth, accountState: body.accountState,
+    email: body.email, emailVerified: body.emailVerified, dateOfBirth: body.dateOfBirth, accountState: body.accountState,
     version: body.version,
   };
 }
@@ -75,4 +78,17 @@ export function cancelMobileChange(session: AuthenticatedSession): Promise<void>
   return session.authenticatedFetch('/api/user/me/mobile-change', { method: 'DELETE' }, async (response) => {
     if (response.status !== 204) throw await boundedError(response);
   });
+}
+
+/** Issues a code for the saved email without sending any request body. */
+export function requestEmailVerification(session: AuthenticatedSession): Promise<void> {
+  return session.authenticatedFetch('/api/user/me/email-verification', { method: 'POST' }, async (response) => {
+    if (response.status !== 204) throw await boundedError(response);
+  });
+}
+
+export function confirmEmailVerification(session: AuthenticatedSession, code: string): Promise<Profile> {
+  return session.authenticatedFetch('/api/user/me/email-verification/confirm', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code }),
+  }, (response) => readProfile(response, 200));
 }

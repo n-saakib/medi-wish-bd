@@ -1,0 +1,5 @@
+# `src/test/java/bd/mediwish/auth/EmailVerificationServiceTest.java`
+
+Tests the agreed public service seam using real User, AccountCode, AccountCodeRules and HMAC hashing, with controlled repository/issuer/mail/audit collaborators. Request coverage includes eligible issuance, missing User/email, closure, already verified no-op and shared limit refusal.
+
+Confirmation coverage includes success with unchanged name/date/version and pending mobile, marking verification before bulk-delete flush/clear, already verified response, missing row, expiry boundary, changed address, locked row, wrong attempt count and fifth-attempt invalidation/audit. The tests ensure only EMAIL_VERIFICATION is queried and a successful confirmation does not delete all purposes. Equality assertions for captured code values expose booleans only, keeping controlled secrets out of assertion diagnostics. Actual transaction rollback semantics, persisted flush/clear behavior and concurrent guarantees remain API/database integration checks rather than claims of these collaborator units.

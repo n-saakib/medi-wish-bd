@@ -13,7 +13,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => router, usePathname: () => 
 
 const profile = {
   username: 'sana', fullName: null, mobile: '01700000000', mobileVerified: false,
-  pendingMobile: null, email: null, dateOfBirth: null, accountState: 'ACTIVE', version: 0,
+  pendingMobile: null, email: null, emailVerified: false, dateOfBirth: null, accountState: 'ACTIVE', version: 0,
 };
 
 beforeEach(() => {
@@ -233,6 +233,7 @@ describe('ProfileForm', () => {
     const view = await renderWithSession(createElement(ProfileForm), session);
     setInputValue(view, '#profile-full-name', '  Sana  Akter  ');
     setInputValue(view, '#profile-email', 'SANA@example.test');
+    setInputValue(view, '#profile-current-password', 'synthetic-password');
     setInputValue(view, '#profile-date-of-birth', '2000-01-02');
     await submitForm(view);
     await settle();
@@ -248,7 +249,7 @@ describe('ProfileForm', () => {
     await settle();
     const puts = calls.filter(({ init }) => init.method === 'PUT');
     expect(JSON.parse(String(puts[0].init.body))).toEqual({ fullName: 'Sana  Akter',
-      email: 'SANA@example.test', dateOfBirth: '2000-01-02', version: 0 });
+      email: 'SANA@example.test', dateOfBirth: '2000-01-02', version: 0, currentPassword: 'synthetic-password' });
     expect(JSON.parse(String(puts[1].init.body)).version).toBe(1);
   });
 
@@ -260,6 +261,7 @@ describe('ProfileForm', () => {
       : Response.json({ code, message: 'private server detail' }, { status }));
     const view = await renderWithSession(createElement(ProfileForm), session);
     setInputValue(view, '#profile-email', 'sana@example.test');
+    setInputValue(view, '#profile-current-password', 'synthetic-password');
     await submitForm(view);
     await settle();
     expect(requiredElement(view, '[role="alert"]').textContent).toBe(copy);
@@ -426,4 +428,136 @@ describe('ProfileForm', () => {
     expect(note.querySelector('button')).toBeNull();
     expect(calls.filter(({ init }) => init.method === 'POST')).toHaveLength(1);
   });
+});
+
+it('requires the current password only for a normalized email change and clears refused passwords', async () => {
+  const saved = { ...profile, email: 'sana@example.test' };
+  const { source: session, calls } = source((_path, init) => init.method === 'PUT'
+    ? Response.json({ code: 'CURRENT_PASSWORD_INVALID' }, { status: 400 }) : Response.json(saved));
+  const view = await renderWithSession(createElement(ProfileForm), session);
+  expect(requiredElement(view, '[role="group"][aria-labelledby="profile-email-label"]').textContent).toContain('Not verified');
+  setInputValue(view, '#profile-email', ' SANA@example.test ');
+  expect(view.querySelector('#profile-current-password')).toBeNull();
+  setInputValue(view, '#profile-email', 'new@example.test');
+  await submitForm(view);
+  expect(calls.filter(({ init }) => init.method === 'PUT')).toHaveLength(0);
+  expect(document.activeElement).toBe(requiredElement(view, '#profile-current-password'));
+  setInputValue(view, '#profile-current-password', ' wrong password ');
+  await submitForm(view); await settle();
+  expect(JSON.parse(String(calls.find(({ init }) => init.method === 'PUT')!.init.body)).currentPassword).toBe(' wrong password ');
+  expect(requiredElement<HTMLInputElement>(view, '#profile-current-password').value).toBe('');
+  expect(requiredElement(view, '#profile-current-password').getAttribute('aria-invalid')).toBe('true');
+  expect(document.activeElement).toBe(requiredElement(view, '#profile-current-password'));
+  expect(view.querySelector('[role="alert"]')).toBeNull();
+});
+
+it('verifies the saved email while preserving a dirty draft and its version, then focuses the success notice', async () => {
+  const saved = { ...profile, email: 'sana@example.test', version: 3 };
+  const { source: session, calls } = source((path) => {
+    if (path.endsWith('/email-verification')) return new Response(null, { status: 204 });
+    if (path.endsWith('/confirm')) return Response.json({ ...saved, emailVerified: true, fullName: 'Other tab', version: 4 });
+    return Response.json(saved);
+  });
+  const view = await renderWithSession(createElement(ProfileForm), session);
+  setInputValue(view, '#profile-full-name', 'My unsaved name');
+  const verify = [...view.querySelectorAll('button')].find((button) => button.textContent === 'Verify')!;
+  await act(async () => verify.click()); await settle();
+  const dialog = requiredElement<HTMLDialogElement>(view, 'dialog[aria-labelledby="email-dialog-title"]');
+  expect(dialog.open).toBe(true);
+  expect(document.activeElement).toBe(requiredElement(view, '#email-verification-code'));
+  setInputValue(view, '#email-verification-code', '123 456');
+  await submitForm(dialog); await settle();
+  expect(dialog.open).toBe(false);
+  expect(requiredElement(view, '[role="group"][aria-labelledby="profile-email-label"]').textContent).toContain('Verified');
+  expect(document.activeElement?.textContent).toBe('Email verified.');
+  expect(requiredElement<HTMLInputElement>(view, '#profile-full-name').value).toBe('My unsaved name');
+  await submitForm(view); await settle();
+  expect(JSON.parse(String(calls.find(({ init }) => init.method === 'PUT')!.init.body))).toEqual({ fullName: 'My unsaved name', email: saved.email, dateOfBirth: null, version: 3 });
+});
+
+it.each([
+  ['TOO_MANY_ATTEMPTS', 429, 'Too many attempts. Try again later.'],
+  ['EMAIL_REQUIRED', 409, 'Add an email address to your profile first.'],
+  ['ACCOUNT_CLOSING', 409, 'Your account is closing.'],
+])('shows verification issue failure %s without opening a dialog', async (code, status, copy) => {
+  const { source: session } = source((path) => path.endsWith('/email-verification')
+    ? Response.json({ code }, { status }) : Response.json({ ...profile, email: 'sana@example.test' }));
+  const view = await renderWithSession(createElement(ProfileForm), session);
+  await act(async () => [...view.querySelectorAll('button')].find((button) => button.textContent === 'Verify')!.click()); await settle();
+  expect(view.textContent).toContain(copy);
+  expect(requiredElement<HTMLDialogElement>(view, 'dialog[aria-labelledby="email-dialog-title"]').open).toBe(false);
+  if (code === 'EMAIL_REQUIRED') expect([...view.querySelectorAll('button')].some((button) => button.textContent === 'Reload')).toBe(true);
+  if (code === 'ACCOUNT_CLOSING') for (const input of view.querySelectorAll('input')) expect(input.disabled).toBe(true);
+});
+
+it('serializes verification requests while keeping profile drafts editable', async () => {
+  const held = deferred<Response>();
+  const { source: session, calls } = source((path) => path.endsWith('/email-verification') ? held.promise
+    : Response.json({ ...profile, email: 'sana@example.test', pendingMobile: '01700000001' }));
+  const view = await renderWithSession(createElement(ProfileForm), session);
+  setInputValue(view, '#profile-full-name', 'Dirty');
+  const verify = [...view.querySelectorAll('button')].find((button) => button.textContent === 'Verify')!;
+  await act(async () => { verify.click(); verify.click(); });
+  expect(calls.filter(({ init }) => init.method === 'POST')).toHaveLength(1);
+  expect(requiredElement<HTMLInputElement>(view, '#profile-full-name').disabled).toBe(false);
+  for (const button of requiredElement(view, 'form').querySelectorAll<HTMLButtonElement>('button')) expect(button.disabled).toBe(true);
+  await act(async () => held.resolve(new Response(null, { status: 204 }))); await settle();
+});
+
+it.each(['CODE_INVALID', 'ACCOUNT_CLOSING', 'different-email'])('handles verification confirmation %s without replacing drafts', async (outcome) => {
+  const saved = { ...profile, email: 'sana@example.test' };
+  const { source: session } = source((path) => {
+    if (path.endsWith('/email-verification')) return new Response(null, { status: 204 });
+    if (path.endsWith('/confirm')) return outcome === 'different-email'
+      ? Response.json({ ...saved, email: 'changed@example.test', emailVerified: true })
+      : Response.json({ code: outcome }, { status: outcome === 'CODE_INVALID' ? 400 : 409 });
+    return Response.json(saved);
+  });
+  const view = await renderWithSession(createElement(ProfileForm), session);
+  setInputValue(view, '#profile-full-name', 'Dirty');
+  await act(async () => [...view.querySelectorAll('button')].find((button) => button.textContent === 'Verify')!.click()); await settle();
+  setInputValue(view, '#email-verification-code', '123456');
+  const dialog = requiredElement<HTMLDialogElement>(view, 'dialog[aria-labelledby="email-dialog-title"]');
+  await submitForm(dialog); await settle();
+  expect(requiredElement<HTMLInputElement>(view, '#profile-full-name').value).toBe('Dirty');
+  if (outcome === 'CODE_INVALID') {
+    expect(dialog.open).toBe(true); expect(requiredElement(view, 'dialog [role=alert]').textContent).toContain('That code is wrong');
+    expect(requiredElement<HTMLInputElement>(view, '#email-verification-code').value).toBe('');
+    expect(document.activeElement).toBe(requiredElement(view, '#email-verification-code'));
+  } else {
+    expect(dialog.open).toBe(false);
+    expect(view.textContent).toContain(outcome === 'ACCOUNT_CLOSING' ? 'Your account is closing.' : 'This record changed after you opened it.');
+  }
+});
+
+it.each(['saved', 'STALE_UPDATE', 'DUPLICATE_USER', 'TOO_MANY_ATTEMPTS'])('clears the current password after %s', async (outcome) => {
+  const saved = { ...profile, email: 'sana@example.test' };
+  const { source: session } = source((_path, init) => {
+    if (init.method === 'GET') return Response.json(saved);
+    return outcome === 'saved' ? Response.json({ ...saved, email: 'new@example.test', version: 1 })
+      : Response.json({ code: outcome }, { status: outcome === 'TOO_MANY_ATTEMPTS' ? 429 : 409 });
+  });
+  const view = await renderWithSession(createElement(ProfileForm), session);
+  setInputValue(view, '#profile-email', 'new@example.test'); setInputValue(view, '#profile-current-password', 'secret word');
+  await submitForm(view); await settle();
+  if (outcome === 'saved') {
+    expect(view.querySelector('#profile-current-password')).toBeNull();
+    expect(requiredElement(view, '[role="group"][aria-labelledby="profile-email-label"]').textContent).toContain('Not verified');
+    setInputValue(view, '#profile-email', 'next@example.test');
+  }
+  expect(requiredElement<HTMLInputElement>(view, '#profile-current-password').value).toBe('');
+  if (outcome === 'TOO_MANY_ATTEMPTS') expect(requiredElement(view, '[role=alert]').textContent).toBe('Too many attempts. Try again later.');
+});
+
+it('requires a password to clear email, hides it when reverted, and rejects blank passwords', async () => {
+  const saved = { ...profile, email: 'sana@example.test' };
+  const { source: session, calls } = source(() => Response.json(saved));
+  const view = await renderWithSession(createElement(ProfileForm), session);
+  setInputValue(view, '#profile-email', '');
+  expect(view.querySelector('#profile-current-password')).not.toBeNull();
+  setInputValue(view, '#profile-current-password', '   '); await submitForm(view);
+  expect(calls.filter(({ init }) => init.method === 'PUT')).toHaveLength(0);
+  expect(requiredElement(view, '#profile-current-password').getAttribute('aria-describedby')).toBe('profile-current-password-error');
+  setInputValue(view, '#profile-email', saved.email);
+  expect(view.querySelector('#profile-current-password')).toBeNull();
 });

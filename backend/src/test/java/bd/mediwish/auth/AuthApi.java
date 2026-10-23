@@ -1,6 +1,9 @@
 package bd.mediwish.auth;
 
 import bd.mediwish.testsupport.TestApplication;
+import bd.mediwish.mail.EmailKind;
+import bd.mediwish.mail.EmailMessage;
+import bd.mediwish.mail.InMemoryEmailTransport;
 import bd.mediwish.testsupport.TestDatabase;
 import org.bouncycastle.util.encoders.Base32;
 import org.junit.jupiter.api.extension.ExtensionContext;
@@ -14,6 +17,7 @@ import java.net.http.HttpResponse;
 import java.security.SecureRandom;
 import java.sql.SQLException;
 import java.time.Instant;
+import java.time.Duration;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HexFormat;
@@ -54,6 +58,7 @@ final class AuthApi implements AutoCloseable {
     private final TestDatabase database;
     private final TestApplication app;
     private final Set<String> secrets = ConcurrentHashMap.newKeySet();
+    private final Set<String> recoveryCodes = ConcurrentHashMap.newKeySet();
     private String csrf;
 
     private AuthApi(TestDatabase database, TestApplication app) {
@@ -243,7 +248,7 @@ final class AuthApi implements AutoCloseable {
         return send("PUT", "/api/user/me/profile", bearerJson(accessToken), body);
     }
 
-    /** Exactly the four editable keys, including nulls that clear optional fields. */
+    /** Raw four-key profile body, including nulls that clear optional fields; deliberately omits currentPassword. */
     static String profileEdit(long version, String fullName, String email, String dateOfBirth) {
         var fields = new LinkedHashMap<String, Object>();
         fields.put("fullName", fullName);
@@ -251,6 +256,133 @@ final class AuthApi implements AutoCloseable {
         fields.put("dateOfBirth", dateOfBirth);
         fields.put("version", version);
         return JSON.writeValueAsString(fields);
+    }
+
+    /** Owner-aware profile edit: preserve stored email by default and supply the password only for a change. */
+    String profileEdit(User owner, long version, String fullName, String dateOfBirth) throws SQLException {
+        return profileEdit(owner, version, fullName, storedEmail(owner), dateOfBirth);
+    }
+
+    String profileEdit(User owner, long version, String fullName, String email, String dateOfBirth) throws SQLException {
+        String normalized = new bd.mediwish.user.UserIdentifierNormalizer().email(email);
+        return java.util.Objects.equals(normalized, storedEmail(owner))
+                ? profileEdit(version, fullName, email, dateOfBirth)
+                : profileEdit(version, fullName, email, dateOfBirth, owner.password());
+    }
+
+    /** Explicit nullable password for wrong/null-password contract cases; the four-argument builder omits it. */
+    static String profileEdit(long version, String fullName, String email, String dateOfBirth, String currentPassword) {
+        var fields = new LinkedHashMap<String, Object>();
+        fields.put("fullName", fullName); fields.put("email", email); fields.put("dateOfBirth", dateOfBirth);
+        fields.put("version", version); fields.put("currentPassword", currentPassword);
+        return JSON.writeValueAsString(fields);
+    }
+
+    private String storedEmail(User owner) throws SQLException {
+        return database.single("SELECT email FROM users WHERE id = ?", String.class, userId(owner));
+    }
+
+    /** Isolated fixture setup; email verification itself is tested through the HTTP/code flow. */
+    void markEmailVerified(User user) throws SQLException {
+        assertThat(database.update("UPDATE users SET email_verified_at = now() WHERE id = ?", userId(user))).isOne();
+    }
+
+    InMemoryEmailTransport capturedMail() { return app.bean(InMemoryEmailTransport.class); }
+
+    /** Waits for this recipient/kind and tracks the transient code before any privacy assertion. */
+    EmailMessage awaitMail(EmailKind kind, String address) throws InterruptedException {
+        var message = capturedMail().awaitMessage(mail -> mail.kind() == kind && mail.to().equalsIgnoreCase(address),
+                Duration.ofSeconds(2));
+        track(message.to());
+        if (kind == EmailKind.PASSWORD_RESET_CODE || kind == EmailKind.EMAIL_VERIFICATION_CODE) {
+            recoveryCodes.add(codeFrom(message));
+        }
+        return message;
+    }
+
+    /** Exactly one complete six-digit ASCII token, excluding expiry text and partial longer numbers. */
+    static String codeFrom(EmailMessage mail) {
+        var matcher = Pattern.compile("(?<![0-9])[0-9]{6}(?![0-9])").matcher(mail.body());
+        if (!matcher.find()) throw new IllegalStateException("Mail did not contain exactly one recovery code");
+        String code = matcher.group();
+        if (matcher.find()) throw new IllegalStateException("Mail did not contain exactly one recovery code");
+        return code;
+    }
+
+    /** The single worker executes this after all mail enqueued by a completed HTTP request. */
+    void drainMail() throws Exception {
+        app.bean(org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor.class)
+                .submit(() -> {}).get(2, TimeUnit.SECONDS);
+    }
+
+    HttpResponse<String> requestReset(String email) throws Exception {
+        track(email);
+        return post("/api/auth/password-reset/request", JSON_CONTENT, JSON.writeValueAsString(Map.of("email", email)));
+    }
+
+    HttpResponse<String> confirmReset(String email, String code, String password) throws Exception {
+        track(email);
+        recoveryCodes.add(code);
+        secrets.add(password);
+        return post("/api/auth/password-reset/confirm", JSON_CONTENT,
+                JSON.writeValueAsString(Map.of("email", email, "code", code, "newPassword", password)));
+    }
+
+    HttpResponse<String> requestVerification(String token) throws Exception {
+        return post("/api/user/me/email-verification", bearer(token), null);
+    }
+
+    HttpResponse<String> confirmVerification(String token, String code) throws Exception {
+        recoveryCodes.add(code);
+        return post("/api/user/me/email-verification/confirm", bearerJson(token),
+                JSON.writeValueAsString(Map.of("code", code)));
+    }
+
+    HttpResponse<String> putProfileWithPassword(String token, long version, String name, String email,
+                                               String dateOfBirth, String password) throws Exception {
+        if (password != null && !password.isEmpty()) secrets.add(password);
+        return putProfile(token, profileEdit(version, name, email, dateOfBirth, password));
+    }
+
+    record AccountCodeRow(UUID id, AccountCodePurpose purpose, String hash, String sentTo,
+                          Instant createdAt, Instant expiresAt, int failedAttempts) {
+        @Override public String toString() { return "AccountCodeRow[purpose=" + purpose + "]"; }
+    }
+
+    List<AccountCodeRow> accountCodes(User user) throws SQLException {
+        return database.query("SELECT id,purpose,code_hash,sent_to,created_at,expires_at,failed_attempts "
+                        + "FROM account_codes WHERE user_id = ? ORDER BY purpose", row -> {
+                    String hash = track(row.getString(3));
+                    return new AccountCodeRow(row.getObject(1, UUID.class), AccountCodePurpose.valueOf(row.getString(2)),
+                            hash, row.getString(4), row.getTimestamp(5).toInstant(), row.getTimestamp(6).toInstant(),
+                            row.getInt(7));
+                }, userId(user));
+    }
+
+    record LimitRow(String key, Instant windowStartedAt, int attempts, Instant lastAt) {}
+
+    List<LimitRow> limitRows() throws SQLException {
+        return database.query("SELECT limit_key,window_started_at,attempts,last_at FROM account_code_limits ORDER BY limit_key",
+                row -> new LimitRow(row.getString(1), row.getTimestamp(2).toInstant(), row.getInt(3),
+                        row.getTimestamp(4).toInstant()));
+    }
+
+    void expireCode(User user, AccountCodePurpose purpose) throws SQLException {
+        assertThat(database.update("UPDATE account_codes SET created_at = now() - interval '16 minutes', "
+                        + "expires_at = now() - interval '1 second' WHERE user_id = ? AND purpose = ?",
+                userId(user), purpose.name())).isOne();
+    }
+
+    void ageLimits(Duration age) throws SQLException {
+        database.update("UPDATE account_code_limits SET window_started_at = window_started_at - (? * interval '1 second'), "
+                + "last_at = last_at - (? * interval '1 second')", age.toSeconds(), age.toSeconds());
+    }
+
+    private void assertRecoveryCodesOmitted(String where, String text) {
+        for (String code : recoveryCodes) {
+            boolean present = Pattern.compile("(?<![0-9])" + Pattern.quote(code) + "(?![0-9])").matcher(text).find();
+            assertThat(present).as("a recovery code appeared in %s", where).isFalse();
+        }
     }
 
     HttpResponse<String> stageMobile(String accessToken, String mobile) throws Exception {
@@ -440,7 +572,10 @@ final class AuthApi implements AutoCloseable {
     HttpResponse<String> send(String method, String path, Map<String, String> headers, String body)
             throws IOException, InterruptedException {
         var response = app.send(method, path, headers, body);
-        if (response.statusCode() == 204 || response.statusCode() >= 400) assertOmits(response, secrets);
+        if (response.statusCode() == 204 || response.statusCode() >= 400) {
+            assertOmits(response, secrets);
+            assertRecoveryCodesOmitted("response", response.body() + response.headers().map());
+        }
         return response;
     }
 
@@ -448,6 +583,7 @@ final class AuthApi implements AutoCloseable {
     void assertLogsOmitSecrets(CapturedOutput output) {
         assertThat(output.getAll()).contains("\"message\":\"HTTP response status=");
         assertOmits("captured output", output.getAll(), secrets);
+        assertRecoveryCodesOmitted("captured output", output.getAll());
     }
 
     String track(String secret) {

@@ -4,10 +4,10 @@ This is the living database architecture map for the backend. It describes the
 schema that is currently created by Liquibase and mapped by JPA; it is not a
 design claim for tables that belong to later tickets.
 
-**Last reviewed:** 2026-10-15<br/>
+**Last reviewed:** 2026-10-19<br/>
 **Current scope:** Ticket 01 health baseline, Ticket 02 shared User
 registration/RBAC foundation, Ticket 03 durable password sessions and Ticket 06
-staff MFA, first-Admin bootstrap and security audit events, plus Ticket 08 single-role assignment and audit, Ticket 11 Customer profile and staged mobile changes, Ticket 12 saved addresses, Ticket 14 catalog, Ticket 15 image metadata and Ticket 16 Discounts.<br/>
+staff MFA, first-Admin bootstrap and security audit events, plus Ticket 05 verified secondary-email recovery, Ticket 08 single-role assignment and audit, Ticket 11 Customer profile and staged mobile changes, Ticket 12 saved addresses, Ticket 14 catalog, Ticket 15 image metadata and Ticket 16 Discounts.<br/>
 **Schema source of truth:** [`src/main/resources/db/changelog/db.changelog-master.yaml`](../src/main/resources/db/changelog/db.changelog-master.yaml)<br/>
 **Runtime rule:** Liquibase owns schema changes; Hibernate runs with
 `ddl-auto: validate` and must not create or alter tables. Unique
@@ -28,12 +28,31 @@ erDiagram
     USERS |o--o| STAFF_BOOTSTRAP : "is the Super Admin"
     USERS |o--o{ SECURITY_AUDIT_EVENTS : "is the subject of"
     USERS ||--o| USER_MOBILE_CHANGES : "stages one replacement"
+    USERS ||--o{ ACCOUNT_CODES : "owns one code per purpose"
+
+    ACCOUNT_CODES {
+        UUID id PK "purpose-bound HMAC identity"
+        UUID user_id FK "cascade delete"
+        VARCHAR_32 purpose "EMAIL_VERIFICATION or PASSWORD_RESET"
+        CHAR_64 code_hash "HMAC-SHA256 lowercase hex; never raw code"
+        VARCHAR_320 sent_to "address binding; not diagnostic output"
+        TIMESTAMPTZ created_at
+        TIMESTAMPTZ expires_at "strictly after creation"
+        SMALLINT failed_attempts "0 through 5"
+    }
+    ACCOUNT_CODE_LIMITS {
+        VARCHAR_96 limit_key PK "issue/password UUID key or address HMAC"
+        TIMESTAMPTZ window_started_at
+        INT attempts "nonnegative; stores refused address requests too"
+        TIMESTAMPTZ last_at "gap survives window rollover"
+    }
 
     USERS {
         UUID id PK "Java-generated User identity"
         VARCHAR_50 username UK "trimmed, lowercase, immutable"
         VARCHAR_30 mobile UK "11 ASCII digits for new writes"
         VARCHAR_320 email "nullable; unique ignoring case"
+        TIMESTAMPTZ email_verified_at "nullable; requires a non-null email"
         VARCHAR_100 full_name "nullable; normalized Customer display name"
         DATE date_of_birth "nullable; cannot be future in Dhaka"
         BIGINT profile_version "non-null; starts at 0"
@@ -165,7 +184,9 @@ substitute.
 
 | Table | Ownership | Important columns and constraints | Meaning |
 | --- | --- | --- | --- |
-| `users` | `bd.mediwish.user.User` | `id` primary key; `username` unique and not null; `mobile` unique and not null; optional `email`, unique ignoring case through `uk_users_email_upper` on `upper(email)`; non-null `password_hash`; non-null `mobile_verified`; non-null `created_at`; `roles_version` default zero; optional `full_name` and `date_of_birth`; `profile_version` default zero; `account_state` default `ACTIVE`, checked by `ck_users_account_state` | Shared identity/profile and credential verifier for Customers and staff roles. |
+| `users` | `bd.mediwish.user.User` | `id` primary key; `username` unique and not null; `mobile` unique and not null; optional `email_verified_at`, permitted only with non-null email; optional `email`, unique ignoring case through `uk_users_email_upper` on `upper(email)`; non-null `password_hash`; non-null `mobile_verified`; non-null `created_at`; `roles_version` default zero; optional `full_name` and `date_of_birth`; `profile_version` default zero; `account_state` default `ACTIVE`, checked by `ck_users_account_state` | Shared identity/profile and credential verifier for Customers and staff roles. |
+| `account_codes` | `bd.mediwish.auth.AccountCode` | UUID primary key; cascading User FK; unique `(user_id,purpose)`; two-purpose CHECK; CHAR(64) protected HMAC; address binding; strict expiry and attempts 0..5 CHECKs | One active code per User and purpose, with shared issuance limits stored separately. |
+| `account_code_limits` | `bd.mediwish.auth.AccountCodeLimit` | Opaque key primary key; required window start/last instant; nonnegative attempts; age index; no User FK | Address UPSERT is atomic; User-locked issue/password counters are independent key domains. |
 | `user_mobile_changes` | `bd.mediwish.user.MobileChange` | UUID primary key; unique non-null `user_id` with `fk_user_mobile_changes_user` and `ON DELETE CASCADE`; non-null `new_mobile` and `requested_at` | A single staged replacement mobile per User. It does not become the active number until internal verified activation. |
 | `user_roles` | `User.roles` via `@ElementCollection` | Primary key `user_id`; cascading User FK; role-name check; deferred exactly-one-role triggers | Role assignments used by Spring Security for current authorization. |
 | `user_sessions` | `bd.mediwish.auth.UserSession` | UUID primary key; cascading `user_id` FK; non-null lifecycle timestamps; nullable revocation fields; nullable `mfa_factor_id` (`fk_user_sessions_mfa_factor`, `ON DELETE SET NULL`) and `mfa_verified_at`; user/revocation and expiry indexes | Durable refresh-session family whose revocation is checked before bearer authorization. The MFA columns are the session's assurance: staff roles apply only while they name the User's active factor. |
@@ -263,6 +284,7 @@ substitute.
 | `014-role-required-search-path` | Pins the `user_role_required()` trigger function's `search_path` to the schema it was migrated into, then `pg_temp`. | The one-role check reads this schema's `users` and `user_roles` whatever the writing session's search path, so operator SQL neither fails nor checks same-named tables elsewhere. Fixes 011 forward without editing it. |
 
 | `017-saved-addresses` | Owner-scoped composite address keys, one-default partial uniqueness, bounded fields and owner/time-only successful-change rows with cascading User foreign keys. | User-locked Java rules enforce the cap and configurable Dhaka allowances without schema count constraints; saved addresses have no incoming references. |
+| `019-account-email-recovery` | Adds nullable users.email_verified_at with a consistency CHECK, purpose-bound account_codes and opaque account_code_limits. Existing Users are unverified. | Forward-only additive migration; 018 remains reserved for Ticket 09. No previous checksum or historical migration is edited. |
 
 When a later ticket changes persistence, add a new append-only changeset and
 update this page in the same change. Do not rewrite an applied changeset to
@@ -278,8 +300,7 @@ Update this document whenever any of the following changes:
    enum persistence or ownership rule.
 3. A repository/service introduces a new persistence boundary or changes a
    uniqueness, cascade, transaction or privacy invariant.
-4. A ticket changes which data is deliberately deferred, such as OTP,
-   sessions, recovery, catalog or orders.
+4. A ticket adds a data boundary or changes which data remains deferred.
 
 After editing, compare the ER diagram and invariant tables with the current
 changelog and entity mappings, then run the backend migration/integration
@@ -333,3 +354,15 @@ erDiagram
         TIMESTAMPTZ changed_at
     }
 ```
+
+## Ticket 05 recovery persistence and lock order
+
+`account_codes` has a cascading User foreign key and unique `(user_id, purpose)`, accepting exactly EMAIL_VERIFICATION and PASSWORD_RESET. Its CHAR(64) HMAC is mapped explicitly as CHAR by Hibernate; no raw code is persisted. CHECKs enforce attempts from zero through five and expiry strictly after creation. `sent_to` binds a code to its address and must not appear in diagnostics. Both code purposes are deleted after password reset or an actual profile email change; issuing a newer code replaces only the same purpose. Existing Users are never marked verified by migration.
+
+`account_code_limits` intentionally has no User foreign key: issue/password keys contain a UUID, while unknown-address counters use an HMAC key without the address. It stores window start, attempts and last time. Atomic PostgreSQL ON CONFLICT UPSERT counts every address request, including attempts above ten; only the first ten in the current window proceed. Per-User issuance and password counters are updated under the User lock. Fresh entity snapshots preserve counters across bulk JPA clear. An age index supports pruning rows older than the counter retention (two hours, or the longest configured recovery window when larger). Issue and password counters are read FOR UPDATE, so the SKIP LOCKED prune never deletes a row an open transaction will update.
+
+Requests count the address before User lookup, then lock and refresh the User and recheck current address/eligibility. Cleanup runs last and uses DELETE over old rows selected FOR UPDATE SKIP LOCKED, avoiding a wait on active counter updates and avoiding a later User lock after cleanup. Other code operations lock User before code/issue/password work. Session revocation retains existing session-lock order and refresh-generation history. All domain mutations are flushed before bulk code deletion clears the persistence context. Wrong-code failures return an outcome across the transaction boundary so their committed count/deletion survives the public generic exception; current-password failures use the narrowly scoped noRollbackFor rule in ProfileService.
+
+Successful verification changes only email_verified_at and consumes its verification code. It does not increment profile_version or clear a pending mobile change. Profile email change clears email_verified_at and increments profile_version through the existing profile mutation. Reset changes only password_hash and revokes all session families with password-reset; email change revokes other families with email-changed and retains the current one. The migration does not change role, MFA, saved-address or retained audit tables. Security audit rows contain only safe event types, User/session identity and correlation metadata, never a code, address or password.
+
+019 is additive and forward-only. Tests validate the fresh schema and upgrade from historical profile snapshots without backfilling verification; runtime Hibernate validation remains authoritative. Persistent replay, attempt commits, fresh-state lock waits and concurrent issue/reset/cleanup behavior are tested against PostgreSQL rather than inferred from repository mocks.

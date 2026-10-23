@@ -32,17 +32,19 @@ export type Profile = {
   mobileVerified: boolean;
   pendingMobile: string | null;
   email: string | null;
+  emailVerified: boolean;
   dateOfBirth: string | null;
   accountState: 'ACTIVE' | 'CLOSURE_REQUESTED';
   version: number;
 };
 
 /** Exactly these keys, sorted: nothing else may leak through the profile resource. */
-export const profileKeys = ['accountState', 'dateOfBirth', 'email', 'fullName', 'mobile', 'mobileVerified',
+export const profileKeys = ['accountState', 'dateOfBirth', 'email', 'emailVerified', 'fullName', 'mobile', 'mobileVerified',
   'pendingMobile', 'username', 'version'];
 
 /** The tables a profile or mobile edit may write (plan T6 R1); every other table must keep its fingerprint. */
 export const profileWritableTables = ['users', 'user_mobile_changes', 'user_sessions', 'user_session_refresh_tokens',
+  'account_codes', 'account_code_limits', 'security_audit_events',
   'databasechangelog', 'databasechangeloglock'] as const;
 
 /** A synthetic mobile in the registration format (exactly 11 digits, P12), unique to one test run. */
@@ -193,10 +195,14 @@ export class ProfileApi {
   }
 
   /** Saves the four editable fields at the current version and returns the saved profile. */
-  async save(edit: Partial<Pick<Profile, 'fullName' | 'email' | 'dateOfBirth'>>): Promise<Profile> {
+  async save(edit: Partial<Pick<Profile, 'fullName' | 'email' | 'dateOfBirth'>> & { currentPassword?: string | null }): Promise<Profile> {
     const current = await this.profile();
     const body = { fullName: current.fullName, email: current.email, dateOfBirth: current.dateOfBirth,
       version: current.version, ...edit };
+    const normalized = body.email?.trim().toLowerCase() || null;
+    if (!Object.hasOwn(edit, 'currentPassword') && normalized !== current.email) {
+      Object.assign(body, { currentPassword: this.user.password });
+    }
     return expectProfile(await this.put(body), 200);
   }
 }

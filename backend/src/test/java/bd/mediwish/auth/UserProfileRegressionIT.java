@@ -33,7 +33,7 @@ class UserProfileRegressionIT {
         assertThat(before.get("user_roles")).startsWith("1:");
         String email = "profile.regression." + UUID.randomUUID() + "@example.test";
 
-        var saved = api.putProfile(token, AuthApi.profileEdit(0, "Regression Profile", email, "1990-05-01"));
+        var saved = api.putProfile(token, api.profileEdit(user, 0, "Regression Profile", email, "1990-05-01"));
         assertThat(saved.statusCode()).isEqualTo(200);
         assertThat(json(saved)).containsEntry("fullName", "Regression Profile").containsEntry("email", email)
                 .containsEntry("dateOfBirth", "1990-05-01").containsEntry("version", 1);
@@ -70,7 +70,8 @@ class UserProfileRegressionIT {
         var tables = api.database().query("""
                 SELECT table_name FROM information_schema.tables
                 WHERE table_schema = ? AND table_type = 'BASE TABLE'
-                  AND table_name NOT IN ('users', 'user_mobile_changes', 'user_sessions', 'user_session_refresh_tokens')
+                  AND table_name NOT IN ('users', 'user_mobile_changes', 'user_sessions', 'user_session_refresh_tokens',
+                                          'account_codes', 'account_code_limits', 'security_audit_events')
                   AND table_name NOT LIKE 'databasechangelog%'
                 ORDER BY table_name
                 """, row -> row.getString(1), api.database().schema());

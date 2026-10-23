@@ -12,12 +12,24 @@ public final class TestAuthSettings {
     public static final String MFA_SECRET_KEY = Base64.getEncoder().encodeToString(
             "medi-wish-test-mfa-seed-key-0032".getBytes(StandardCharsets.UTF_8));
 
+    public static final String RECOVERY_CODE_KEY;
+    static {
+        byte[] bytes = new byte[32];
+        new java.security.SecureRandom().nextBytes(bytes);
+        RECOVERY_CODE_KEY = Base64.getEncoder().encodeToString(bytes);
+    }
+
+    public static AuthProperties.Recovery recovery() {
+        return new AuthProperties.Recovery(RECOVERY_CODE_KEY, Duration.ofMinutes(15), 5, 5,
+                Duration.ofHours(1), Duration.ofSeconds(60), 10, Duration.ofHours(1), 5, Duration.ofHours(1));
+    }
+
     private TestAuthSettings() {}
 
     /** The production lifetimes (15-minute access, 30-day refresh) with Secure cookies and {@link #mfa()}. */
     public static AuthProperties properties() {
         return new AuthProperties(Duration.ofMinutes(15), Duration.ofDays(30), "medi-wish", "medi-wish-api", "unused",
-                new AuthProperties.Cookie(true), mfa());
+                new AuthProperties.Cookie(true), mfa(), TestAuthSettings.recovery());
     }
 
     public static AuthProperties.Mfa mfa() {

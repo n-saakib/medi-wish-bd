@@ -7,7 +7,9 @@ enum RevocationReason {
     USER_UNAVAILABLE("user-unavailable"),
     MFA_VERIFIED("mfa-verified"),
     STAFF_PROVISIONED("staff-provisioned"),
-    ROLE_CHANGED("role-changed");
+    ROLE_CHANGED("role-changed"),
+    PASSWORD_RESET("password-reset"),
+    EMAIL_CHANGED("email-changed");
 
     final String code;
 

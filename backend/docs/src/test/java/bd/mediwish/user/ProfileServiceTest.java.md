@@ -1,5 +1,5 @@
-# `ProfileServiceTest.java`
+# ProfileServiceTest
 
-Source: [`ProfileServiceTest.java`](../../../../../../../src/test/java/bd/mediwish/user/ProfileServiceTest.java)
+Exercises owner-only projection, validated changes, missing callers, Dhaka date boundaries, normalized no-op and stale/closing precedence, duplicate ownership and the database uniqueness fallback.
 
-Tests owner-only profile projection, validated updates, normalized no-op behavior, stale version rejection, duplicate email handling and the Dhaka date boundary. A closing-account test refuses invalid, identical and stale requests before field inspection, pending lookup or uniqueness checks. A missing-caller test refuses reads and writes before pending data is accessed. Database rollback and persistence guarantees are proven separately by the integration tests.
+Ticket 05 pins missing-password refusal before uniqueness/mutation; email set/change/clear reauthentication with the original address/verification and submitting session passed to the facade; password-free name/DOB edits; and verification retained on normalized same-email no-ops even when an ignored password is supplied. Refused changes do not invoke cancellation/revocation. Real HTTP/PostgreSQL tests prove transaction durability, cancellation, notices and session effects.

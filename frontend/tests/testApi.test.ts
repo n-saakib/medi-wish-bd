@@ -2,11 +2,12 @@ import { EventEmitter } from 'node:events';
 import { connect, Socket } from 'node:net';
 import { execFileSync, spawn } from 'node:child_process';
 import { closeSync, mkdirSync, openSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import startTestApi, {
   apiEnvironment, apiUrl, checkedTarget, psql as executeSql, grantRole, makeSuperAdmin, markMobileVerified, removeRole, rolledBackSql,
-  sessionStates, tableFingerprints, testSchemaVariable, testStorageVariable,
+  sessionStates, tableFingerprints, testMailVariable, testSchemaVariable, testStorageVariable,
 } from './browser/testApi';
 
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn(), spawn: vi.fn() }));
@@ -58,6 +59,19 @@ function databaseAnswers(migrated: 't' | 'f') {
     if (sql.includes('server_version_num')) return '18';
     return sql.includes('databasechangelog') ? migrated : '';
   });
+}
+
+/** The run-owned mail capture directory for a role: under the system temp directory, named after the role's suffix. */
+function mailDirectoryOf(role: string | undefined): string {
+  return path.join(tmpdir(), `medi-wish-mail-${String(role).slice('mw_browser_'.length)}`);
+}
+
+/** Both run-owned directories were removed exactly once each, recursively and forcibly, and nothing else was. */
+function expectDirectoriesRemoved(storage: string | undefined, mail: string | undefined): void {
+  expect(vi.mocked(rmSync).mock.calls).toEqual([
+    [storage, { recursive: true, force: true }],
+    [mail, { recursive: true, force: true }],
+  ]);
 }
 
 beforeEach(() => {
@@ -125,6 +139,30 @@ describe('database target safety', () => {
       expect(executeSql('SELECT 18;')).toBe('18');
       expect(psql.mock.calls[0]?.[1]).toEqual(expect.arrayContaining(['-h', host, '-p', port, '-d', 'medi_wish_test']));
     });
+
+  it.each(['PGHOSTADDR', 'pghostaddr', 'PGSERVICE', 'pgservice'])(
+    'does not pass inherited %s to either administrator SQL child', (name) => {
+      vi.stubEnv(name, 'hostaddr-redirect');
+      vi.stubEnv('PGPASSWORD', 'synthetic-password');
+      vi.stubEnv('PSQL', 'controlled-psql');
+      vi.stubEnv('TEST_DB_ADMIN', 'test_admin');
+      vi.stubEnv(testSchemaVariable, 'mw_browser_0123456789ab');
+      psql.mockReturnValue(' 1 ');
+
+      expect(executeSql('SELECT 1;')).toBe('1');
+      expect(rolledBackSql('SELECT 1;')).toEqual({ output: '1', error: '' });
+      expect(psql).toHaveBeenCalledTimes(2);
+      for (const [file, args, options] of psql.mock.calls) {
+        expect(file).toBe('controlled-psql');
+        expect(args).toEqual(expect.arrayContaining([
+          '-h', '127.0.0.1', '-p', '55433', '-U', 'test_admin', '-d', 'medi_wish_test',
+        ]));
+        const childEnv = (options as { env: NodeJS.ProcessEnv }).env;
+        expect(Object.keys(childEnv).some((key) => /^(PGHOSTADDR|PGSERVICE)$/i.test(key))).toBe(false);
+        expect(childEnv.PGPASSWORD).toBe('synthetic-password');
+      }
+      expect(process.env[name]).toBe('hostaddr-redirect');
+    });
 });
 
 describe('startTestApi', () => {
@@ -140,6 +178,8 @@ describe('startTestApi', () => {
     await vi.advanceTimersByTimeAsync(0);
     const role = process.env[testSchemaVariable];
     const directory = process.env[testStorageVariable];
+    const mail = process.env[testMailVariable];
+    expect(mail).toBe(mailDirectoryOf(role));
     expect(fetch).not.toHaveBeenCalled();
     child.emit('exit', 1);
     await vi.advanceTimersByTimeAsync(500);
@@ -148,9 +188,10 @@ describe('startTestApi', () => {
     expect(sqlSent().filter((sql) => sql.includes('DROP OWNED'))).toEqual([
       `DROP OWNED BY ${role} CASCADE; REVOKE ALL ON DATABASE medi_wish_test FROM ${role}; DROP ROLE ${role};`,
     ]);
-    expect(rmSync).toHaveBeenCalledExactlyOnceWith(directory, { recursive: true, force: true });
+    expectDirectoriesRemoved(directory, mail);
     expect(process.env[testSchemaVariable]).toBeUndefined();
     expect(process.env[testStorageVariable]).toBeUndefined();
+    expect(process.env[testMailVariable]).toBeUndefined();
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -175,6 +216,7 @@ describe('startTestApi', () => {
     expect(sqlSent().filter((sql) => sql.includes('DROP OWNED'))).toHaveLength(1);
     expect(process.env[testSchemaVariable]).toBeUndefined();
     expect(process.env[testStorageVariable]).toBeUndefined();
+    expect(process.env[testMailVariable]).toBeUndefined();
     expect(vi.getTimerCount()).toBe(0);
   });
   it('refuses to start while another process holds the API port, before touching the database', async () => {
@@ -207,11 +249,27 @@ describe('startTestApi', () => {
     expect(env?.[testStorageVariable]).toBeUndefined();
     expect(mkdirSync).toHaveBeenCalledWith(directory, { recursive: true });
 
+    // Ticket 05: a recovery-code key of its own, and mail captured in a run-owned directory only the workers know.
+    const recoveryKey = String(env?.APP_AUTH_RECOVERY_CODE_KEY);
+    expect(Buffer.from(recoveryKey, 'base64')).toHaveLength(32);
+    expect(recoveryKey).not.toBe(env?.APP_AUTH_JWT_SECRET);
+    expect(recoveryKey).not.toBe(env?.APP_AUTH_MFA_SECRET_KEY);
+    expect(env?.APP_MAIL_TRANSPORT).toBe('directory');
+    const mail = String(env?.APP_MAIL_CAPTURE_DIRECTORY);
+    expect(path.isAbsolute(mail)).toBe(true);
+    expect(mail).toBe(mailDirectoryOf(role));
+    expect(path.dirname(mail)).toBe(tmpdir());
+    expect(process.env[testMailVariable]).toBe(mail);
+    expect(env?.[testMailVariable]).toBeUndefined();
+    expect(mkdirSync).toHaveBeenCalledWith(mail, { recursive: true });
+    expect(rmSync).not.toHaveBeenCalled();
+
     await stop();
     expect(sqlSent().at(-1)).toContain(`DROP ROLE ${role};`);
     expect(process.env[testSchemaVariable]).toBeUndefined();
     expect(process.env[testStorageVariable]).toBeUndefined();
-    expect(rmSync).toHaveBeenCalledWith(directory, { recursive: true, force: true });
+    expect(process.env[testMailVariable]).toBeUndefined();
+    expectDirectoriesRemoved(directory, mail);
   });
 
   it('aborts stalled readiness at the total deadline and cleans owned resources only after the child exits', async () => {
@@ -226,6 +284,7 @@ describe('startTestApi', () => {
     await vi.advanceTimersByTimeAsync(0);
     const role = process.env[testSchemaVariable];
     const directory = process.env[testStorageVariable];
+    const mail = process.env[testMailVariable];
     expect(signals).toHaveLength(1);
     expect(signals[0]?.aborted).toBe(false);
     await vi.advanceTimersByTimeAsync(5_000);
@@ -246,10 +305,11 @@ describe('startTestApi', () => {
       `DROP OWNED BY ${role} CASCADE; REVOKE ALL ON DATABASE medi_wish_test FROM ${role}; DROP ROLE ${role};`,
     ]);
     expect(closeSync).toHaveBeenCalledExactlyOnceWith(99);
-    expect(mkdirSync).toHaveBeenCalledExactlyOnceWith(directory, { recursive: true });
-    expect(rmSync).toHaveBeenCalledExactlyOnceWith(directory, { recursive: true, force: true });
+    expect(vi.mocked(mkdirSync).mock.calls).toEqual([[directory, { recursive: true }], [mail, { recursive: true }]]);
+    expectDirectoriesRemoved(directory, mail);
     expect(process.env[testSchemaVariable]).toBeUndefined();
     expect(process.env[testStorageVariable]).toBeUndefined();
+    expect(process.env[testMailVariable]).toBeUndefined();
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -265,6 +325,7 @@ describe('startTestApi', () => {
     await vi.advanceTimersByTimeAsync(0);
     const role = process.env[testSchemaVariable];
     const directory = process.env[testStorageVariable];
+    const mail = process.env[testMailVariable];
     child.emit('exit', 1);
     await vi.advanceTimersByTimeAsync(5_500);
     await failure;
@@ -275,9 +336,10 @@ describe('startTestApi', () => {
       `DROP OWNED BY ${role} CASCADE; REVOKE ALL ON DATABASE medi_wish_test FROM ${role}; DROP ROLE ${role};`,
     ]);
     expect(closeSync).toHaveBeenCalledExactlyOnceWith(99);
-    expect(rmSync).toHaveBeenCalledExactlyOnceWith(directory, { recursive: true, force: true });
+    expectDirectoriesRemoved(directory, mail);
     expect(process.env[testSchemaVariable]).toBeUndefined();
     expect(process.env[testStorageVariable]).toBeUndefined();
+    expect(process.env[testMailVariable]).toBeUndefined();
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -318,22 +380,31 @@ describe('startTestApi', () => {
     expect(mkdirSync).not.toHaveBeenCalled();
     expect(openSync).not.toHaveBeenCalled();
     expect(spawn).not.toHaveBeenCalled();
+    expect(rmSync).not.toHaveBeenCalled();
     expect(process.env[testSchemaVariable]).toBeUndefined();
     expect(process.env[testStorageVariable]).toBeUndefined();
+    expect(process.env[testMailVariable]).toBeUndefined();
   });
 
-  it('replaces an inherited MFA key with its own', async () => {
+  it('replaces an inherited MFA key, recovery key, mail transport and capture directory with its own', async () => {
     databaseAnswers('t');
     fakeApiProcess(false);
     vi.stubEnv('APP_AUTH_MFA_SECRET_KEY', 'inherited');
+    vi.stubEnv('APP_AUTH_RECOVERY_CODE_KEY', 'inherited');
+    vi.stubEnv('APP_MAIL_TRANSPORT', 'inherited');
+    vi.stubEnv('APP_MAIL_CAPTURE_DIRECTORY', 'inherited');
 
     const stop = await startTestApi();
-    const key = vi.mocked(spawn).mock.calls[0]?.[2]?.env?.APP_AUTH_MFA_SECRET_KEY;
+    const env = vi.mocked(spawn).mock.calls[0]?.[2]?.env;
     await stop();
     vi.unstubAllEnvs();
 
-    expect(key).not.toBe('inherited');
-    expect(Buffer.from(String(key), 'base64')).toHaveLength(32);
+    expect(env?.APP_AUTH_MFA_SECRET_KEY).not.toBe('inherited');
+    expect(Buffer.from(String(env?.APP_AUTH_MFA_SECRET_KEY), 'base64')).toHaveLength(32);
+    expect(env?.APP_AUTH_RECOVERY_CODE_KEY).not.toBe('inherited');
+    expect(Buffer.from(String(env?.APP_AUTH_RECOVERY_CODE_KEY), 'base64')).toHaveLength(32);
+    expect(env?.APP_MAIL_TRANSPORT).toBe('directory');
+    expect(env?.APP_MAIL_CAPTURE_DIRECTORY).toBe(mailDirectoryOf(env?.DB_USERNAME));
   });
 
   it.each([
@@ -346,33 +417,54 @@ describe('startTestApi', () => {
 
     await expect(startTestApi()).rejects.toThrow(message);
     expect(sqlSent().at(-1)).toMatch(/DROP OWNED BY mw_browser_[0-9a-f]{12} CASCADE; .* DROP ROLE mw_browser_[0-9a-f]{12};/);
-    expect(rmSync).toHaveBeenCalledWith(expect.stringMatching(/test-browser-[0-9a-f]{12}$/),
-      { recursive: true, force: true });
+    expectDirectoriesRemoved(expect.stringMatching(/test-browser-[0-9a-f]{12}$/) as unknown as string,
+      expect.stringMatching(/medi-wish-mail-[0-9a-f]{12}$/) as unknown as string);
     expect(process.env[testStorageVariable]).toBeUndefined();
+    expect(process.env[testMailVariable]).toBeUndefined();
   });
 
-  it.each(['directory', 'log', 'spawn'] as const)('cleans the owned resources when %s creation throws', async (stage) => {
+  it.each(['directory', 'mail directory', 'log', 'spawn'] as const)('cleans the owned resources when %s creation throws', async (stage) => {
     databaseAnswers('t');
     const failure = new Error('controlled allocation failure');
     if (stage === 'directory') vi.mocked(mkdirSync).mockImplementationOnce(() => { throw failure; });
+    // The second mkdirSync call is the mail capture directory.
+    if (stage === 'mail directory') {
+      vi.mocked(mkdirSync).mockImplementationOnce(() => undefined).mockImplementationOnce(() => { throw failure; });
+    }
     if (stage === 'log') vi.mocked(openSync).mockImplementationOnce(() => { throw failure; });
     if (stage === 'spawn') vi.mocked(spawn).mockImplementationOnce(() => { throw failure; });
     await expect(startTestApi()).rejects.toThrow(failure);
     expect(sqlSent().at(-1)).toMatch(/DROP ROLE mw_browser_[0-9a-f]{12};/);
-    expect(rmSync).toHaveBeenCalledWith(expect.stringMatching(/test-browser-[0-9a-f]{12}$/),
-      { recursive: true, force: true });
+    expectDirectoriesRemoved(expect.stringMatching(/test-browser-[0-9a-f]{12}$/) as unknown as string,
+      expect.stringMatching(/medi-wish-mail-[0-9a-f]{12}$/) as unknown as string);
+    if (stage === 'mail directory' || stage === 'directory') expect(spawn).not.toHaveBeenCalled();
     expect(process.env[testStorageVariable]).toBeUndefined();
+    expect(process.env[testMailVariable]).toBeUndefined();
   });
 
-  it('removes only the owned namespace even when database teardown fails', async () => {
+  it('removes only the owned directories even when database teardown fails', async () => {
     databaseAnswers('t');
     fakeApiProcess(false);
     const stop = await startTestApi();
     const directory = process.env[testStorageVariable];
+    const mail = process.env[testMailVariable];
     psql.mockImplementationOnce(() => { throw new Error('controlled teardown failure'); });
     await expect(stop()).rejects.toThrow('controlled teardown failure');
-    expect(rmSync).toHaveBeenCalledWith(directory, { recursive: true, force: true });
+    expectDirectoriesRemoved(directory, mail);
     expect(process.env[testStorageVariable]).toBeUndefined();
+    expect(process.env[testMailVariable]).toBeUndefined();
+  });
+
+  it('still removes the mail capture directory when removing the storage directory throws', async () => {
+    databaseAnswers('t');
+    fakeApiProcess(false);
+    const stop = await startTestApi();
+    const directory = process.env[testStorageVariable];
+    const mail = process.env[testMailVariable];
+    vi.mocked(rmSync).mockImplementationOnce(() => { throw new Error('controlled removal failure'); });
+    await expect(stop()).rejects.toThrow('controlled removal failure');
+    expectDirectoriesRemoved(directory, mail);
+    expect(process.env[testMailVariable]).toBeUndefined();
   });
 
 });

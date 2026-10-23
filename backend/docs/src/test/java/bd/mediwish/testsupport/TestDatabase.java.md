@@ -24,3 +24,8 @@ Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` pas
 ## Ticket 15 image storage
 
 Owns one guarded disposable PostgreSQL18 test schema and a matching test-it- storage namespace under the discovered backend target/test-object-storage root. Application properties include synthetic auth and storage settings. close validates ownership, drops only its schema and deletes only its namespace. Credential values are never printed; development credentials are never fallback inputs.
+
+
+## Ticket 05 recovery
+
+Synthetic auth properties now include the recovery HMAC key. This unprofiled settings helper intentionally leaves mail transport disabled; profiled TestApplication startup selects memory capture.

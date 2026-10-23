@@ -7,6 +7,7 @@ import {
   recordProfileRequests, registerByApi, setAccountState, signInByApi, storedProfile, syntheticFullName, syntheticMobile,
   type ProfileCall, urlScanText,
 } from './profileSupport';
+import { expectKeyboardOrder, expectLayout } from './recoverySupport';
 import { register, signIn, syntheticCustomer } from './support';
 import { apiLogPath, apiUrl, grantRole, markMobileVerified } from './testApi';
 import { totpCode, totpStep } from './totp';
@@ -26,7 +27,11 @@ function profilePage(page: Page) {
   return {
     main,
     fullName: page.getByLabel('Full name'),
-    email: page.getByLabel('Email'),
+    email: page.getByRole('textbox', { name: 'Email' }),
+    mobileField: page.getByRole('group', { name: 'Mobile', exact: true }),
+    emailField: page.getByRole('group', { name: 'Email' }),
+    currentPassword: page.getByLabel('Current password', { exact: true }),
+    verify: page.getByRole('button', { name: 'Verify', exact: true }),
     dateOfBirth: page.getByLabel('Date of birth'),
     save: page.getByRole('button', { name: 'Save changes', exact: true }),
     change: page.getByRole('button', { name: 'Change', exact: true }),
@@ -109,7 +114,7 @@ test('E2E-11-33 a Customer edits the profile, stages a mobile change and cancels
     await expect(ui.main.getByText(customer.username, { exact: true })).toBeVisible();
     await expect(page.getByRole('textbox', { name: 'Username' })).toHaveCount(0);
     await expect(ui.main.getByText(customer.mobile)).toBeVisible();
-    await expect(ui.main.getByText('Not verified', { exact: true })).toBeVisible();
+    await expect(ui.mobileField.getByText('Not verified', { exact: true })).toBeVisible();
     await expect(ui.fullName).toHaveValue('');
     await expect(ui.email).toHaveValue(customer.email);
     await expect(ui.dateOfBirth).toHaveValue('');
@@ -119,6 +124,8 @@ test('E2E-11-33 a Customer edits the profile, stages a mobile change and cancels
   await test.step('Save changes stores the normalized values and announces "Profile saved."', async () => {
     await ui.fullName.fill('  Demo   Profile ');
     await ui.email.fill(typedEmail);
+    await expect(ui.currentPassword).toBeVisible();
+    await ui.currentPassword.fill(customer.password);
     await ui.dateOfBirth.fill('1990-05-01');
     await expect(ui.save).toBeEnabled();
     await ui.save.click();
@@ -127,11 +134,13 @@ test('E2E-11-33 a Customer edits the profile, stages a mobile change and cancels
     await expect(ui.email).toHaveValue(savedEmail);
     await expect(ui.dateOfBirth).toHaveValue('1990-05-01');
     await expect(ui.save).toBeDisabled();
+    await expect(ui.currentPassword).toHaveCount(0);
 
     const puts = only(calls, 'PUT');
     expect(puts.map(({ status }) => status)).toEqual([200]);
     const sent = JSON.parse(puts[0].body ?? '{}') as Record<string, unknown>;
-    expect(Object.keys(sent).sort()).toEqual(['dateOfBirth', 'email', 'fullName', 'version']);
+    expect(Object.keys(sent).sort()).toEqual(['currentPassword', 'dateOfBirth', 'email', 'fullName', 'version']);
+    expect(sent.currentPassword).toBe(customer.password);
     expect(sent.version).toBe(0);
   });
 
@@ -155,7 +164,7 @@ test('E2E-11-33 a Customer edits the profile, stages a mobile change and cancels
     await expect(ui.dialog).toBeHidden();
     await expect(ui.main.getByText(copy.pendingNote(newMobile))).toBeVisible();
     await expect(ui.main.getByText(customer.mobile)).toBeVisible();
-    await expect(ui.main.getByText('Not verified', { exact: true }).first()).toBeVisible();
+    await expect(ui.mobileField.getByText('Not verified', { exact: true })).toBeVisible();
     await expect(ui.cancelChange).toBeVisible();
 
     const posts = only(calls, 'POST');
@@ -282,6 +291,8 @@ test('E2E-11-37 invalid values show field errors and send nothing; valid ones sa
   await expectFieldError(ui.email, copy.emailInvalid);
   await expect(ui.email).toBeFocused();
   await ui.email.fill('');
+  await expect(ui.currentPassword).toBeVisible();
+  await ui.currentPassword.fill(customer.password);
   // Full name accepts at most 100 characters; the over-length error itself is covered by the unit tests.
   await expect(ui.fullName).toHaveAttribute('maxlength', '100');
   expect(only(calls, 'PUT')).toEqual([]);
@@ -326,6 +337,7 @@ test('E2E-11-39 an email another User holds shows the duplicate message and save
   await openProfile(page, customer);
 
   await ui.email.fill(other.email.toUpperCase());
+  await ui.currentPassword.fill(customer.password);
   await ui.save.click();
 
   await expect(page.getByRole('alert').filter({ hasText: copy.duplicateUser })).toBeVisible();
@@ -466,8 +478,8 @@ test('E2E-11-43 the verification state is a text chip, and a pending change leav
   const ui = profilePage(page);
   await openProfile(page, customer);
 
-  await expect(ui.main.getByText('Verified', { exact: true })).toBeVisible();
-  await expect(ui.main.getByText('Not verified', { exact: true })).toHaveCount(0);
+  await expect(ui.mobileField.getByText('Verified', { exact: true })).toBeVisible();
+  await expect(ui.mobileField.getByText('Not verified', { exact: true })).toHaveCount(0);
 
   const newMobile = syntheticMobile();
   await ui.change.click();
@@ -475,61 +487,9 @@ test('E2E-11-43 the verification state is a text chip, and a pending change leav
   await ui.saveForVerification.click();
   await expect(ui.main.getByText(copy.pendingNote(newMobile))).toBeVisible();
   await expect(ui.main.getByText(customer.mobile)).toBeVisible();
-  await expect(ui.main.getByText('Verified', { exact: true })).toBeVisible();
+  await expect(ui.mobileField.getByText('Verified', { exact: true })).toBeVisible();
   expect(storedProfile(customer.username)).toMatchObject({ mobile: customer.mobile, mobileVerified: true });
 });
-
-/** No horizontal scroll, a label on every input, and targets of at least 44 px in the page and the open dialog. */
-async function expectLayout(page: Page, scope: Locator): Promise<void> {
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBe(0);
-  expect(await scope.locator('input').evaluateAll((inputs) =>
-    inputs.filter((input) => (input as HTMLInputElement).labels?.length === 0).length)).toBe(0);
-  const small = await scope.locator('button, input, a[href]').evaluateAll((elements) => elements
-    .filter((element) => element.getClientRects().length > 0)
-    .filter((element) => {
-      const { width, height } = element.getBoundingClientRect();
-      return height < 44 || (element.tagName !== 'INPUT' && width < 44);
-    })
-    .map((element) => element.outerHTML));
-  expect(small).toEqual([]);
-}
-
-/** The amber `--accent` colour as the browser computes it. */
-function accentColour(page: Page): Promise<string> {
-  return page.evaluate(() => {
-    const probe = document.createElement('span');
-    probe.style.color = 'var(--accent)';
-    document.body.append(probe);
-    const colour = getComputedStyle(probe).color;
-    probe.remove();
-    return colour;
-  });
-}
-
-/**
- * From a freshly loaded page, Tab visits every visible, enabled control in page order (a date input's segments count
- * once), and each shows the amber focus ring.
- */
-async function expectKeyboardOrder(page: Page): Promise<void> {
-  const accent = await accentColour(page);
-  const expected = await page.locator('a[href], button:not([disabled]), input:not([disabled])').evaluateAll((elements) =>
-    elements.filter((element) => element.getClientRects().length > 0).map((element) => element.outerHTML));
-  const visited: { control: string; ring: boolean }[] = [];
-  for (let press = 0; press < expected.length * 4 + 5 && visited.length < expected.length; press += 1) {
-    await page.keyboard.press('Tab');
-    const focused = await page.evaluate((colour) => {
-      const element = document.activeElement as HTMLElement | null;
-      if (!element || element === document.body) return null;
-      const style = getComputedStyle(element);
-      return {
-        control: element.outerHTML,
-        ring: style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0 && style.outlineColor === colour,
-      };
-    }, accent);
-    if (focused && visited.at(-1)?.control !== focused.control) visited.push(focused);
-  }
-  expect(visited).toEqual(expected.map((control) => ({ control, ring: true })));
-}
 
 for (const [id, width] of [['E2E-11-44', 375], ['E2E-11-45', 1280]] as const) {
   test.describe(`${width} px`, () => {
@@ -546,7 +506,7 @@ for (const [id, width] of [['E2E-11-44', 375], ['E2E-11-45', 1280]] as const) {
       await expect(ui.cancelChange).toBeVisible();
 
       await expectLayout(page, ui.main);
-      await expect(ui.main.getByText('Not verified', { exact: true })).toBeVisible();
+      await expect(ui.mobileField.getByText('Not verified', { exact: true })).toBeVisible();
       await expectKeyboardOrder(page);
 
       await ui.change.focus();
@@ -555,9 +515,9 @@ for (const [id, width] of [['E2E-11-44', 375], ['E2E-11-45', 1280]] as const) {
       await expectLayout(page, ui.dialog);
       for (let press = 0; press < 6; press += 1) {
         await page.keyboard.press('Tab');
-        // A modal dialog makes the page behind it inert: focus stays in the dialog or leaves the document.
-        expect(await page.evaluate(() => document.activeElement === document.body
-          || document.activeElement?.closest('dialog') !== null)).toBe(true);
+        // Chrome and Edge can move focus to browser chrome after the last dialog control.
+        expect(await page.evaluate(() => document.activeElement?.closest('dialog') !== null
+          || (document.activeElement === document.body && !document.hasFocus()))).toBe(true);
       }
       await page.keyboard.press('Escape');
       await expect(ui.dialog).toBeHidden();
@@ -589,15 +549,20 @@ test('E2E-11-46 profile values and mobiles stay out of the log, console, storage
   await openProfile(page, customer);
   await ui.fullName.fill(fullName);
   await ui.email.fill(email);
+  await ui.currentPassword.fill(customer.password);
+  await snapshotStorage();
   await ui.dateOfBirth.fill(dateOfBirth);
+  await snapshotStorage();
   await ui.save.click();
   await expect(ui.saved).toBeVisible();
   await snapshotStorage();
   await ui.change.click();
   await ui.newMobile.fill(other.mobile);
+  await snapshotStorage();
   await ui.saveForVerification.click();
   await expect(ui.dialog.getByRole('alert')).toBeVisible();
   await ui.newMobile.fill(pendingMobile);
+  await snapshotStorage();
   await ui.saveForVerification.click();
   await expect(ui.main.getByText(copy.pendingNote(pendingMobile))).toBeVisible();
   await page.reload();
@@ -607,7 +572,8 @@ test('E2E-11-46 profile values and mobiles stay out of the log, console, storage
   await expect(ui.cancelChange).toHaveCount(0);
   await snapshotStorage();
 
-  const tracked = [fullName, email, dateOfBirth, customer.mobile, pendingMobile, other.mobile, customer.email];
+  const tracked = [fullName, email, dateOfBirth, customer.mobile, pendingMobile, other.mobile, customer.email,
+    customer.password];
   const apiLog = readFileSync(apiLogPath, 'utf8');
   // Response-status events prove the scan read the request log, not an empty file.
   expect(apiLog).toContain('"message":"HTTP response status=');

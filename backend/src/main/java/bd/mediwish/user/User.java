@@ -30,6 +30,8 @@ public class User {
     private String mobile;
     @Column(length = 320)
     private String email;
+    @Column(name = "email_verified_at")
+    private Instant emailVerifiedAt;
     @Column(name = "full_name", length = 100)
     private String fullName;
     @Column(name = "date_of_birth")
@@ -72,6 +74,9 @@ public class User {
     public String username() { return username; }
     public String mobile() { return mobile; }
     public String email() { return email; }
+    public boolean emailVerified() { return emailVerifiedAt != null; }
+    public void markEmailVerified(Instant at) { emailVerifiedAt = at; }
+    public void changePasswordHash(String hash) { passwordHash = hash; }
     public String fullName() { return fullName; }
     public LocalDate dateOfBirth() { return dateOfBirth; }
     public long profileVersion() { return profileVersion; }
@@ -87,6 +92,7 @@ public class User {
     public boolean hasStaffRole() { return role().isStaff(); }
     public void updateProfile(String fullName, String email, LocalDate dateOfBirth) {
         this.fullName = fullName;
+        if (!java.util.Objects.equals(this.email, email)) emailVerifiedAt = null;
         this.email = email;
         this.dateOfBirth = dateOfBirth;
     }

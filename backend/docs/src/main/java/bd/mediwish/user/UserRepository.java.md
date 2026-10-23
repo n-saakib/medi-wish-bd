@@ -17,3 +17,5 @@ Controllers and web adapters do not call these queries directly. Covered by `Use
 `search(prefix, role, pageable)` returns bounded Users and a matching count. The caller supplies a LIKE-escaped prefix with its trailing wildcard, or null; role is an exact enum name or null. SQL orders usernames with C collation and uses an explicit backslash escape. The private role collection batches hydration in groups of 50. Queries bind all values; no username is placed in a URL or log.
 
 Ticket 16 adds a batched username-only id projection for staff Discount editor and explicit-end history names. It avoids loading full personal User profiles for those lists.
+
+Ticket 05 projects `emailVerified` from nullable `email_verified_at` in the same owner-only snapshot; the timestamp remains internal.

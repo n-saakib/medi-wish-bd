@@ -14,3 +14,5 @@ Verified 2026-09-27 on the working tree over `bef3b76`: `./mvnw.cmd -o test` pas
 
 
 The public `catalogMvc(controllers)` helper creates standalone MockMvc with production bounded advice, correlation/no-store filtering and the authentication-principal argument resolver. Catalog HTTP units use this boundary without a database or security-chain duplication.
+
+Ticket 05 synthetic auth construction includes a distinct 32-byte recovery HMAC configuration through TestAuthSettings.recovery(); no production secret or global environment is used.

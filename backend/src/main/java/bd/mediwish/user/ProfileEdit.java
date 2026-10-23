@@ -2,5 +2,9 @@ package bd.mediwish.user;
 
 import java.time.LocalDate;
 
-/** The four editable profile fields supplied by an authenticated User. */
-public record ProfileEdit(String fullName, String email, LocalDate dateOfBirth, Long version) {}
+/** Profile fields and optional reauthentication, supplied by the authenticated User. */
+public record ProfileEdit(String fullName, String email, LocalDate dateOfBirth, Long version,
+                          String currentPassword) {
+    @Override
+    public String toString() { return "ProfileEdit[version=" + version + "]"; }
+}

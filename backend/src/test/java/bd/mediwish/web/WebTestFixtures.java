@@ -30,6 +30,6 @@ public final class WebTestFixtures {
         var environment = new MockEnvironment();
         environment.setActiveProfiles(profiles.isEmpty() ? new String[0] : profiles.split(","));
         return new SecurityConfiguration(environment, new AuthProperties(Duration.ofMinutes(15), Duration.ofDays(30),
-                "medi-wish", "medi-wish-api", "unused", new AuthProperties.Cookie(secureCookies), TestAuthSettings.mfa()));
+                "medi-wish", "medi-wish-api", "unused", new AuthProperties.Cookie(secureCookies), TestAuthSettings.mfa(), TestAuthSettings.recovery()));
     }
 }

@@ -30,7 +30,7 @@ Catalog checks cover control characters before trimming, stable persisted timest
 | Ticket 06 first Admin, staff MFA, security audit and staff route | [`src/main/java/bd/mediwish/auth/FirstAdminProvisioning.java.md`](src/main/java/bd/mediwish/auth/FirstAdminProvisioning.java.md), [`FirstAdminProvisioningService.java.md`](src/main/java/bd/mediwish/auth/FirstAdminProvisioningService.java.md), [`StaffBootstrap.java.md`](src/main/java/bd/mediwish/auth/StaffBootstrap.java.md), [`StaffBootstrapRepository.java.md`](src/main/java/bd/mediwish/auth/StaffBootstrapRepository.java.md), [`StaffAccessPolicy.java.md`](src/main/java/bd/mediwish/auth/StaffAccessPolicy.java.md), [`MfaStatus.java.md`](src/main/java/bd/mediwish/auth/MfaStatus.java.md), [`StaffMfaController.java.md`](src/main/java/bd/mediwish/auth/StaffMfaController.java.md), [`StaffMfaService.java.md`](src/main/java/bd/mediwish/auth/StaffMfaService.java.md), [`Totp.java.md`](src/main/java/bd/mediwish/auth/Totp.java.md), [`MfaSecretCipher.java.md`](src/main/java/bd/mediwish/auth/MfaSecretCipher.java.md), [`BackupCodes.java.md`](src/main/java/bd/mediwish/auth/BackupCodes.java.md), [`StaffMfaThrottle.java.md`](src/main/java/bd/mediwish/auth/StaffMfaThrottle.java.md), [`StaffMfaThrottleRepository.java.md`](src/main/java/bd/mediwish/auth/StaffMfaThrottleRepository.java.md), [`StaffMfaFactor.java.md`](src/main/java/bd/mediwish/auth/StaffMfaFactor.java.md), [`StaffMfaFactorRepository.java.md`](src/main/java/bd/mediwish/auth/StaffMfaFactorRepository.java.md), [`StaffMfaBackupCode.java.md`](src/main/java/bd/mediwish/auth/StaffMfaBackupCode.java.md), [`StaffMfaBackupCodeRepository.java.md`](src/main/java/bd/mediwish/auth/StaffMfaBackupCodeRepository.java.md), [`SecurityAuditEvent.java.md`](src/main/java/bd/mediwish/auth/SecurityAuditEvent.java.md), [`SecurityAuditEventRepository.java.md`](src/main/java/bd/mediwish/auth/SecurityAuditEventRepository.java.md), [`SecurityAuditLog.java.md`](src/main/java/bd/mediwish/auth/SecurityAuditLog.java.md), [`MfaCodeInvalidException.java.md`](src/main/java/bd/mediwish/auth/MfaCodeInvalidException.java.md), [`MfaEnrollmentStaleException.java.md`](src/main/java/bd/mediwish/auth/MfaEnrollmentStaleException.java.md), [`TooManyAttemptsException.java.md`](src/main/java/bd/mediwish/auth/TooManyAttemptsException.java.md), [`src/main/java/bd/mediwish/staff/StaffController.java.md`](src/main/java/bd/mediwish/staff/StaffController.java.md) |
 | Runtime configuration | [`src/main/resources/application.yaml.md`](src/main/resources/application.yaml.md) |
 | Local backend environment template | [`.env.example.md`](.env.example.md) |
-| Database migrations: shared User, sessions, unique case-insensitive email index, staff MFA (`010`), one role per User (`011`, search path pinned by `014`), profile (`012`) and catalog (`013`) | [`src/main/resources/db/changelog/db.changelog-master.yaml.md`](src/main/resources/db/changelog/db.changelog-master.yaml.md) |
+| Database migrations: shared User, sessions, unique case-insensitive email index, staff MFA (`010`), one role per User (`011`, search path pinned by `014`), profile (`012`), catalog (`013`) and email recovery (`019`) | [`src/main/resources/db/changelog/db.changelog-master.yaml.md`](src/main/resources/db/changelog/db.changelog-master.yaml.md) |
 | Public error messages | [`src/main/resources/messages.properties.md`](src/main/resources/messages.properties.md) |
 
 ## Test map
@@ -302,3 +302,82 @@ Ticket 12 saved delivery addresses:
 ## Tickets 12, 15 and 16 integration
 
 [Integrated backend evidence](integration-12-15-16.md) records the tested combined revisions, preserved shared contracts, fresh normal/compatibility results, five concurrency repetitions, the earlier interrupted run and completed frontend/runtime cleanup gates.
+
+## Ticket 05 recovery and mail additions
+
+| File | Documentation |
+| --- | --- |
+| `AccountCode.java` | [AccountCode](src/main/java/bd/mediwish/auth/AccountCode.java.md) |
+| `AccountCodeHasher.java` | [AccountCodeHasher](src/main/java/bd/mediwish/auth/AccountCodeHasher.java.md) |
+| `AccountCodeIssuer.java` | [AccountCodeIssuer](src/main/java/bd/mediwish/auth/AccountCodeIssuer.java.md) |
+| `AccountCodeLimit.java` | [AccountCodeLimit](src/main/java/bd/mediwish/auth/AccountCodeLimit.java.md) |
+| `AccountCodeLimitRepository.java` | [AccountCodeLimitRepository](src/main/java/bd/mediwish/auth/AccountCodeLimitRepository.java.md) |
+| `AccountCodePurpose.java` | [AccountCodePurpose](src/main/java/bd/mediwish/auth/AccountCodePurpose.java.md) |
+| `AccountCodeRepository.java` | [AccountCodeRepository](src/main/java/bd/mediwish/auth/AccountCodeRepository.java.md) |
+| `AccountCodeRules.java` | [AccountCodeRules](src/main/java/bd/mediwish/auth/AccountCodeRules.java.md) |
+| `AccountEmailSecurity.java` | [AccountEmailSecurity](src/main/java/bd/mediwish/auth/AccountEmailSecurity.java.md) |
+| `AccountMail.java` | [AccountMail](src/main/java/bd/mediwish/auth/AccountMail.java.md) |
+| `CodeInvalidException.java` | [CodeInvalidException](src/main/java/bd/mediwish/auth/CodeInvalidException.java.md) |
+| `CurrentPasswordInvalidException.java` | [CurrentPasswordInvalidException](src/main/java/bd/mediwish/auth/CurrentPasswordInvalidException.java.md) |
+| `EmailVerificationService.java` | [EmailVerificationService](src/main/java/bd/mediwish/auth/EmailVerificationService.java.md) |
+| `PasswordResetService.java` | [PasswordResetService](src/main/java/bd/mediwish/auth/PasswordResetService.java.md) |
+| `PasswordResetTransaction.java` | [PasswordResetTransaction](src/main/java/bd/mediwish/auth/PasswordResetTransaction.java.md) |
+| `AfterCommitMailer.java` | [AfterCommitMailer](src/main/java/bd/mediwish/mail/AfterCommitMailer.java.md) |
+| `DirectoryEmailTransport.java` | [DirectoryEmailTransport](src/main/java/bd/mediwish/mail/DirectoryEmailTransport.java.md) |
+| `DisabledEmailTransport.java` | [DisabledEmailTransport](src/main/java/bd/mediwish/mail/DisabledEmailTransport.java.md) |
+| `EmailDeliveryException.java` | [EmailDeliveryException](src/main/java/bd/mediwish/mail/EmailDeliveryException.java.md) |
+| `EmailKind.java` | [EmailKind](src/main/java/bd/mediwish/mail/EmailKind.java.md) |
+| `EmailMessage.java` | [EmailMessage](src/main/java/bd/mediwish/mail/EmailMessage.java.md) |
+| `EmailTransport.java` | [EmailTransport](src/main/java/bd/mediwish/mail/EmailTransport.java.md) |
+| `InMemoryEmailTransport.java` | [InMemoryEmailTransport](src/main/java/bd/mediwish/mail/InMemoryEmailTransport.java.md) |
+| `MailConfiguration.java` | [MailConfiguration](src/main/java/bd/mediwish/mail/MailConfiguration.java.md) |
+| `MailProperties.java` | [MailProperties](src/main/java/bd/mediwish/mail/MailProperties.java.md) |
+| `AccountCodeHasherTest.java` | [AccountCodeHasherTest](src/test/java/bd/mediwish/auth/AccountCodeHasherTest.java.md) |
+| `AccountCodeIssuerTest.java` | [AccountCodeIssuerTest](src/test/java/bd/mediwish/auth/AccountCodeIssuerTest.java.md) |
+| `AccountCodeRulesTest.java` | [AccountCodeRulesTest](src/test/java/bd/mediwish/auth/AccountCodeRulesTest.java.md) |
+| `AccountEmailSecurityTest.java` | [AccountEmailSecurityTest](src/test/java/bd/mediwish/auth/AccountEmailSecurityTest.java.md) |
+| `EmailVerificationServiceTest.java` | [EmailVerificationServiceTest](src/test/java/bd/mediwish/auth/EmailVerificationServiceTest.java.md) |
+| `PasswordResetLoginRaceTest.java` | [PasswordResetLoginRaceTest](src/test/java/bd/mediwish/auth/PasswordResetLoginRaceTest.java.md) |
+| `PasswordResetServiceTest.java` | [PasswordResetServiceTest](src/test/java/bd/mediwish/auth/PasswordResetServiceTest.java.md) |
+| `PasswordResetTransactionTest.java` | [PasswordResetTransactionTest](src/test/java/bd/mediwish/auth/PasswordResetTransactionTest.java.md) |
+| `AfterCommitMailerTest.java` | [AfterCommitMailerTest](src/test/java/bd/mediwish/mail/AfterCommitMailerTest.java.md) |
+| `DirectoryEmailTransportTest.java` | [DirectoryEmailTransportTest](src/test/java/bd/mediwish/mail/DirectoryEmailTransportTest.java.md) |
+| `InMemoryEmailTransportTest.java` | [InMemoryEmailTransportTest](src/test/java/bd/mediwish/mail/InMemoryEmailTransportTest.java.md) |
+| `MailConfigurationTest.java` | [MailConfigurationTest](src/test/java/bd/mediwish/mail/MailConfigurationTest.java.md) |
+| `PasswordPolicyTest.java` | [PasswordPolicyTest](src/test/java/bd/mediwish/user/PasswordPolicyTest.java.md) |
+
+| `EmailRequiredException.java` | [EmailRequiredException](src/main/java/bd/mediwish/user/EmailRequiredException.java.md) |
+
+Ticket 05 also extends the existing ProfileController/ProfileControllerTest current-session and optional-current-password adapters, WebTestFixtures recovery settings, recovery error/security mappings, and the test harness memory-mail default. The matching mirrors describe each boundary.
+
+
+## Ticket 05 recovery HTTP boundaries
+
+| Source | Documentation |
+| --- | --- |
+| PasswordResetController.java | [PasswordResetController.java.md](src/main/java/bd/mediwish/auth/PasswordResetController.java.md) |
+| EmailVerificationController.java | [EmailVerificationController.java.md](src/main/java/bd/mediwish/auth/EmailVerificationController.java.md) |
+| PasswordResetControllerTest.java | [PasswordResetControllerTest.java.md](src/test/java/bd/mediwish/web/PasswordResetControllerTest.java.md) |
+| EmailVerificationControllerTest.java | [EmailVerificationControllerTest.java.md](src/test/java/bd/mediwish/web/EmailVerificationControllerTest.java.md) |
+| RecoverySecurityTest.java | [RecoverySecurityTest.java.md](src/test/java/bd/mediwish/web/RecoverySecurityTest.java.md) |
+
+The shared HTTP security/error pages also describe the four recovery routes, bounded payloads and externalized errors.
+
+
+## Ticket 05 integration and contract evidence
+
+| Source | Documentation |
+| --- | --- |
+| `AuthApiRecoverySupportTest.java` | [AuthApiRecoverySupportTest](src/test/java/bd/mediwish/auth/AuthApiRecoverySupportTest.java.md) |
+| `PasswordResetIT.java` | [PasswordResetIT](src/test/java/bd/mediwish/auth/PasswordResetIT.java.md) |
+| `EmailVerificationIT.java` | [EmailVerificationIT](src/test/java/bd/mediwish/auth/EmailVerificationIT.java.md) |
+| `EmailChangeIT.java` | [EmailChangeIT](src/test/java/bd/mediwish/auth/EmailChangeIT.java.md) |
+| `RecoveryContractIT.java` | [RecoveryContractIT](src/test/java/bd/mediwish/auth/RecoveryContractIT.java.md) |
+| `ResetUniformityIT.java` | [ResetUniformityIT](src/test/java/bd/mediwish/auth/ResetUniformityIT.java.md) |
+| `RecoveryRegressionIT.java` | [RecoveryRegressionIT](src/test/java/bd/mediwish/auth/RecoveryRegressionIT.java.md) |
+| `ConcurrentRecoveryIT.java` | [ConcurrentRecoveryIT](src/test/java/bd/mediwish/auth/ConcurrentRecoveryIT.java.md) |
+| `AccountRecoveryMigrationIT.java` | [AccountRecoveryMigrationIT](src/test/java/bd/mediwish/auth/AccountRecoveryMigrationIT.java.md) |
+
+AuthApi recovery helpers and the existing profile fixture adapters retain their matching mirror pages. Test results and outstanding cumulative gates are recorded in the Ticket 05 evidence.
+
+Ticket 05 mail settings bind only transport and capture directory; sender configuration is deferred with the SES adapter.

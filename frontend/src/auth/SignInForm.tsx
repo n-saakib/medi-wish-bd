@@ -49,7 +49,8 @@ export function SignInForm() {
             required value={identifier} onChange={(event) => { setIdentifier(event.target.value); setError(null); }} />
         </div>
         <div className="field">
-          <label htmlFor="sign-in-password">{t('password')}</label>
+          <div className="row-between"><label htmlFor="sign-in-password">{t('password')}</label>
+            <Link className="small auth-link" href="/forgot-password">{t('forgotPassword')}</Link></div>
           <input className="input" id="sign-in-password" name="password" type="password" autoComplete="current-password"
             required value={password} onChange={(event) => { setPassword(event.target.value); setError(null); }} />
         </div>
@@ -69,6 +70,8 @@ function SignInNotice({ notice }: { notice: SessionNotice | null }) {
       return <Alert tone="warn" focusOnShow>{t('sessionExpired')}</Alert>;
     case 'restoreError':
       return <Alert tone="danger" focusOnShow>{t('restoreError')}</Alert>;
+    case 'passwordReset':
+      return <Alert tone="success" focusOnShow>{t('passwordReset')}</Alert>;
     case 'accountCreated':
       return <Alert tone="success" focusOnShow>{t('accountCreated')}</Alert>;
     default:

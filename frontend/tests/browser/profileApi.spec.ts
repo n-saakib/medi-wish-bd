@@ -45,8 +45,19 @@ function postRegistration(api: APIRequestContext, customer: Customer): Promise<A
 }
 
 /** The four editable fields at a version, with `null` for anything not given. */
-function edit(version: number, fields: { fullName?: string | null; email?: string | null; dateOfBirth?: string | null } = {}) {
+function rawEdit(version: number, fields: { fullName?: string | null; email?: string | null; dateOfBirth?: string | null } = {}) {
   return { fullName: null, email: null, dateOfBirth: null, ...fields, version };
+}
+
+/** Owner-aware valid edits preserve the stored email and supply the fixture password only for an email change. */
+function edit(user: ProfileApi, version: number,
+  fields: { fullName?: string | null; email?: string | null; dateOfBirth?: string | null; currentPassword?: string | null } = {}) {
+  const current = storedProfile(user.user.username);
+  const body = { ...rawEdit(version), email: current.email, ...fields };
+  if (!Object.hasOwn(fields, 'currentPassword') && (body.email?.trim().toLowerCase() || null) !== current.email) {
+    Object.assign(body, { currentPassword: user.user.password });
+  }
+  return body;
 }
 
 /** The JSON body limit of the profile write routes, in bytes (the backend's `AuthRequestBodyLimitFilter`, plan §4.4). */
@@ -68,7 +79,7 @@ function everyRoute(api: APIRequestContext, headers: Record<string, string>): Pr
   return [
     api.get(`${apiUrl}${profilePath}`, { headers }),
     api.put(`${apiUrl}${profilePath}`, { headers: { ...headers, 'Content-Type': 'application/json' },
-      data: JSON.stringify(edit(0, { fullName: 'Intruder' })) }),
+      data: JSON.stringify(rawEdit(0, { fullName: 'Intruder' })) }),
     api.post(`${apiUrl}${mobileChangePath}`, { headers: { ...headers, 'Content-Type': 'application/json' },
       data: JSON.stringify({ mobile: syntheticMobile() }) }),
     api.delete(`${apiUrl}${mobileChangePath}`, { headers }),
@@ -128,7 +139,7 @@ async function expectNoForeignProfile(api: APIRequestContext, intruder: ProfileA
   const own = await intruder.profile();
   expect(own.username).toBe(intruder.user.username);
   const json = await intruder.headers({ 'Content-Type': 'application/json' });
-  const change = JSON.stringify(edit(own.version, { fullName: 'Intruder Was Here' }));
+  const change = JSON.stringify(rawEdit(own.version, { fullName: 'Intruder Was Here' }));
 
   const probes = await Promise.all([
     api.get(`${apiUrl}/api/user/${victimId}/profile`, { headers: json }),
@@ -156,7 +167,7 @@ test.describe('Ticket 11 profile API', () => {
 
     expect(await user.profile()).toEqual({
       username: customer.username, fullName: null, mobile: customer.mobile, mobileVerified: false, pendingMobile: null,
-      email: customer.email, dateOfBirth: null, accountState: 'ACTIVE', version: 0,
+      email: customer.email, emailVerified: false, dateOfBirth: null, accountState: 'ACTIVE', version: 0,
     });
     const me = await request.get(`${apiUrl}/api/user/me`, { headers: await user.headers() });
     expect(await me.json()).toEqual({
@@ -172,13 +183,13 @@ test.describe('Ticket 11 profile API', () => {
     const user = await ProfileApi.register(request, customer);
     const tag = hex();
 
-    const saved = await expectProfile(await user.put(edit(0, {
+    const saved = await expectProfile(await user.put(edit(user, 0, {
       fullName: '  Demo   Profile ', email: `  Demo.${tag}@Example.test `, dateOfBirth: '1990-05-01',
     })), 200);
 
     expect(saved).toEqual({
       username: customer.username, fullName: 'Demo Profile', mobile: customer.mobile, mobileVerified: false,
-      pendingMobile: null, email: `demo.${tag}@example.test`, dateOfBirth: '1990-05-01', accountState: 'ACTIVE',
+      pendingMobile: null, email: `demo.${tag}@example.test`, emailVerified: false, dateOfBirth: '1990-05-01', accountState: 'ACTIVE',
       version: 1,
     });
     expect(await user.profile()).toEqual(saved);
@@ -196,7 +207,7 @@ test.describe('Ticket 11 profile API', () => {
     const user = await ProfileApi.register(request);
     await user.save({ fullName: 'To Be Cleared', email: `clear.${hex()}@example.test`, dateOfBirth: '1985-01-31' });
 
-    const cleared = await expectProfile(await user.put({ fullName: '   ', email: '  ', dateOfBirth: null, version: 1 }), 200);
+    const cleared = await expectProfile(await user.put({ fullName: '   ', email: '  ', dateOfBirth: null, version: 1, currentPassword: user.user.password }), 200);
 
     expect(cleared).toMatchObject({ fullName: null, email: null, dateOfBirth: null, version: 2 });
     const me = await request.get(`${apiUrl}/api/user/me`, { headers: await user.headers() });
@@ -228,7 +239,7 @@ test.describe('Ticket 11 profile API', () => {
       [`A${' '.repeat(98)}B`, 'A B'],
       ['নুসরাত জাহান', 'নুসরাত জাহান'],
     ]) {
-      const saved = await expectProfile(await user.put(edit(version, { fullName: sent })), 200);
+      const saved = await expectProfile(await user.put(edit(user, version, { fullName: sent })), 200);
       expect(saved.fullName, JSON.stringify(sent)).toBe(stored);
       version = saved.version;
     }
@@ -236,7 +247,7 @@ test.describe('Ticket 11 profile API', () => {
     const before = storedProfile(user.user.username);
     for (const refused of ['z'.repeat(101), `A${' '.repeat(99)}B`, `A${' '.repeat(100)}B`,
       'A\u0007B', 'A\nB', 'A\r\nB', 'A\tB', 'A\u0000B']) {
-      await expectError(await user.put(edit(version, { fullName: refused })), 400, 'INVALID_REQUEST');
+      await expectError(await user.put(rawEdit(version, { fullName: refused })), 400, 'INVALID_REQUEST');
       expect(storedProfile(user.user.username)).toEqual(before);
     }
     expect(storedProfile(user.user.username)).toMatchObject({ fullName: 'নুসরাত জাহান', profileVersion: version });
@@ -254,7 +265,7 @@ test.describe('Ticket 11 profile API', () => {
       `first.middle.${hex()}@example.test`,
       `${hex()}@${'d'.repeat(63)}.example.test`,
     ]) {
-      const saved = await expectProfile(await user.put(edit(version, { email: accepted.toUpperCase() })), 200);
+      const saved = await expectProfile(await user.put(edit(user, version, { email: accepted.toUpperCase() })), 200);
       expect(saved.email, accepted).toBe(accepted.toLowerCase());
       version = saved.version;
     }
@@ -267,7 +278,7 @@ test.describe('Ticket 11 profile API', () => {
       '.a@example.test', 'a.@example.test', 'a@-example.test', 'a@example-.test', 'a@example..test', 'a@example.test.',
       'ä@example.test', 'a@exämple.test',
     ]) {
-      await expectError(await user.put(edit(version, { email: refused })), 400, 'INVALID_REQUEST');
+      await expectError(await user.put(rawEdit(version, { email: refused })), 400, 'INVALID_REQUEST');
     }
     expect(storedProfile(user.user.username)).toMatchObject({ email: kept, profileVersion: version });
   });
@@ -277,7 +288,7 @@ test.describe('Ticket 11 profile API', () => {
     const user = await ProfileApi.register(request);
     let version = 0;
     for (const accepted of ['1900-01-01', dhakaDate(0), '2000-02-29', null]) {
-      const saved = await expectProfile(await user.put(edit(version, { fullName: 'Dob Tester', dateOfBirth: accepted })), 200);
+      const saved = await expectProfile(await user.put(edit(user, version, { fullName: 'Dob Tester', dateOfBirth: accepted })), 200);
       expect(saved.dateOfBirth).toBe(accepted);
       version = saved.version;
     }
@@ -289,9 +300,9 @@ test.describe('Ticket 11 profile API', () => {
     expect(storedProfile(user.user.username)).toMatchObject({ dateOfBirth: null, profileVersion: version });
   });
 
-  test('E2E-11-08 the edit needs exactly fullName, email, dateOfBirth and a non-negative version', t4, async ({ request }) => {
+  test('E2E-11-08 the edit needs four required fields and permits an optional typed current password', t4, async ({ request }) => {
     const user = await ProfileApi.register(request);
-    const valid = edit(0, { fullName: 'Shape Tester' });
+    const valid = rawEdit(0, { fullName: 'Shape Tester', email: user.user.email });
 
     for (const key of Object.keys(valid)) {
       const missing: Record<string, unknown> = { ...valid };
@@ -306,11 +317,16 @@ test.describe('Ticket 11 profile API', () => {
     for (const wrong of [{ fullName: 42 }, { fullName: true }, { email: 42 }, { email: false }]) {
       await expectError(await user.put({ ...valid, ...wrong }), 400, 'INVALID_REQUEST');
     }
-    for (const extra of ['username', 'mobile', 'mobileVerified', 'pendingMobile', 'accountState', 'id', 'profileVersion']) {
-      await expectError(await user.put({ ...valid, [extra]: extra === 'mobileVerified' ? true : 'x' }), 400,
+    for (const extra of ['username', 'mobile', 'mobileVerified', 'emailVerified', 'pendingMobile', 'accountState', 'id', 'profileVersion']) {
+      await expectError(await user.put({ ...valid, [extra]: extra.endsWith('Verified') ? true : 'x' }), 400,
         'INVALID_REQUEST');
     }
     expect(storedProfile(user.user.username)).toMatchObject({ fullName: null, profileVersion: 0 });
+    for (const currentPassword of [42, true, {}, [], 'p'.repeat(129)]) {
+      await expectError(await user.put({ ...valid, currentPassword }), 400, 'INVALID_REQUEST');
+    }
+    // Null is a permitted wire type; unchanged email does not need a password.
+    expect((await expectProfile(await user.put({ ...valid, currentPassword: null }), 200)).fullName).toBe('Shape Tester');
 
     // The same body without the refused parts is accepted, so the refusals above came from the shape alone.
     expect((await expectProfile(await user.put(valid), 200)).fullName).toBe('Shape Tester');
@@ -335,7 +351,7 @@ test.describe('Ticket 11 profile API', () => {
 
   test('E2E-11-10 malformed, mistyped and oversized bodies are refused on both write routes', t4, async ({ request }) => {
     const user = await ProfileApi.register(request);
-    const validEdit = edit(0, { fullName: 'Padded Name' });
+    const validEdit = rawEdit(0, { fullName: 'Padded Name', email: user.user.email });
     const validStage = { mobile: syntheticMobile() };
     // Valid bodies one byte over the limit: only the body limit can refuse them.
     const oversizedEdit = paddedJson(validEdit, bodyLimit + 1);
@@ -343,7 +359,7 @@ test.describe('Ticket 11 profile API', () => {
 
     for (const [body, contentType] of [
       [oversizedEdit, 'application/json'],
-      [JSON.stringify(edit(0, { fullName: 'Plain Text' })), 'text/plain'],
+      [JSON.stringify(rawEdit(0, { fullName: 'Plain Text' })), 'text/plain'],
       ['{', 'application/json'],
       ['[]', 'application/json'],
       ['', 'application/json'],
@@ -371,22 +387,22 @@ test.describe('Ticket 11 profile API', () => {
     const other = await registerByApi(request);
     const user = await ProfileApi.register(request);
 
-    const refused = await expectError(await user.put(edit(0, { email: other.email.toUpperCase() })), 409,
+    const refused = await expectError(await user.put(edit(user, 0, { email: other.email.toUpperCase() })), 409,
       'DUPLICATE_USER', copy.duplicateUser);
     expect(JSON.stringify(refused)).not.toContain(other.email);
     expect(JSON.stringify(refused).toLowerCase()).not.toContain(other.username);
     expect(storedProfile(user.user.username)).toMatchObject({ email: user.user.email, profileVersion: 0 });
 
     // The User's own email in another case is the same email: a no-op that keeps the version.
-    const same = await expectProfile(await user.put(edit(0, { email: user.user.email.toUpperCase() })), 200);
+    const same = await expectProfile(await user.put(edit(user, 0, { email: user.user.email.toUpperCase() })), 200);
     expect(same).toMatchObject({ email: user.user.email, version: 0 });
   });
 
   test('E2E-11-12 a stale profile save is refused with STALE_UPDATE and changes nothing', t4, async ({ request }) => {
     const user = await ProfileApi.register(request);
-    await expectProfile(await user.put(edit(0, { fullName: 'Tab A' })), 200);
+    await expectProfile(await user.put(edit(user, 0, { fullName: 'Tab A' })), 200);
 
-    await expectError(await user.put(edit(0, { fullName: 'Tab B' })), 409, 'STALE_UPDATE', copy.staleApi);
+    await expectError(await user.put(rawEdit(0, { fullName: 'Tab B' })), 409, 'STALE_UPDATE', copy.staleApi);
 
     expect(storedProfile(user.user.username)).toMatchObject({ fullName: 'Tab A', profileVersion: 1 });
     // Staging a mobile carries no version, so a stale profile screen can still stage (P5).
@@ -395,7 +411,7 @@ test.describe('Ticket 11 profile API', () => {
 
   test('E2E-11-13 an identical save, even with an old version after a lost response, is a no-op', t4, async ({ request }) => {
     const user = await ProfileApi.register(request);
-    const body = edit(0, { fullName: 'Lost Response', dateOfBirth: '1979-11-02' });
+    const body = edit(user, 0, { fullName: 'Lost Response', dateOfBirth: '1979-11-02' });
     expect((await expectProfile(await user.put(body), 200)).version).toBe(1);
 
     const retried = await expectProfile(await user.put(body), 200);
@@ -414,8 +430,8 @@ test.describe('Ticket 11 profile API', () => {
     await user.bearer();
 
     const [first, second] = await Promise.all([
-      user.put(edit(0, { fullName: 'Racer One' })),
-      user.put(edit(0, { fullName: 'Racer Two' })),
+      user.put(edit(user, 0, { fullName: 'Racer One' })),
+      user.put(edit(user, 0, { fullName: 'Racer Two' })),
     ]);
 
     expect([first.status(), second.status()].sort()).toEqual([200, 409]);
@@ -428,7 +444,7 @@ test.describe('Ticket 11 profile API', () => {
   test('E2E-11-15 two concurrent identical saves both succeed with one version bump', t4, async ({ request }) => {
     const user = await ProfileApi.register(request);
     await user.bearer();
-    const body = edit(0, { fullName: 'Twin Save' });
+    const body = edit(user, 0, { fullName: 'Twin Save' });
 
     const answers = await Promise.all([user.put(body), user.put(body)]);
 
@@ -441,7 +457,7 @@ test.describe('Ticket 11 profile API', () => {
     await Promise.all([first.bearer(), second.bearer()]);
     const email = `contested.${hex()}@example.test`;
 
-    const answers = await Promise.all([first.put(edit(0, { email })), second.put(edit(0, { email: email.toUpperCase() }))]);
+    const answers = await Promise.all([first.put(edit(first, 0, { email })), second.put(edit(second, 0, { email: email.toUpperCase() }))]);
 
     expect(answers.map((answer) => answer.status()).sort()).toEqual([200, 409]);
     await expectError(answers.find((answer) => answer.status() === 409)!, 409, 'DUPLICATE_USER', copy.duplicateUser);
@@ -625,10 +641,10 @@ test.describe('Ticket 11 profile API', () => {
 
     expect(await user.profile()).toEqual({ ...saved, pendingMobile, accountState: 'CLOSURE_REQUESTED' });
     for (const body of [
-      edit(1, { fullName: 'Changed Anyway' }),
-      edit(0, { fullName: 'Stale Screen' }),
+      rawEdit(1, { fullName: 'Changed Anyway' }),
+      rawEdit(0, { fullName: 'Stale Screen' }),
       { fullName: saved.fullName, email: saved.email, dateOfBirth: saved.dateOfBirth, version: saved.version },
-      edit(1, { fullName: 'Closing Soon', dateOfBirth: '1899-12-31' }),
+      rawEdit(1, { fullName: 'Closing Soon', dateOfBirth: '1899-12-31' }),
     ]) {
       await expectError(await user.put(body), 409, 'ACCOUNT_CLOSING', copy.closingApi);
     }
@@ -640,7 +656,7 @@ test.describe('Ticket 11 profile API', () => {
 
     // Control: the same account in ACTIVE state accepts the edit, so the refusals came from the state alone.
     setAccountState(customer.username, 'ACTIVE');
-    expect((await expectProfile(await user.put(edit(1, { fullName: 'Changed Anyway' })), 200)).version).toBe(2);
+    expect((await expectProfile(await user.put(edit(user, 1, { fullName: 'Changed Anyway' })), 200)).version).toBe(2);
   });
 
   test('E2E-11-27 every profile route needs a current session: missing, malformed and revoked tokens get 401', t4, async ({ request }) => {
@@ -772,12 +788,12 @@ test.describe('Ticket 11 profile API', () => {
     const before = tableFingerprints(profileWritableTables);
 
     const steps: (() => Promise<unknown>)[] = [
-      async () => expectProfile(await user.put(edit(0, { fullName: 'Regression Check', email: `r1.${hex()}@example.test`,
+      async () => expectProfile(await user.put(edit(user, 0, { fullName: 'Regression Check', email: `r1.${hex()}@example.test`,
         dateOfBirth: '1988-08-08' })), 200),
       async () => expectProfile(await user.stage({ mobile: syntheticMobile() }), 202),
       async () => expect((await user.cancel()).status()).toBe(204),
       async () => expectProfile(await user.stage({ mobile: syntheticMobile() }), 202),
-      async () => expectProfile(await user.put(edit(1, { fullName: null })), 200),
+      async () => expectProfile(await user.put(edit(user, 1, { fullName: null })), 200),
     ];
     for (const step of steps) {
       await step();
@@ -858,7 +874,7 @@ test.describe('Ticket 11 profile API', () => {
       await expectError(await postRegistration(request, { ...syntheticCustomer(), username: value }), 400, 'INVALID_REQUEST');
     }
     for (const value of [username, mobile]) {
-      await expectError(await user.put(edit(0, { email: value })), 400, 'INVALID_REQUEST');
+      await expectError(await user.put(rawEdit(0, { email: value })), 400, 'INVALID_REQUEST');
       await expectError(await postRegistration(request, { ...syntheticCustomer(), email: value }), 400, 'INVALID_REQUEST');
     }
     expect(storedProfile(user.user.username)).toMatchObject({ email: user.user.email, profileVersion: 0, pendingChanges: [] });
