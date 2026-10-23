@@ -6,7 +6,7 @@ Source: [`src/app/not-found.tsx`](../../../src/app/not-found.tsx)
 
 Root unmatched-route view (for example `/products/{id}/x`). It renders the store `SiteHeader` (Logo link home, P14) above the shared translated not-found content in the main landmark, so unmatched URLs keep the store look. It has no category bar, which needs a request-time API read. Storefront resource misses use the store-group file so they retain store chrome.
 
-Known limitation (review M7, accepted under P14): every unmatched URL, including staff paths such as `/staff/typo`, gets this customer header. A signed-in staff user therefore sees their username linking to `/account` instead of the staff header. Staff-scoped not-found pages are a possible follow-up, not Ticket 17 scope.
+Known limitation (accepted under P14): every unmatched URL, including staff paths such as `/staff/typo`, gets this customer header. A signed-in staff user therefore sees their username linking to `/account` instead of the staff header. Staff-scoped not-found pages are a possible follow-up, not Ticket 17 scope.
 
 ## Verification
 

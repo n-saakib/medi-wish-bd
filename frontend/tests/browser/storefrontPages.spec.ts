@@ -260,6 +260,8 @@ test.describe('a listed category of 25 discounted Products', () => {
     await expect(page).toHaveURL(/\/products\//);
     await expect(firstLink, 'a Product marks its category without calling it the page').toHaveAttribute('aria-current', 'true');
     await expect(marked).toHaveCount(1);
+    await expect(view.breadcrumbLinks).toHaveText([storefrontCopy.home, first.name]);
+    await expect(view.breadcrumb.locator('a[aria-current]'), 'a Product breadcrumb marks no link').toHaveCount(0);
 
     await openStorefront(page, url('?page=2'));
     await expect(view.breadcrumbLinks.last(), 'a later page is not the category link it shows').toHaveAttribute('aria-current', 'true');
