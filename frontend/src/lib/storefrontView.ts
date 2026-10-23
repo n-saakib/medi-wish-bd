@@ -46,7 +46,8 @@ export function metaDescription(text: string | null, fallback: string): string {
   const normalized = text?.replace(/\s+/g, ' ').trim() ?? '';
   if (!normalized) return fallback;
   if (normalized.length <= 160) return normalized;
-  const prefix = normalized.slice(0, 159);
+  const lastUnit = normalized.charCodeAt(158);
+  const prefix = normalized.slice(0, lastUnit >= 0xd800 && lastUnit <= 0xdbff ? 158 : 159);
   const boundary = prefix.lastIndexOf(' ');
   return `${(boundary > 0 ? prefix.slice(0, boundary) : prefix).trimEnd()}…`;
 }

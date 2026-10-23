@@ -32,7 +32,8 @@ vi.mock('next/server', () => ({ connection: async () => {} }));
 vi.mock('next-intl/server', () => ({ getTranslations: async () => (key: string) => key }));
 vi.mock('next/link', () => ({ default: ({ href, children, ...props }: React.AnchorHTMLAttributes<HTMLAnchorElement> & { href: string }) =>
   createElement('a', { href, ...props }, children) }));
-vi.mock('next/image', () => ({ default: (props: React.ImgHTMLAttributes<HTMLImageElement>) => createElement('img', props) }));
+vi.mock('next/image', () => ({ default: ({ preload, ...props }: React.ImgHTMLAttributes<HTMLImageElement> & { preload?: boolean }) =>
+  createElement('img', { ...props, 'data-preload': preload ? 'true' : undefined }) }));
 
 beforeEach(() => { navigation.pathname = productPath; });
 afterEach(unmountAll);
@@ -278,6 +279,8 @@ describe('Product details and error recovery', () => {
     expect(thumbnails).toHaveLength(2);
     expect(thumbnails[0].getAttribute('aria-pressed')).toBe('true');
     expect(thumbnails[1].getAttribute('aria-pressed')).toBe('false');
+    expect(requiredElement<HTMLImageElement>(view, '.gallery-main img').dataset.preload).toBe('true');
+    expect(view.querySelector('.gallery-thumbs img[data-preload]')).toBeNull();
     await act(async () => thumbnails[1].click());
     expect(requiredElement<HTMLImageElement>(view, '.gallery-main img').src).toContain('4c5d6e7f-8091-4a2b-9c3d-4e5f6a7b8c02.png');
     expect(thumbnails[1].getAttribute('aria-pressed')).toBe('true');

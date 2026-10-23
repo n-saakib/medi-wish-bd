@@ -68,6 +68,8 @@ describe('storefront metadata', () => {
     const long = `${'alpha '.repeat(30)}tail`;
     expect(metaDescription(long, 'fallback')).toBe(`${'alpha '.repeat(26).trimEnd()}…`);
     expect(metaDescription('x'.repeat(200), 'fallback')).toBe(`${'x'.repeat(159)}…`);
+    expect(metaDescription(`${'x'.repeat(158)}${'💊'.repeat(10)}`, 'fallback')).toBe(`${'x'.repeat(158)}…`);
+    expect(metaDescription(`${'x'.repeat(157)}${'💊'.repeat(10)}`, 'fallback')).toBe(`${'x'.repeat(157)}💊…`);
     expect(metaDescription('', 'fallback')).toBe('fallback');
     expect(metaDescription(null, 'fallback')).toBe('fallback');
     expect(metaDescription('<script>alert(1)</script>', 'fallback')).toBe('<script>alert(1)</script>');

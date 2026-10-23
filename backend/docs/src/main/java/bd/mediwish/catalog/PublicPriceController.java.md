@@ -4,4 +4,4 @@ Anonymous GET /api/products/{id}/price calls only CurrentPrices.forActiveProduct
 
 Verification is recorded in the Ticket 16 evidence; preparation and discovery alone are not acceptance.
 
-Price string and discount-value formatting is shared with Ticket 17 catalog projections through `PublicCatalogViews.price`; this route retains its existing record names, field order and JSON shape.
+Price string and discount-value formatting is shared with Ticket 17 catalog projections through `PublicCatalogViews.price`; the route's `discount` field reuses the shared `PublicDiscount` record, so it keeps its existing field names, field order and JSON shape.

@@ -4,7 +4,7 @@ Source: [`src/storefront/CategoryNav.tsx`](../../../src/storefront/CategoryNav.t
 
 ## Purpose and behavior
 
-Request-time server component mounted below the storefront header. It uses the shared React-cached category loader and returns nothing when the list is empty or unavailable, as required by P10. Available categories are rendered by [`CategoryNavLinks`](CategoryNavLinks.tsx.md).
+Request-time server component mounted below the storefront header. It uses the shared React-cached category loader and returns nothing when the list is empty or unavailable, as required by P10. Available categories are rendered by [`CategoryNavLinks`](CategoryNavLinks.tsx.md). Because the store layout stays mounted across client-side navigation, the list refreshes on the next full page load, not on each in-app link (see the [store layout](<../app/(store)/layout.tsx.md>) limitation).
 
 ## Verification
 

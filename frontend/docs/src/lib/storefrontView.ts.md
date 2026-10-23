@@ -4,7 +4,7 @@ Source: [`src/lib/storefrontView.ts`](../../../src/lib/storefrontView.ts)
 
 ## Purpose and behavior
 
-Pure route and presentation helpers used by storefront server routes. It validates lower-case public UUIDs and one-based page queries, maps visible pages to the zero-based API page, derives price labels with exact minor-unit comparisons, normalizes plain-text metadata descriptions, and creates absolute canonical metadata from the configured site origin. `MEDI_WISH_SITE_URL` must be a bare HTTP(S) origin; the default is local loopback. Invalid origins fail clearly without exposing catalog data. The origin and canonical helpers take any string record as their environment, so tests can pass a plain object instead of Next's full `ProcessEnv`, which requires `NODE_ENV`.
+Pure route and presentation helpers used by storefront server routes. It validates lower-case public UUIDs and one-based page queries, maps visible pages to the zero-based API page, derives price labels with exact minor-unit comparisons, normalizes plain-text metadata descriptions (over 160 UTF-16 units they are cut at the last space within 159 units, or at 159 units without splitting a surrogate pair, and end with an ellipsis), and creates absolute canonical metadata from the configured site origin. `MEDI_WISH_SITE_URL` must be a bare HTTP(S) origin; the default is local loopback. Invalid origins fail clearly without exposing catalog data. The origin and canonical helpers take any string record as their environment, so tests can pass a plain object instead of Next's full `ProcessEnv`, which requires `NODE_ENV`.
 
 ## Verification
 

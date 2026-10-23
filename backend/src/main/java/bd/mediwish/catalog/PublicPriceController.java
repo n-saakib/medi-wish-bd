@@ -19,11 +19,8 @@ class PublicPriceController {
         catch (InvalidCatalogException invalid) { throw new CatalogNotFoundException(); }
         var price = prices.forActiveProduct(productId).orElseThrow(CatalogNotFoundException::new);
         var view = PublicCatalogViews.price(price);
-        var discount = view.discount() == null ? null : new PublicDiscount(view.discount().targetType(),
-                view.discount().kind(), view.discount().value());
-        return new PublicPrice(price.productId(), view.sellingPrice(), view.mrp(), view.price(), view.saving(), discount);
+        return new PublicPrice(price.productId(), view.sellingPrice(), view.mrp(), view.price(), view.saving(), view.discount());
     }
 
     record PublicPrice(UUID productId, String sellingPrice, String mrp, String price, String saving, PublicDiscount discount) {}
-    record PublicDiscount(DiscountTargetType targetType, DiscountKind kind, String value) {}
 }

@@ -14,7 +14,7 @@ export function ProductGallery({ images, name }: { images: PublicImage[]; name: 
   return (
     <section aria-label={t('images')}>
       <div className="gallery-main">
-        <ProductImage image={selected} alt={alt} sizes="(max-width: 860px) 100vw, 50vw" className="gallery-main-image" />
+        <ProductImage image={selected} alt={alt} sizes="(max-width: 860px) 100vw, 50vw" className="gallery-main-image" preload />
       </div>
       {images.length > 1 && (
         <div className="gallery-thumbs">
