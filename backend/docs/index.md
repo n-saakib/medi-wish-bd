@@ -417,4 +417,4 @@ Combined recovery regression coverage:
 - [IntegratedRecoveryIT](src/test/java/bd/mediwish/auth/IntegratedRecoveryIT.java.md): reset, email-change, replacement-session and public-route boundaries.
 - [CombinedRecoveryMigrationIT](src/test/java/bd/mediwish/auth/CombinedRecoveryMigrationIT.java.md): standalone-05 schema upgrade through the missing 018, with retained checksum/data across restart.
 
-[Tickets 05, 09 and 17 integration evidence](integration-05-09-17.md) records frozen inputs, the verified-contact notice seam, preserved migration history and pending final backend/runtime gates; it does not yet establish cumulative acceptance.
+[Tickets 05, 09 and 17 integration evidence](integration-05-09-17.md) records completed backend, live-client, cumulative browser, smoke, demonstrations and 12 subsequent in-app browser checks, verified-contact notices and preserved migration history. Final cleanup and evidence inspection passed; the guarded local promotion manifest records the resulting dev revision.

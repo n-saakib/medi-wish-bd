@@ -374,4 +374,4 @@ Ticket 17 additional review: [rounds 6-8 and verification](ticket-17-e2e.md#addi
 
 Ticket 17 final local verification (2026-10-21): [current acceptance report](ticket-17-e2e.md) records the clean 2026-10-21 cumulative candidate; the 2026-10-22 review changes passed `npm run verify` and the Ticket 17 Chrome/Edge suites, but the cumulative browser suite, integration and probe have not rerun, and parent closure still requires Tickets 15 and 16 to be done.
 
-[Tickets 05, 09 and 17 integration evidence](integration-05-09-17.md) records the combined recovery/storefront candidate, fixture corrections and pending final frontend, browser, demonstration and cleanup gates.
+[Tickets 05, 09 and 17 integration evidence](integration-05-09-17.md) records completed frontend/live checks, 1,376 cumulative browser passes with 6 intentional skips, 20 smoke passes, all three ticket demonstrations and 12 subsequent in-app browser checks. Final cleanup and evidence inspection passed; the guarded local promotion manifest records the resulting dev revision.
