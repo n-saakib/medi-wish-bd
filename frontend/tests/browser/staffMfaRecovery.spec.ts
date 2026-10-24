@@ -121,7 +121,10 @@ test('E2E-09-02 a wrong backup code shows an error and the fifth failure locks t
     await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeEnabled();
     await dialog.getByRole('button', { name: 'Cancel' }).click();
     await expect(backupDialog(page)).toBeHidden();
-    await expect(page.getByRole('button', { name: copy.lostPhone })).toBeFocused();
+    await expect(alertWith(page, copy.tooManyAttempts)).toBeFocused();
+    await expect(page.getByRole('button', { name: copy.lostPhone })).toHaveCount(0);
+    await expect(page.getByLabel(copy.challengeCodeLabel)).toBeDisabled();
+    await expect(page.getByRole('button', { name: 'Verify', exact: true })).toBeDisabled();
   });
 
   await test.step('the lock is shared: a correct authenticator code is refused too, and no backup code was spent',
