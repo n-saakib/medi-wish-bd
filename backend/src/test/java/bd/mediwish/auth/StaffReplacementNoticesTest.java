@@ -202,6 +202,34 @@ class StaffReplacementNoticesTest {
         verify(audit).recordInNewTransaction(SecurityAuditEvent.Type.MFA_REPLACEMENT_NOTICE_FAILED, user.id());
     }
 
+    @Test
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    void interruptionAfterConsumedSuccessKeepsSentAndCancelsTheOtherChannel() throws Exception {
+        user.activateMobile(user.mobile());
+        user.updateProfile(null, "synthetic@example.test", null);
+        user.markEmailVerified(Instant.now());
+        var sent = CompletableFuture.completedFuture(NoticeOutcome.SENT);
+        var unfinished = new CompletableFuture<NoticeOutcome>();
+        var interruptedDuringAudit = new boolean[]{true};
+        doAnswer(call -> { interruptedDuringAudit[0] = Thread.currentThread().isInterrupted(); return null; })
+                .when(audit).recordInNewTransaction(any(), any());
+        // Force success to be consumed before the second wait is interrupted, without a scheduling race.
+        try (var queues = mockConstruction(ExecutorCompletionService.class, (queue, context) -> {
+            doReturn(sent, unfinished).when(queue).submit(any(Callable.class));
+            doReturn(sent).doThrow(new InterruptedException("synthetic interruption"))
+                    .when(queue).poll(anyLong(), any(TimeUnit.class));
+        })) {
+            NoticeOutcome outcome;
+            try { outcome = notices.notifyReplacement(user.id()); }
+            finally { assertThat(Thread.interrupted()).as("interrupt restored and cleared for the next test").isTrue(); }
+            assertThat(unfinished.isCancelled()).isTrue();
+            assertThat(interruptedDuringAudit[0]).isFalse();
+            assertThat(outcome).isEqualTo(NoticeOutcome.SENT);
+            verify(audit).recordInNewTransaction(SecurityAuditEvent.Type.MFA_REPLACEMENT_NOTICE_SENT, user.id());
+            verify(audit, never()).recordInNewTransaction(SecurityAuditEvent.Type.MFA_REPLACEMENT_NOTICE_FAILED, user.id());
+        }
+    }
+
     @Test void interruptedWaitStillAuditsOutsideTheInterruptAndRestoresIt() {
         user.activateMobile(user.mobile());
         when(notifier.send(any())).thenReturn(NoticeOutcome.SENT);

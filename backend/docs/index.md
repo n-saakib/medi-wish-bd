@@ -409,10 +409,12 @@ Ticket 17 additional review: [backend rounds 6-8 and compilation boundary](ticke
 
 Ticket 17 final local verification (2026-10-21): [current acceptance report](ticket-17-e2e.md) records the clean cumulative candidate and completed child tasks; parent closure still requires Tickets 15 and 16 to be done.
 
-Tickets 05 and 09 integrate authenticator replacement notices with the verified-email transport and the verified-mobile notifier after commit. Both eligible channels share one timeout; `SENT` means at least one delivery succeeded. Missing verified contacts, absent configuration and failures retain bounded outcomes and cannot hide new backup codes. See [StaffReplacementNotices](src/main/java/bd/mediwish/auth/StaffReplacementNotices.java.md) and the [message bundle](src/main/resources/messages.properties.md).
+Tickets 05 and 09 integrate authenticator replacement notices with the verified-email transport and the verified-mobile notifier after commit. Both eligible channels share one timeout; `SENT` means at least one delivery succeeded. The coordinator unit regression also checks that interruption after consuming success preserves that outcome and its audit event. Missing verified contacts, absent configuration and failures retain bounded outcomes and cannot hide new backup codes. See [StaffReplacementNotices](src/main/java/bd/mediwish/auth/StaffReplacementNotices.java.md) and the [message bundle](src/main/resources/messages.properties.md).
 
 Combined recovery regression coverage:
 
 - [StaffReplacementNoticesIT](src/test/java/bd/mediwish/auth/StaffReplacementNoticesIT.java.md): verified-contact delivery matrix through HTTP and PostgreSQL.
 - [IntegratedRecoveryIT](src/test/java/bd/mediwish/auth/IntegratedRecoveryIT.java.md): reset, email-change, replacement-session and public-route boundaries.
 - [CombinedRecoveryMigrationIT](src/test/java/bd/mediwish/auth/CombinedRecoveryMigrationIT.java.md): standalone-05 schema upgrade through the missing 018, with retained checksum/data across restart.
+
+[Tickets 05, 09 and 17 integration evidence](integration-05-09-17.md) records frozen inputs, the verified-contact notice seam, preserved migration history and pending final backend/runtime gates; it does not yet establish cumulative acceptance.

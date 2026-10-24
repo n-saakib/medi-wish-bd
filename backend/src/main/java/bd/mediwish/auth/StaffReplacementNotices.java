@@ -67,6 +67,7 @@ class StaffReplacementNotices {
         var completed = new ExecutorCompletionService<NoticeOutcome>(executor);
         var pending = new ArrayList<Future<NoticeOutcome>>(2);
         long deadline = System.nanoTime() + properties.timeout().toNanos();
+        NoticeOutcome combined = NoticeOutcome.NOT_CONFIGURED;
         try {
             if (user.mobileVerified()) pending.add(completed.submit(() -> attempt(() -> notifier.send(
                     new SecurityNotice(user.mobile(), messages.getMessage("notice.STAFF_AUTHENTICATOR_REPLACED",
@@ -79,7 +80,6 @@ class StaffReplacementNotices {
                         EmailKind.STAFF_AUTHENTICATOR_REPLACED));
                 return NoticeOutcome.SENT;
             })));
-            NoticeOutcome combined = NoticeOutcome.NOT_CONFIGURED;
             for (int remaining = pending.size(); remaining > 0; remaining--) {
                 Future<NoticeOutcome> result = completed.poll(Math.max(0, deadline - System.nanoTime()), TimeUnit.NANOSECONDS);
                 if (result == null) return combine(combined, NoticeOutcome.FAILED);
@@ -88,7 +88,7 @@ class StaffReplacementNotices {
             return combined;
         } catch (InterruptedException interrupted) {
             Thread.currentThread().interrupt();
-            throw interrupted;
+            return combine(combined, NoticeOutcome.FAILED);
         } finally {
             pending.forEach(future -> { if (!future.isDone()) future.cancel(true); });
         }
